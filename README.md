@@ -169,6 +169,8 @@ npm run build
 
 GitHub repository: https://github.com/nuraliyevsuhrobiddin-dotcom/jurnal
 
-Set `NEXT_PUBLIC_SITE_URL=https://agmjoural.uz` in hosting environment variables before building. Configure all Supabase keys and a unique `ADMIN_PASSWORD` privately; `.env.example` contains no credentials. Run migrations 001?006 and then seed.sql. Hosted Supabase operations fail explicitly on database/schema errors and never write journal JSON to the local filesystem. Vercel requires Supabase credentials.
+Set `NEXT_PUBLIC_SITE_URL=https://agmjoural.uz` in hosting environment variables before building. Configure all Supabase keys and a unique `ADMIN_PASSWORD` privately; `.env.example` contains no credentials. Run migrations 001?007 and then seed.sql. Hosted Supabase operations fail explicitly on database/schema errors and never write journal JSON to the local filesystem. Vercel requires Supabase credentials.
 
 Connect the purchased domain to the hosting project and apply the DNS records supplied by the host. Verify HTTPS, login, manuscript submission, PDF storage, issue publishing, and certificate downloads on the deployed site. Domain ownership alone does not deploy the application. Email delivery is not configured. Do not run demo seed content over existing production records without reviewing it first.
+
+If production logs report `permission denied for table`, run `supabase/migrations/007_service_role_permissions.sql` in the configured Supabase project SQL Editor as postgres. This grants access only to the server service_role; it does not disable RLS. Migration 003 provisions private manuscript storage. FULL_SETUP.sql combines migrations 001?007 and demo seed data for a new database; use the individual migrations for an existing database.

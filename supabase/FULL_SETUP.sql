@@ -1,4 +1,5 @@
-﻿-- ============================================================================
+-- 001_initial_schema.sql
+-- ============================================================================
 -- AGM JOURNAL - COMPLETE DATABASE SCHEMA & SECURITY POLICIES
 -- ============================================================================
 
@@ -289,6 +290,8 @@ CREATE POLICY "Admin can manage all files"
 -- Audit logs policies
 CREATE POLICY "Audit logs readable and insertable only by admin"
     ON public.audit_logs FOR ALL TO authenticated USING (public.is_admin_or_editor());
+
+-- 002_runtime_operations.sql
 -- Atomic editorial writes. These RPCs are accessible only to the server service role.
 CREATE OR REPLACE FUNCTION public.save_journal_article(article_data jsonb, author_data jsonb)
 RETURNS void LANGUAGE plpgsql SECURITY INVOKER SET search_path = public AS $$
@@ -341,12 +344,18 @@ ALTER TABLE public.contact_messages ENABLE ROW LEVEL SECURITY;
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES ('journal-pdfs', 'journal-pdfs', false, 25165824, ARRAY['application/pdf'])
 ON CONFLICT (id) DO NOTHING;
--- Public submissions are stored by the server service role and reviewed through admin APIs.
--- No public storage read/list policy is granted for unpublished manuscripts.
+
+-- 003_manuscript_submissions.sql
+-- Private manuscript storage, accessed only through the server's admin APIs.
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES ('journal-manuscripts', 'journal-manuscripts', false, 20971520,
   ARRAY['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/json'])
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+  public = EXCLUDED.public,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+-- 004_editorial_board_management.sql
 -- Keep public board lookups ordered and make administrative listing predictable.
 CREATE INDEX IF NOT EXISTS idx_editorial_board_active_order
   ON public.editorial_board (is_active, order_index, full_name);
@@ -363,6 +372,8 @@ DROP TRIGGER IF EXISTS editorial_board_updated_at ON public.editorial_board;
 CREATE TRIGGER editorial_board_updated_at
   BEFORE UPDATE ON public.editorial_board
   FOR EACH ROW EXECUTE FUNCTION public.set_editorial_board_updated_at();
+
+-- 005_issue_updates.sql
 -- Allow the admin issue editor to update existing rows through the same RPC
 -- used for inserts while keeping the current issue unique.
 CREATE OR REPLACE FUNCTION public.save_journal_issue(issue_data jsonb)
@@ -400,6 +411,8 @@ $$;
 
 REVOKE ALL ON FUNCTION public.save_journal_issue(jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.save_journal_issue(jsonb) TO service_role;
+
+-- 006_issue_cover_storage.sql
 -- Publicly readable covers, uploaded only by authenticated admin API routes.
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
@@ -414,6 +427,30 @@ ON CONFLICT (id) DO UPDATE SET
   public = EXCLUDED.public,
   file_size_limit = EXCLUDED.file_size_limit,
   allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+-- 007_service_role_permissions.sql
+-- RLS bypass does not replace PostgreSQL table privileges.
+-- Run with the postgres owner in Supabase SQL Editor for the configured project.
+-- These grants apply only to the server service role; public access is unchanged.
+BEGIN;
+GRANT USAGE ON SCHEMA public TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
+  public.profiles,
+  public.journal_settings,
+  public.issues,
+  public.articles,
+  public.article_authors,
+  public.article_files,
+  public.editorial_board,
+  public.certificates,
+  public.audit_logs,
+  public.contact_messages
+TO service_role;
+GRANT EXECUTE ON FUNCTION public.save_journal_article(jsonb, jsonb) TO service_role;
+GRANT EXECUTE ON FUNCTION public.save_journal_issue(jsonb) TO service_role;
+COMMIT;
+
+-- seed.sql
 -- ============================================================================
 -- AGM JOURNAL - SEED DATA FOR DEMONSTRATION & TESTING
 -- ============================================================================
@@ -480,10 +517,10 @@ VALUES (
     1, 1, 2026,
     '1-Jild, 1-Son (Yanvar-Fevral 2026)',
     'Volume 1, Issue 1 (January-February 2026)',
-    'РўРѕРј 1, Р’С‹РїСѓСЃРє 1 (РЇРЅРІР°СЂСЊ-Р¤РµРІСЂР°Р»СЊ 2026)',
+    'Том 1, Выпуск 1 (Январь-Февраль 2026)',
     'Sun''iy intellekt, axborot texnologiyalari va raqamli iqtisodiyotning dolzarb masalalari bo''yicha ilmiy maqolalar to''plami.',
     'A collection of scientific research papers on artificial intelligence, IT, and digital economics.',
-    'РЎР±РѕСЂРЅРёРє РЅР°СѓС‡РЅС‹С… СЃС‚Р°С‚РµР№ РїРѕ РёСЃРєСѓСЃСЃС‚РІРµРЅРЅРѕРјСѓ РёРЅС‚РµР»Р»РµРєС‚Сѓ, IT Рё С†РёС„СЂРѕРІРѕР№ СЌРєРѕРЅРѕРјРёРєРµ.',
+    'Сборник научных статей по искусственному интеллекту, IT и цифровой экономике.',
     '2026-02-15',
     true,
     '/images/issue-cover-default.svg'
@@ -508,13 +545,13 @@ VALUES
     'uz',
     'Sun''iy intellekt va mashinali o''rganish algoritmlari yordamida makroiqtisodiy jarayonlarni modellashtirish hamda prognozlash usullari',
     'Methods of Modeling and Forecasting Macroeconomic Processes Using Artificial Intelligence and Machine Learning Algorithms',
-    'РњРµС‚РѕРґС‹ РјРѕРґРµР»РёСЂРѕРІР°РЅРёСЏ Рё РїСЂРѕРіРЅРѕР·РёСЂРѕРІР°РЅРёСЏ РјР°РєСЂРѕСЌРєРѕРЅРѕРјРёС‡РµСЃРєРёС… РїСЂРѕС†РµСЃСЃРѕРІ СЃ РёСЃРїРѕР»СЊР·РѕРІР°РЅРёРµРј РёСЃРєСѓСЃСЃС‚РІРµРЅРЅРѕРіРѕ РёРЅС‚РµР»Р»РµРєС‚Р° Рё Р°Р»РіРѕСЂРёС‚РјРѕРІ РјР°С€РёРЅРЅРѕРіРѕ РѕР±СѓС‡РµРЅРёСЏ',
+    'Методы моделирования и прогнозирования макроэкономических процессов с использованием искусственного интеллекта и алгоритмов машинного обучения',
     'Ushbu maqolada makroiqtisodiy ko''rsatkichlarni prognozlashda zamonaviy sun''iy intellekt va chuqur o''rganish (LSTM, Transformer) arxitekturalarining qo''llanilishi tahlil qilingan. An''anaviy ekonometrik modellar (ARIMA, VAR) bilan solishtirganda, neyron tarmoqlar o''zgaruvchan bozor sharoitlarida 18.4% yuqoriroq aniqlik ko''rsatdi. Olingan natijalar O''zbekiston Respublikasi moliya sektorida qarorlar qabul qilish samaradorligini oshirish imkonini beradi.',
     'This research investigates the application of modern artificial intelligence and deep learning architectures (LSTM, Transformer) in forecasting macroeconomic indicators. Compared to traditional econometric models (ARIMA, VAR), neural network architectures achieved an 18.4% improvement in predictive accuracy under volatile market conditions. The empirical findings provide strategic insights for enhancing decision-making efficiency in the financial sector.',
-    'Р’ РґР°РЅРЅРѕР№ СЃС‚Р°С‚СЊРµ РёСЃСЃР»РµРґСѓРµС‚СЃСЏ РїСЂРёРјРµРЅРµРЅРёРµ СЃРѕРІСЂРµРјРµРЅРЅС‹С… Р°СЂС…РёС‚РµРєС‚СѓСЂ РёСЃРєСѓСЃСЃС‚РІРµРЅРЅРѕРіРѕ РёРЅС‚РµР»Р»РµРєС‚Р° Рё РіР»СѓР±РѕРєРѕРіРѕ РѕР±СѓС‡РµРЅРёСЏ (LSTM, Transformer) РІ РїСЂРѕРіРЅРѕР·РёСЂРѕРІР°РЅРёРё РјР°РєСЂРѕСЌРєРѕРЅРѕРјРёС‡РµСЃРєРёС… РїРѕРєР°Р·Р°С‚РµР»РµР№. РџРѕ СЃСЂР°РІРЅРµРЅРёСЋ СЃ С‚СЂР°РґРёС†РёРѕРЅРЅС‹РјРё СЌРєРѕРЅРѕРјРµС‚СЂРёС‡РµСЃРєРёРјРё РјРѕРґРµР»СЏРјРё (ARIMA, VAR), РЅРµР№СЂРѕСЃРµС‚РµРІС‹Рµ РјРѕРґРµР»Рё РїСЂРѕРґРµРјРѕРЅСЃС‚СЂРёСЂРѕРІР°Р»Рё РїРѕРІС‹С€РµРЅРёРµ С‚РѕС‡РЅРѕСЃС‚Рё РїСЂРѕРіРЅРѕР·Р° РЅР° 18.4% РІ СѓСЃР»РѕРІРёСЏС… РІРѕР»Р°С‚РёР»СЊРЅРѕСЃС‚Рё СЂС‹РЅРєР°.',
+    'В данной статье исследуется применение современных архитектур искусственного интеллекта и глубокого обучения (LSTM, Transformer) в прогнозировании макроэкономических показателей. По сравнению с традиционными эконометрическими моделями (ARIMA, VAR), нейросетевые модели продемонстрировали повышение точности прогноза на 18.4% в условиях волатильности рынка.',
     ARRAY['sun''iy intellekt', 'makroiqtisodiyot', 'mashinali o''rganish', 'LSTM', 'ekonometriya', 'bashoratlash'],
     ARRAY['artificial intelligence', 'macroeconomics', 'machine learning', 'LSTM', 'econometrics', 'forecasting'],
-    ARRAY['РёСЃРєСѓСЃСЃС‚РІРµРЅРЅС‹Р№ РёРЅС‚РµР»Р»РµРєС‚', 'РјР°РєСЂРѕСЌРєРѕРЅРѕРјРёРєР°', 'РјР°С€РёРЅРЅРѕРµ РѕР±СѓС‡РµРЅРёРµ', 'LSTM', 'СЌРєРѕРЅРѕРјРµС‚СЂРёРєР°', 'РїСЂРѕРіРЅРѕР·РёСЂРѕРІР°РЅРёРµ'],
+    ARRAY['искусственный интеллект', 'макроэкономика', 'машинное обучение', 'LSTM', 'эконометрика', 'прогнозирование'],
     'original_research',
     'published',
     '2026-02-15',
@@ -522,7 +559,7 @@ VALUES
     '10.5281/zenodo.agm.2026.0101',
     'CC BY 4.0',
     ARRAY[
-        'Vaswani, A., et al. (2017). Attention is all you need. Advances in Neural Information Processing Systems, 30, 5998вЂ“6008.',
+        'Vaswani, A., et al. (2017). Attention is all you need. Advances in Neural Information Processing Systems, 30, 5998–6008.',
         'Box, G. E., Jenkins, G. M., & Reinsel, G. C. (2015). Time series analysis: forecasting and control. John Wiley & Sons.',
         'Karimov, A. B. (2025). O''zbekistonda raqamli iqtisodiyotni rivojlantirish istiqbollari. Iqtisodiyot va Innovatsiyalar, 4(2), 45-56.'
     ],
@@ -535,13 +572,13 @@ VALUES
     'uz',
     'Markaziy Osiyo sharoitida quyosh va shamol energiyasini yagona energetika tizimiga integratsiyalashning texnik-iqtisodiy jihatlari',
     'Techno-Economic Aspects of Integrating Solar and Wind Energy into the Unified Power Grid in Central Asian Conditions',
-    'РўРµС…РЅРёРєРѕ-СЌРєРѕРЅРѕРјРёС‡РµСЃРєРёРµ Р°СЃРїРµРєС‚С‹ РёРЅС‚РµРіСЂР°С†РёРё СЃРѕР»РЅРµС‡РЅРѕР№ Рё РІРµС‚СЂРѕРІРѕР№ СЌРЅРµСЂРіРёРё РІ РµРґРёРЅСѓСЋ СЌРЅРµСЂРіРѕСЃРёСЃС‚РµРјСѓ РІ СѓСЃР»РѕРІРёСЏС… Р¦РµРЅС‚СЂР°Р»СЊРЅРѕР№ РђР·РёРё',
+    'Технико-экономические аспекты интеграции солнечной и ветровой энергии в единую энергосистему в условиях Центральной Азии',
     'Maqolada qayta tiklanuvchi energiya manbalarining O''zbekiston va Markaziy Osiyo energetika tarmog''idagi o''rni, chastota va quvvat barqarorligini ta''minlash usullari yoritilgan. Simulyatsiya natijalari akkumulyatorli energiya saqlash tizimlari (BESS) orqali elektr tarmog''idagi yuklama tebranishlarini 32% ga kamaytirish mumkinligini ko''rsatdi.',
     'The paper examines the integration of renewable energy sources into the energy grid of Uzbekistan and Central Asia, highlighting techniques for frequency regulation and power stability. Simulation experiments demonstrate that battery energy storage systems (BESS) can reduce grid load fluctuations by up to 32%.',
-    'Р’ СЃС‚Р°С‚СЊРµ СЂР°СЃСЃРјР°С‚СЂРёРІР°СЋС‚СЃСЏ РІРѕРїСЂРѕСЃС‹ РёРЅС‚РµРіСЂР°С†РёРё РІРѕР·РѕР±РЅРѕРІР»СЏРµРјС‹С… РёСЃС‚РѕС‡РЅРёРєРѕРІ СЌРЅРµСЂРіРёРё РІ СЌРЅРµСЂРіРѕСЃРёСЃС‚РµРјСѓ РЈР·Р±РµРєРёСЃС‚Р°РЅР° Рё Р¦РµРЅС‚СЂР°Р»СЊРЅРѕР№ РђР·РёРё СЃ Р°РєС†РµРЅС‚РѕРј РЅР° РјРµС‚РѕРґС‹ СЂРµРіСѓР»РёСЂРѕРІР°РЅРёСЏ С‡Р°СЃС‚РѕС‚С‹ Рё СЃС‚Р°Р±РёР»СЊРЅРѕСЃС‚Рё РјРѕС‰РЅРѕСЃС‚Рё. Р РµР·СѓР»СЊС‚Р°С‚С‹ РјРѕРґРµР»РёСЂРѕРІР°РЅРёСЏ РїРѕРєР°Р·Р°Р»Рё РІРѕР·РјРѕР¶РЅРѕСЃС‚СЊ СЃРЅРёР¶РµРЅРёСЏ РєРѕР»РµР±Р°РЅРёР№ РЅР°РіСЂСѓР·РєРё РЅР° 32% СЃ РїРѕРјРѕС‰СЊСЋ СЃРёСЃС‚РµРј РЅР°РєРѕРїР»РµРЅРёСЏ СЌРЅРµСЂРіРёРё.',
+    'В статье рассматриваются вопросы интеграции возобновляемых источников энергии в энергосистему Узбекистана и Центральной Азии с акцентом на методы регулирования частоты и стабильности мощности. Результаты моделирования показали возможность снижения колебаний нагрузки на 32% с помощью систем накопления энергии.',
     ARRAY['qayta tiklanuvchi energiya', 'quyosh panellari', 'shamol generatorlari', 'energotizim', 'BESS', 'barqarorlik'],
     ARRAY['renewable energy', 'solar PV', 'wind power', 'power grid', 'BESS', 'grid stability'],
-    ARRAY['РІРѕР·РѕР±РЅРѕРІР»СЏРµРјР°СЏ СЌРЅРµСЂРіРёСЏ', 'СЃРѕР»РЅРµС‡РЅР°СЏ СЌРЅРµСЂРіРµС‚РёРєР°', 'РІРµС‚СЂРѕРіРµРЅРµСЂР°С‚РѕСЂС‹', 'СЌРЅРµСЂРіРѕСЃРёСЃС‚РµРјР°', 'Р°РєРєСѓРјСѓР»СЏС‚РѕСЂС‹'],
+    ARRAY['возобновляемая энергия', 'солнечная энергетика', 'ветрогенераторы', 'энергосистема', 'аккумуляторы'],
     'original_research',
     'published',
     '2026-02-15',
