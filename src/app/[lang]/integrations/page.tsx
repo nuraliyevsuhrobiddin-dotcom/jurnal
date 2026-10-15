@@ -94,7 +94,7 @@ export default async function IntegrationsPage({ params }: { params: Promise<{ l
       <p className={styles.note}>{text.note}</p>
       <div className={styles.providers}>{providers.map((provider, index) => <section key={provider.name} className={styles.provider} aria-labelledby={`provider-${index}`}>
         <div className={styles.identity}><span className={styles.number}>0{index + 1}</span>
-          <h2 id={`provider-${index}`} className={styles.brand}>{provider.logo ? <><Image unoptimized src={provider.logo} alt={provider.name} width={provider.width} height={provider.height} />{provider.name === 'ORCID' && <span>ORCID</span>}</> : provider.name}</h2>
+          <h2 id={`provider-${index}`} className={styles.brand}>{provider.logo ? <><Image unoptimized src={provider.logo} alt={provider.name} width={provider.width} height={provider.height} style={{ width: provider.width, height: provider.height, flex: 'none' }} />{provider.name === 'ORCID' && <span>ORCID</span>}</> : provider.name}</h2>
           <span className={styles.status}>{text.statuses[index]}</span>
         </div>
         <div className={styles.detail}><h3>{text.scope}</h3><p>{text.descriptions[index]}</p><h3>{text.next}</h3><p>{text.steps[index]}</p>
