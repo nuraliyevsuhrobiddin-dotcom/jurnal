@@ -1,6 +1,7 @@
 import { publicPageMetadata } from '@/lib/page-metadata';
 import React from 'react';
 import { IssueCoverImage } from '@/components/issues/IssueCoverImage';
+import { IssueDownloadLink } from '@/components/issues/IssueDownloadLink';
 import Link from 'next/link';
 import { Language } from '@/types/journal';
 import { getDictionary } from '@/lib/i18n/dictionaries';
@@ -76,6 +77,7 @@ export default async function CurrentIssuePage({
         </div>
       </div>
 
+      {articles.length > 0 && <IssueDownloadLink id={issue.id} lang={currentLang} />}
       {/* Table of Contents Section */}
       <div className="space-y-5">
         <div className="border-b border-slate-200 pb-3 flex items-center justify-between">

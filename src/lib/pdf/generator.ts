@@ -251,13 +251,13 @@ export async function assemblePublicationPdf(article: Article, settings: Journal
 }
 
 // Paginated issue contents; page ranges are only printed when assigned.
-export async function generateIssueTocPdf(issue: Issue, articles: Article[]): Promise<Uint8Array> {
+export async function generateIssueTocPdf(issue: Issue, articles: Article[], journalName = 'AGM Journal'): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const { fontBold, fontRegular } = await embedJournalFonts(doc);
   const W = 595.28, H = 841.89, M = 44;
   let page = doc.addPage([W, H]), y = H - 144;
   function header() {
-    page.drawText('AGM JOURNAL', { x: M, y: H - 51, size: 23, font: fontBold, color: navy });
+    page.drawText(journalName.toUpperCase(), { x: M, y: H - 51, size: fitFont(journalName.toUpperCase(), fontBold, 23, W - M * 2), font: fontBold, color: navy });
     page.drawText('TABLE OF CONTENTS', { x: M, y: H - 76, size: 10, font: fontBold, color: teal });
     page.drawLine({ start: { x: M, y: H - 89 }, end: { x: W - M, y: H - 89 }, thickness: 1.4, color: teal });
     page.drawText(`Volume ${issue.volume}  \u00b7  Issue ${issue.issue_number}  \u00b7  ${issue.year}`, { x: M, y: H - 111, size: 10, font: fontRegular, color: muted });
@@ -282,7 +282,8 @@ export async function generateIssueTocPdf(issue: Issue, articles: Article[]): Pr
   });
   doc.getPages().forEach((sheet, index) => {
     sheet.drawLine({ start: { x: M, y: 53 }, end: { x: W - M, y: 53 }, thickness: 0.5, color: muted });
-    sheet.drawText(`AGM Journal  |  Contents  |  ${index + 1} / ${doc.getPageCount()}`, { x: M, y: 36, size: 8, font: fontRegular, color: muted });
+    const footer = `${journalName}  |  Contents  |  ${index + 1} / ${doc.getPageCount()}`;
+    sheet.drawText(footer, { x: M, y: 36, size: fitFont(footer, fontRegular, 8, W - M * 2), font: fontRegular, color: muted });
   });
   doc.setTitle(`Contents \u2014 Volume ${issue.volume}, Issue ${issue.issue_number} (${issue.year})`);
   return doc.save();

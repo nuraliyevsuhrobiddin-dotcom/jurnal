@@ -2,6 +2,7 @@ import { publicPageMetadata } from '@/lib/page-metadata';
 import React from 'react';
 import Link from 'next/link';
 import { IssueCoverImage } from '@/components/issues/IssueCoverImage';
+import { IssueDownloadLink } from '@/components/issues/IssueDownloadLink';
 import { Language } from '@/types/journal';
 import { getDictionary } from '@/lib/i18n/dictionaries';
 import { getAllIssues, getPublishedArticles } from '@/lib/db';
@@ -103,7 +104,8 @@ export default async function ArchivePage({
                       </div>
                     </div>
 
-                    <div className="pt-4 mt-4 border-t border-slate-100">
+                    <div className="pt-4 mt-4 border-t border-slate-100 space-y-3">
+                      {articleCount > 0 && <IssueDownloadLink id={iss.id} lang={currentLang} />}
                       <Link
                         href={`/${currentLang}/articles?issue=${iss.id}`}
                         className="inline-flex items-center gap-1.5 text-xs font-semibold text-navy-900 hover:text-teal-700 transition-colors"

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import type { Issue } from '@/types/journal';
 import { Pencil, PlusCircle, X, Trash2 } from 'lucide-react';
 import { IssueCoverImage } from '@/components/issues/IssueCoverImage';
+import { IssueDownloadLink } from '@/components/issues/IssueDownloadLink';
 
 type IssueForm = {
   volume: string; issue_number: string; year: string;
@@ -152,6 +153,7 @@ export default function AdminIssuesPage() {
             <td className="px-4 py-3">{issue.is_current ? <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-800">Joriy son</span> : <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] text-slate-600">Arxiv</span>}</td>
             <td className="px-4 py-3">
               <div className="flex items-center gap-2">
+                <IssueDownloadLink id={issue.id} lang="uz" />
                 <button type="button" onClick={() => editIssue(issue)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50"><Pencil size={14}/>Tahrirlash</button>
                 <button type="button" disabled={saving} onClick={() => deleteIssueHandler(issue)} className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"><Trash2 size={14}/>O‘chirish</button>
               </div>
@@ -164,6 +166,7 @@ export default function AdminIssuesPage() {
       <section role="dialog" aria-modal="true" aria-labelledby="issue-dialog-title" className="my-auto max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl sm:p-7">
         <div className="mb-5 flex items-start justify-between gap-4"><div><h2 id="issue-dialog-title" className="text-xl font-bold text-navy-900">{editing ? 'Jurnal sonini tahrirlash' : 'Yangi jurnal soni'}</h2><p className="mt-1 text-sm text-slate-600">Muqova faylini tanlang yoki mavjud rasm manzilini kiriting.</p></div><button type="button" aria-label="Yopish" disabled={saving} onClick={() => setIsOpen(false)} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"><X size={18}/></button></div>
         <form onSubmit={saveIssue} className="space-y-4">
+          <p className="text-xs leading-relaxed text-slate-600">To‘plam PDF’i muqova, mundarija va nashr qilingan maqolalardan avtomatik tuziladi. Muqova yuklanmasa, jurnal nomi va son ma’lumotlari bilan tayyorlanadi. Tashqi rasm havolasi o‘rniga JPG, PNG yoki WebP faylini yuklang — shu muqova PDF’da ham ishlatiladi.</p>
           <div className="grid grid-cols-3 gap-3"><label className={labelClass}>Jild *<input className={fieldClass} type="number" required min="1" value={form.volume} onChange={event => setForm({ ...form, volume: event.target.value })}/></label><label className={labelClass}>Son *<input className={fieldClass} type="number" required min="1" value={form.issue_number} onChange={event => setForm({ ...form, issue_number: event.target.value })}/></label><label className={labelClass}>Yil *<input className={fieldClass} type="number" required min="2000" value={form.year} onChange={event => setForm({ ...form, year: event.target.value })}/></label></div>
           <div className="grid gap-3 sm:grid-cols-3"><label className={labelClass}>Sarlavha (o‘zbekcha)<input className={fieldClass} value={form.title_uz} onChange={event => setForm({ ...form, title_uz: event.target.value })} placeholder="1-jild, 1-son"/></label><label className={labelClass}>Title (English)<input className={fieldClass} value={form.title_en} onChange={event => setForm({ ...form, title_en: event.target.value })}/></label><label className={labelClass}>Заголовок (русский)<input className={fieldClass} value={form.title_ru} onChange={event => setForm({ ...form, title_ru: event.target.value })}/></label></div>
           <div className="grid gap-3 sm:grid-cols-3"><label className={labelClass}>Tavsif (o‘zbekcha)<textarea rows={3} className={fieldClass} value={form.description_uz} onChange={event => setForm({ ...form, description_uz: event.target.value })}/></label><label className={labelClass}>Description (English)<textarea rows={3} className={fieldClass} value={form.description_en} onChange={event => setForm({ ...form, description_en: event.target.value })}/></label><label className={labelClass}>Описание (русский)<textarea rows={3} className={fieldClass} value={form.description_ru} onChange={event => setForm({ ...form, description_ru: event.target.value })}/></label></div>
