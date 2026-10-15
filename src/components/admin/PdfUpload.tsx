@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import type { Article } from '@/types/journal';
+import { MAX_UPLOAD_BYTES } from '@/lib/upload-limits';
 
 export function PdfUpload() {
   const [articles, setArticles] = useState<Article[]>([]);
@@ -16,6 +17,8 @@ export function PdfUpload() {
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
+    const file = data.get('file');
+    if (!(file instanceof File) || file.size === 0 || file.size > MAX_UPLOAD_BYTES) { setStatus('4 MB gacha PDF faylini tanlang.'); return; }
     const id = String(data.get('article_id'));
     data.delete('article_id');
     setBusy(true); setStatus(''); setPreview('');
@@ -31,7 +34,7 @@ export function PdfUpload() {
   return <form onSubmit={submit} className="space-y-5">
     <div><label htmlFor="pdf-article" className="block font-semibold text-sm mb-2">Maqolani tanlang</label>
       <select id="pdf-article" name="article_id" required defaultValue="" className="w-full rounded-lg border border-slate-300 p-3"><option value="" disabled>Maqola…</option>{articles.map(article => <option key={article.id} value={article.id}>{article.title_uz}</option>)}</select></div>
-    <div><label htmlFor="pdf-file" className="block font-semibold text-sm mb-2">Maqolaning to‘liq PDF fayli (20 MB gacha)</label><input id="pdf-file" name="file" type="file" accept="application/pdf,.pdf" required className="w-full text-sm" /></div>
+    <div><label htmlFor="pdf-file" className="block font-semibold text-sm mb-2">Maqolaning to‘liq PDF fayli (4 MB gacha)</label><input id="pdf-file" name="file" type="file" accept="application/pdf,.pdf" required className="w-full text-sm" /></div>
     <p className="text-sm text-slate-600">Jurnal titul sahifasi, sahifa raqamlari va nashr rekvizitlari qo‘shiladi. Yuklangan fayldagi matn, formulalar va jadvallar saqlanadi. Oldin saqlangan PDF’ni yangi maketga o‘tkazish uchun asl faylini qayta yuklang.</p>
     <button disabled={busy || !articles.length} className="px-5 py-3 bg-navy-900 text-white rounded-lg font-semibold disabled:opacity-50">{busy ? 'Tayyorlanmoqda…' : 'PDF tayyorlash va saqlash'}</button>
     <p role="status" className="text-sm text-slate-700">{status}</p>

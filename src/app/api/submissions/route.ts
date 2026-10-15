@@ -1,3 +1,4 @@
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_BODY_BYTES } from '@/lib/upload-limits';
 import { after, NextRequest, NextResponse } from 'next/server';
 import { deliverNotification, queueNotification } from '@/lib/notifications';
 import { boundedBody, BodyLimitError } from '@/lib/bounded-body';
@@ -15,14 +16,14 @@ export async function POST(request: NextRequest) {
   const limited = await protectRequest(request, 'submission-upload', 10);
   if (limited) return limited;
   const size = Number(request.headers.get('content-length') || 0);
-  if (size > 22 * 1024 * 1024) return NextResponse.json({ error: 'File exceeds 20 MB limit' }, { status: 413 });
+  if (size > MAX_UPLOAD_BODY_BYTES) return NextResponse.json({ error: 'File exceeds 4 MB limit' }, { status: 413 });
   try {
-    const bytesBody = await boundedBody(request, 22 * 1024 * 1024);
+    const bytesBody = await boundedBody(request, MAX_UPLOAD_BODY_BYTES);
     const form = await new Request(request.url, { method: 'POST', headers: { 'Content-Type': request.headers.get('content-type') || '' }, body: Buffer.from(bytesBody) }).formData();
     const result = manuscriptSubmissionSchema.safeParse(Object.fromEntries(form.entries()));
     if (!result.success) return NextResponse.json({ error: 'Please complete the required metadata and declarations.', details: result.error.flatten() }, { status: 400 });
     const file = form.get('file');
-    if (!(file instanceof File) || file.size === 0 || file.size > 20 * 1024 * 1024) return NextResponse.json({ error: 'Upload a PDF or DOCX manuscript up to 20 MB.' }, { status: 400 });
+    if (!(file instanceof File) || file.size === 0 || file.size > MAX_UPLOAD_BYTES) return NextResponse.json({ error: 'Upload a PDF or DOCX manuscript up to 4 MB.' }, { status: 400 });
     const extension = file.name.split('.').pop()?.toLowerCase();
     if (extension !== 'pdf' && extension !== 'docx') return NextResponse.json({ error: 'Only PDF and DOCX files are accepted.' }, { status: 400 });
     const bytes = new Uint8Array(await file.arrayBuffer());
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
       throw cause;
     }
   } catch (cause) {
-    if (cause instanceof BodyLimitError) return NextResponse.json({ error: 'File exceeds 20 MB limit' }, { status: 413 });
+    if (cause instanceof BodyLimitError) return NextResponse.json({ error: 'File exceeds 4 MB limit' }, { status: 413 });
     console.error('Manuscript submission failed:', cause);
     return NextResponse.json({ error: 'The submission could not be saved. Please try again or contact the editorial office.' }, { status: 500 });
   }

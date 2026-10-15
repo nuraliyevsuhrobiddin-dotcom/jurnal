@@ -1,3 +1,4 @@
+import { MAX_UPLOAD_BYTES } from '@/lib/upload-limits';
 import { adminAccess } from '@/lib/admin-access';
 import { NextRequest, NextResponse } from 'next/server';
 import { parseDocxFile } from '@/lib/pdf/docx-parser';
@@ -20,9 +21,9 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    if (file.size > 20 * 1024 * 1024) {
+    if (file.size > MAX_UPLOAD_BYTES) {
       return NextResponse.json({
-        error: 'Fayl hajmi 20 MB dan oshmasligi kerak'
+        error: 'Fayl hajmi 4 MB dan oshmasligi kerak'
       }, { status: 400 });
     }
 

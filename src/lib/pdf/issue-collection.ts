@@ -6,6 +6,8 @@ import type { Article, Issue, JournalSettings } from '@/types/journal';
 import { embedJournalFonts, generateIssueTocPdf, wrapPublicationText } from './generator';
 import { readArticlePdf } from './storage';
 import { createServerClient } from '@/lib/supabase/server';
+import { orderIssueArticles } from '@/lib/issues/article-order';
+export { orderIssueArticles } from '@/lib/issues/article-order';
 
 const MAX_BYTES = 100 * 1024 * 1024;
 export class IssueCollectionError extends Error {
@@ -13,10 +15,6 @@ export class IssueCollectionError extends Error {
 }
 
 /** Stable reading order, with unassigned pages after numbered articles. */
-export function orderIssueArticles(articles: Article[]) {
-  return [...articles].sort((a, b) => (a.page_first ?? Infinity) - (b.page_first ?? Infinity)
-    || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
-}
 
 // Covers are read from our public directory or owned storage only. Never fetch arbitrary URLs.
 async function coverBytes(source?: string): Promise<Uint8Array | null> {

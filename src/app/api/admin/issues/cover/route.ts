@@ -5,7 +5,7 @@ import { createServerClient } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const MAX_FILE_SIZE = 4 * 1024 * 1024;
 const imageTypes = {
   'image/jpeg': { extension: 'jpg', matches: (bytes: Uint8Array) => bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff },
   'image/png': { extension: 'png', matches: (bytes: Uint8Array) => bytes.subarray(0, 8).join(',') === '137,80,78,71,13,10,26,10' },
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
 
   const contentLength = Number(request.headers.get('content-length') || 0);
   if (contentLength > MAX_FILE_SIZE + 64 * 1024) {
-    return NextResponse.json({ error: 'Muqova fayli 5 MB dan oshmasligi kerak.' }, { status: 413 });
+    return NextResponse.json({ error: 'Muqova fayli 4 MB dan oshmasligi kerak.' }, { status: 413 });
   }
 
   let formData: FormData;
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Muqova rasmi tanlanmagan.' }, { status: 400 });
   }
   if (file.size === 0 || file.size > MAX_FILE_SIZE) {
-    return NextResponse.json({ error: 'Rasm bo‘sh yoki 5 MB dan katta.' }, { status: 400 });
+    return NextResponse.json({ error: 'Rasm bo‘sh yoki 4 MB dan katta.' }, { status: 400 });
   }
 
   const format = imageTypes[file.type as keyof typeof imageTypes];

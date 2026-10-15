@@ -1,5 +1,5 @@
 import { MetadataRoute } from 'next';
-import { getPublishedArticles } from '@/lib/db';
+import { getPublishedArticles, getAllIssues } from '@/lib/db';
 import { connection } from 'next/server';
 import { policyIds } from '@/types/policies';
 import { SITE_URL } from '@/lib/site-url';
@@ -8,7 +8,7 @@ const BASE_URL = SITE_URL;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   await connection();
-  const articles = await getPublishedArticles();
+  const [articles, issues] = await Promise.all([getPublishedArticles(), getAllIssues()]);
   const locales = ['uz', 'en', 'ru'] as const;
 
   const staticRoutes = [
@@ -46,6 +46,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   }
 
+  for (const issue of issues) {
+    for (const lang of locales) sitemapEntries.push({
+      url: `${BASE_URL}/${lang}/issue/${issue.id}`, lastModified: issue.updated_at,
+      alternates: { languages: Object.fromEntries([...locales.map(code => [code, `${BASE_URL}/${code}/issue/${issue.id}`]), ['x-default', `${BASE_URL}/en/issue/${issue.id}`]]) },
+      changeFrequency: 'weekly', priority: 0.8,
+    });
+  }
   // 2. Published articles across all 3 locales (NEVER drafts!)
   for (const article of articles) {
     for (const lang of locales) {

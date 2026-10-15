@@ -3,6 +3,7 @@ import { getArticleById } from '@/lib/db';
 import { recordArticleMetric } from '@/lib/article-metrics';
 import { readArticlePdf } from '@/lib/pdf/storage';
 import { siteUrl } from '@/lib/site-url';
+import { streamPdf } from '@/lib/pdf/stream';
 
 export async function GET(
   request: NextRequest,
@@ -20,7 +21,7 @@ export async function GET(
     if (!pdfBytes) return new NextResponse('Full article PDF is not available. Please contact the editorial office.', { status: 404 });
     await recordArticleMetric(request, id, 'downloads_count');
 
-    return new NextResponse(Buffer.from(pdfBytes), {
+    return new NextResponse(streamPdf(pdfBytes), {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',

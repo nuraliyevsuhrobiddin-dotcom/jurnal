@@ -107,7 +107,7 @@ export default async function ArchivePage({
                     <div className="pt-4 mt-4 border-t border-slate-100 space-y-3">
                       {articleCount > 0 && <IssueDownloadLink id={iss.id} lang={currentLang} />}
                       <Link
-                        href={`/${currentLang}/articles?issue=${iss.id}`}
+                        href={`/${currentLang}/issue/${iss.id}`}
                         className="inline-flex items-center gap-1.5 text-xs font-semibold text-navy-900 hover:text-teal-700 transition-colors"
                       >
                         <span>{currentLang === 'en' ? 'Browse articles' : currentLang === 'ru' ? 'Смотреть статьи' : 'Maqolalarni ko‘rish'}</span>

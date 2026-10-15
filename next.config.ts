@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   devIndicators: false,
   outputFileTracingIncludes: {
-    '/api/**': ['./public/fonts/*.ttf'],
+    '/api/**': ['./public/fonts/*.ttf', './public/images/issues/*.png'],
   },
   turbopack: {
     rules: {

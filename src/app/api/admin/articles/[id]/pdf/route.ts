@@ -1,8 +1,10 @@
+import { MAX_UPLOAD_BYTES } from '@/lib/upload-limits';
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAccess } from '@/lib/admin-access';
 import { getArticleById, getJournalSettings, updateArticle } from '@/lib/db';
 import { generateArticleTitlePagePdf, assemblePublicationPdf } from '@/lib/pdf/generator';
 import { readArticlePdf, saveArticlePdf } from '@/lib/pdf/storage';
+import { streamPdf } from '@/lib/pdf/stream';
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const denied = await adminAccess(); if (denied) return denied;
@@ -10,7 +12,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const article = await getArticleById(id);
   if (!article) return NextResponse.json({ error: 'Maqola topilmadi' }, { status: 404 });
   const bytes = await readArticlePdf(id) || await generateArticleTitlePagePdf(article, await getJournalSettings());
-  return new NextResponse(Buffer.from(bytes), { headers: { 'Content-Type': 'application/pdf', 'Cache-Control': 'private, no-store' } });
+  return new NextResponse(streamPdf(bytes), { headers: { 'Content-Type': 'application/pdf', 'Cache-Control': 'private, no-store' } });
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -21,8 +23,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!article) return NextResponse.json({ error: 'Maqola topilmadi' }, { status: 404 });
     const form = await request.formData();
     const file = form.get('file');
-    if (!(file instanceof File) || !file.name.toLowerCase().endsWith('.pdf') || file.size === 0 || file.size > 20 * 1024 * 1024) {
-      return NextResponse.json({ error: '20 MB gacha PDF faylini tanlang.' }, { status: 400 });
+    if (!(file instanceof File) || !file.name.toLowerCase().endsWith('.pdf') || file.size === 0 || file.size > MAX_UPLOAD_BYTES) {
+      return NextResponse.json({ error: '4 MB gacha PDF faylini tanlang.' }, { status: 400 });
     }
     const original = new Uint8Array(await file.arrayBuffer());
     if (Buffer.from(original.slice(0, 5)).toString() !== '%PDF-') return NextResponse.json({ error: 'Fayl PDF formatida emas.' }, { status: 400 });

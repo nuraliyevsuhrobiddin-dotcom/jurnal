@@ -53,6 +53,7 @@ describe('Research discovery', () => {
   it('publishes a crawlable sitemap with actual modification dates and no draft records', async () => {
     const entries = await sitemap();
     expect(entries.some(entry => entry.url.endsWith('/en/announcements'))).toBe(true);
+    expect(entries.some(entry => entry.url.endsWith('/en/issue/' + journalStore.issues[0].id))).toBe(true);
     const published = journalStore.articles.find(article => article.status === 'published')!;
     expect(entries.find(entry => entry.url.endsWith('/en/article/' + published.slug))?.lastModified).toBe(published.updated_at);
     for (const article of journalStore.articles.filter(article => article.status !== 'published')) expect(entries.some(entry => entry.url.endsWith('/article/' + article.slug))).toBe(false);
