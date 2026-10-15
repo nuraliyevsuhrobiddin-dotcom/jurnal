@@ -1,3 +1,4 @@
+import { publicPageMetadata } from '@/lib/page-metadata';
 import React from 'react';
 import Link from 'next/link';
 import { IssueCoverImage } from '@/components/issues/IssueCoverImage';
@@ -121,4 +122,9 @@ export default async function ArchivePage({
       </div>
     </div>
   );
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }) {
+  const { lang } = await params;
+  return publicPageMetadata((['en','uz','ru'].includes(lang) ? lang : 'en') as Language, '/archive', 'Journal archive', 'Browse AGM Journal volumes and issues and read published research.');
 }

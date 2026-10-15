@@ -78,12 +78,12 @@ describe('Google Scholar Metadata & SEO Tests', () => {
     expect(other['citation_firstpage']).toBe('1');
     expect(other['citation_lastpage']).toBe('12');
     expect(other['citation_doi']).toBe('10.5281/zenodo.agm.2026.0101');
-    expect(other['citation_pdf_url']).toContain('/api/articles/art-seo-1/pdf');
+    expect(other['citation_pdf_url']).toContain('/en/article/machine-learning-in-macroeconomics/fulltext.pdf');
 
     // Multiple authors tags
     expect(other['citation_author']).toEqual([
-      'Prof. Alisher Qodirov',
-      'Dr. John Doe',
+      'Alisher Qodirov',
+      'John Doe',
     ]);
   });
 
@@ -101,7 +101,7 @@ describe('Google Scholar Metadata & SEO Tests', () => {
     expect(jsonLd.headline).toBe('Machine Learning in Macroeconomics');
     expect(jsonLd.datePublished).toBe('2026-02-15');
     expect(jsonLd.author.length).toBe(2);
-    expect(jsonLd.author[0].name).toBe('Prof. Alisher Qodirov');
+    expect(jsonLd.author[0].name).toBe('Alisher Qodirov');
     expect(jsonLd.isPartOf.name).toBe('AGM Journal');
   });
 });

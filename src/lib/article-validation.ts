@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { normalizeDoi, isValidDoi } from './identifiers';
 
 export const articleBaseSchema = z.object({
   title_uz: z.string().min(5, 'O‘zbekcha sarlavha kamida 5 ta belgidan iborat bo‘lishi kerak'),
@@ -16,7 +17,7 @@ export const articleBaseSchema = z.object({
   issue_id: z.string().optional(),
   page_first: z.number().int().positive().optional(),
   page_last: z.number().int().positive().optional(),
-  doi: z.string().optional(),
+  doi: z.string().trim().transform(normalizeDoi).refine(value => !value || isValidDoi(value), 'DOI formati noto‘g‘ri: 10.xxxx/identifier').optional(),
   publication_date: z.iso.date().optional(),
   license: z.string().min(1).max(100).default('CC BY 4.0'),
   references_list: z.array(z.string()).default([]),

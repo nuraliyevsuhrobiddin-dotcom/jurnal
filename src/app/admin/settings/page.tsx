@@ -161,7 +161,7 @@ export default function AdminSettingsPage() {
 
           <div className="sm:col-span-2">
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              DOI Prefiks (Zenodo / Crossref)
+              Ro‘yxatdan o‘tgan DOI prefiksi (ixtiyoriy)
             </label>
             <input
               type="text"

@@ -1,3 +1,4 @@
+import { publicPageMetadata } from '@/lib/page-metadata';
 import React from 'react';
 import { ContactForm } from '@/components/ContactForm';
 import { Language } from '@/types/journal';
@@ -77,4 +78,9 @@ export default async function ContactPage({
       </div>
     </div>
   );
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }) {
+ const { lang } = await params;
+ return publicPageMetadata((['en', 'uz', 'ru'].includes(lang) ? lang : 'en') as Language, "/contact", "Contact the journal", "Contact the editorial office of AGM Journal about submissions and published research.");
 }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { connection } from 'next/server';
+import { SITE_URL } from '@/lib/site-url';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,6 +15,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
+  applicationName: 'AGM Journal',
+  verification: process.env.GOOGLE_SITE_VERIFICATION ? { google: process.env.GOOGLE_SITE_VERIFICATION } : undefined,
+  robots: { index: true, follow: true },
   title: "AGM Journal — International Scientific Journal",
   description: "AGM Journal: research articles, journal issues and open-access scientific publications.",
 };

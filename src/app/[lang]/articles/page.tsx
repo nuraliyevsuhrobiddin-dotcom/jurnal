@@ -1,3 +1,4 @@
+import { publicPageMetadata } from '@/lib/page-metadata';
 import React from 'react';
 import { findSubject } from '@/lib/subjects';
 import { getArticlePage } from '@/lib/article-page';
@@ -126,4 +127,9 @@ export default async function ArticlesCatalogPage({
       </nav>}
     </div>
   );
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }) {
+  const { lang } = await params;
+  return publicPageMetadata((['en','uz','ru'].includes(lang) ? lang : 'en') as Language, '/articles', 'Research articles', 'Search open-access AGM Journal research by title, author, subject and journal issue.');
 }

@@ -1,9 +1,10 @@
 import { MetadataRoute } from 'next';
 import { getPublishedArticles } from '@/lib/db';
 import { connection } from 'next/server';
-import { policyIds, POLICY_DATE } from '@/types/policies';
+import { policyIds } from '@/types/policies';
+import { SITE_URL } from '@/lib/site-url';
 
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://agmjoural.uz';
+const BASE_URL = SITE_URL;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   await connection();
@@ -30,7 +31,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   for (const id of policyIds) if (!staticRoutes.includes(`/${id}`)) staticRoutes.push(`/${id}`);
-  staticRoutes.push('/policies', '/submit');
+  staticRoutes.push('/policies', '/submit', '/announcements', '/integrations');
   const sitemapEntries: MetadataRoute.Sitemap = [];
 
   // 1. Static pages across all 3 locales
@@ -38,7 +39,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     for (const lang of locales) {
       sitemapEntries.push({
         url: `${BASE_URL}/${lang}${route}`,
-        lastModified: POLICY_DATE,
+        alternates: { languages: Object.fromEntries([...locales.map(code => [code, `${BASE_URL}/${code}${route}`]), ['x-default', `${BASE_URL}/en${route}`]]) },
         changeFrequency: route === '' || route === '/articles' ? 'daily' : 'monthly',
         priority: route === '' ? 1.0 : 0.8,
       });
@@ -50,20 +51,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     for (const lang of locales) {
       sitemapEntries.push({
         url: `${BASE_URL}/${lang}/article/${article.slug}`,
-        lastModified: article.publication_date || '2026-02-15',
+        lastModified: article.updated_at || article.publication_date || undefined,
+        alternates: { languages: Object.fromEntries([...locales.map(code => [code, `${BASE_URL}/${code}/article/${article.slug}`]), ['x-default', `${BASE_URL}/en/article/${article.slug}`]]) },
         changeFrequency: 'monthly',
         priority: 0.9,
       });
     }
   }
-
-  // 3. Certificate verification route
-  sitemapEntries.push({
-    url: `${BASE_URL}/verify-certificate`,
-    lastModified: '2026-02-15',
-    changeFrequency: 'monthly',
-    priority: 0.7,
-  });
 
   return sitemapEntries;
 }

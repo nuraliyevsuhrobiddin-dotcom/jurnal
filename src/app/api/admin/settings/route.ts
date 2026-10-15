@@ -13,7 +13,7 @@ const settingsSchema = z.object({
   address: z.string().max(500).optional(),
   issn_print: z.string().max(20).optional(),
   issn_online: z.string().max(20).optional(),
-  doi_prefix: z.string().max(150).optional(),
+  doi_prefix: z.string().trim().refine(value => !value || /^10\.\d{4,9}$/.test(value), 'Faqat xizmat tomonidan berilgan DOI prefiksini kiriting: 10.xxxx').optional(),
 });
 
 export async function GET() {

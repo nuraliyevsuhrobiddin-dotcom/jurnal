@@ -6,6 +6,14 @@ import { getPublishedArticles, getCurrentIssue } from '@/lib/db';
 import { ArticleCard } from '@/components/article/ArticleCard';
 import './catalog.css';
 import { subjectCollections } from '@/lib/subjects';
+import { publicPageMetadata } from '@/lib/page-metadata';
+import { siteUrl } from '@/lib/site-url';
+
+export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }) {
+  const { lang } = await params;
+  const language = (['en', 'uz', 'ru'].includes(lang) ? lang : 'en') as Language;
+  return publicPageMetadata(language, '', 'AGM Journal — International Scientific Journal', 'Open-access multidisciplinary research. Browse published articles, journal issues, author guidelines and editorial policies.');
+}
 
 const copy = {
   uz: { eyebrow: 'AGM JOURNAL · ILMIY NASHRLAR', title: 'Ilmiy nashrlar katalogi', intro: 'Maqolalar, fan yo‘nalishlari va jurnal sonlari — yagona katalogda.', browse: 'Fan yo‘nalishlari', collections: 'AGM Journal mavzuli to‘plamlari', section: 'Mavzuli to‘plam', explore: 'Maqolalarni ko‘rish', latest: 'So‘nggi maqolalar', all: 'Barcha maqolalar', current: 'Joriy son', archive: 'Sonlar arxivi', empty: 'Nashr etilgan maqolalar hali mavjud emas.', author: 'Mualliflar uchun', guidelines: 'Maqola tayyorlash talablari', review: 'Taqriz jarayoni', policies: 'Nashr siyosatlari', noIssue: 'Joriy son hali e’lon qilinmagan.', scope: 'Ko‘p tarmoqli ilmiy jurnal', labels: ['Tabiiy fanlar', 'Muhandislik va texnologiya', 'Tibbiyot va hayot fanlari', 'Iqtisodiyot va biznes', 'Ijtimoiy fanlar', 'Ta’lim va gumanitar fanlar'], descriptions: ['Fizika, kimyo, matematika va atrof-muhit tadqiqotlari.', 'Hisoblash texnikasi, muhandislik va amaliy innovatsiyalar.', 'Biologiya, salomatlik va tibbiyot tadqiqotlari.', 'Iqtisodiy rivojlanish, moliya va boshqaruv.', 'Jamiyat, huquq va ijtimoiy jarayonlar.', 'Pedagogika, tilshunoslik, tarix va madaniyat.'] },
@@ -27,6 +35,7 @@ export default async function HomePage({ params }: { params: Promise<{ lang: str
   const dict = getDictionary(currentLang);
   const [articles, issue] = await Promise.all([getPublishedArticles({ limit: 4 }), getCurrentIssue()]);
   return <div className="research-catalog">
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ '@context': 'https://schema.org', '@type': 'WebSite', '@id': siteUrl('/#website'), name: 'AGM Journal', alternateName: 'AGM International Scientific Journal', url: siteUrl('/en'), inLanguage: ['en', 'uz', 'ru'] }).replace(/</g, '\\u003c') }} />
     <section className="catalog-intro"><div className="journal-container catalog-intro-grid">
       <div><p className="catalog-eyebrow">{t.eyebrow}</p><h1>{t.title}</h1><p className="catalog-intro-text">{t.intro}</p>
         <form action={`/${currentLang}/articles`} method="GET" className="catalog-search"><Search size={20} aria-hidden="true" /><input name="q" aria-label={dict.hero.searchPlaceholder} placeholder={dict.hero.searchPlaceholder} /><button type="submit">{dict.hero.searchButton}<ArrowRight size={17} /></button></form>

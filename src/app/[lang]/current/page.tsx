@@ -1,3 +1,4 @@
+import { publicPageMetadata } from '@/lib/page-metadata';
 import React from 'react';
 import { IssueCoverImage } from '@/components/issues/IssueCoverImage';
 import Link from 'next/link';
@@ -100,4 +101,9 @@ export default async function CurrentIssuePage({
       </div>
     </div>
   );
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }) {
+  const { lang } = await params;
+  return publicPageMetadata((['en','uz','ru'].includes(lang) ? lang : 'en') as Language, '/current', 'Current issue', 'Read the current issue of AGM Journal and its published research articles.');
 }

@@ -1,8 +1,13 @@
 import { Article, JournalSettings, Language } from '@/types/journal';
 import { Metadata } from 'next';
 import { isValidIssn } from '@/lib/identifiers';
+import { SITE_URL } from './site-url';
 
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://agmjoural.uz';
+const BASE_URL = SITE_URL;
+
+export function scholarlyAuthorName(name: string) {
+  return name.replace(/^(?:(?:prof(?:essor)?|dr|dsc|phd|academician|проф(?:ессор)?|д-р|академик)\.?\s+)+/iu, '').trim();
+}
 
 export function getArticleMetadata(
   article: Article,
@@ -22,7 +27,7 @@ export function getArticleMetadata(
       : article.abstract_uz;
 
   const authors = article.authors || [];
-  const authorNames = authors.map(a => a.full_name);
+  const authorNames = authors.map(a => scholarlyAuthorName(a.full_name));
   const keywords = lang === 'en' && article.keywords_en && article.keywords_en.length > 0
     ? article.keywords_en
     : lang === 'ru' && article.keywords_ru && article.keywords_ru.length > 0
@@ -59,8 +64,11 @@ export function getArticleMetadata(
     otherMeta['citation_issn'] = settings.issn_online;
   }
 
-  const pdfUrl = `${BASE_URL}/api/articles/${article.id}/pdf`;
+  const pdfUrl = `${canonicalUrl}/fulltext.pdf`;
   otherMeta['citation_pdf_url'] = pdfUrl;
+  otherMeta['citation_language'] = article.original_language;
+  otherMeta['citation_abstract_html_url'] = canonicalUrl;
+  otherMeta['citation_author_institution'] = authors.map(author => author.affiliation);
 
   // Multiple citation_author tags
   if (authorNames.length > 0) {
@@ -99,18 +107,28 @@ export function getArticleMetadata(
   };
 }
 
-export function generateArticleJsonLd(article: Article, settings: JournalSettings) {
+export function generateArticleJsonLd(article: Article, settings: JournalSettings, lang: Language = 'en') {
+  const url = `${BASE_URL}/${lang}/article/${article.slug}`;
+  const title = (lang === 'ru' ? article.title_ru : lang === 'en' ? article.title_en : article.title_uz) || article.title_uz;
+  const abstract = (lang === 'ru' ? article.abstract_ru : lang === 'en' ? article.abstract_en : article.abstract_uz) || article.abstract_uz;
   return {
     '@context': 'https://schema.org',
     '@type': 'ScholarlyArticle',
-    'headline': article.title_en || article.title_uz,
-    'name': article.title_en || article.title_uz,
-    'description': article.abstract_en || article.abstract_uz,
+    '@id': `${url}#article`,
+    'url': url,
+    'mainEntityOfPage': url,
+    'headline': title,
+    'name': title,
+    'description': abstract,
+    'dateModified': article.updated_at,
+    'isAccessibleForFree': true,
+    ...(article.license === 'CC BY 4.0' ? { license: 'https://creativecommons.org/licenses/by/4.0/' } : {}),
+    'encoding': { '@type': 'MediaObject', contentUrl: `${url}/fulltext.pdf`, encodingFormat: 'application/pdf' },
     'datePublished': article.publication_date || article.created_at,
     'inLanguage': article.original_language,
     'author': (article.authors || []).map(a => ({
       '@type': 'Person',
-      'name': a.full_name,
+      'name': scholarlyAuthorName(a.full_name),
       'affiliation': {
         '@type': 'Organization',
         'name': a.affiliation,

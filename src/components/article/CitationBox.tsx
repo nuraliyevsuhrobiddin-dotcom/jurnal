@@ -87,6 +87,8 @@ export function CitationBox({ article, lang = 'uz' }: CitationBoxProps) {
 
       {copyError && <p role="status" className="text-sm text-red-700 mt-2">{text.error}</p>}
       <div className="mt-3 flex justify-end">
+        <a href={`/api/articles/${article.id}/citation?format=ris&lang=${lang}`} className="mr-4 text-xs text-teal-800 underline self-center">RIS</a>
+        <a href={`/api/articles/${article.id}/citation?format=bib&lang=${lang}`} className="mr-4 text-xs text-teal-800 underline self-center">BibTeX ↓</a>
         <button
           type="button"
           onClick={handleCopy}

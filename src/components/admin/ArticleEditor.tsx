@@ -51,6 +51,18 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
   const [pageFirst, setPageFirst] = useState(initialArticle ? String(initialArticle.page_first ?? '') : '1');
   const [pageLast, setPageLast] = useState(initialArticle ? String(initialArticle.page_last ?? '') : '10');
   const [doi, setDoi] = useState(initialArticle?.doi || '');
+  const [doiCheck, setDoiCheck] = useState('');
+  const [checkingDoi, setCheckingDoi] = useState(false);
+  async function checkDoi() {
+    setCheckingDoi(true); setDoiCheck('');
+    try {
+      const response = await fetch(`/api/admin/doi?doi=${encodeURIComponent(doi)}`);
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Tekshiruv bajarilmadi.');
+      setDoiCheck(result.active ? 'DOI reyestrda faol. Manzil va maqola mosligini ham tekshiring.' : result.status === 'not_registered' ? 'DOI ro‘yxatdan o‘tmagan. Avval DOI xizmatida ro‘yxatdan o‘tkazing.' : result.status === 'invalid' ? 'DOI formati noto‘g‘ri.' : 'DOI xizmatiga ulanish tekshirilmadi. Keyinroq urinib ko‘ring.');
+    } catch (error) { setDoiCheck(error instanceof Error ? error.message : 'Tekshirilmadi.'); }
+    finally { setCheckingDoi(false); }
+  }
   const [references, setReferences] = useState((initialArticle?.references_list || []).join('\n'));
   const [publicationDate, setPublicationDate] = useState(initialArticle?.publication_date?.slice(0, 10) || '');
   const [license, setLicense] = useState(initialArticle?.license || 'CC BY 4.0');
@@ -648,10 +660,14 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
               <input
                 type="text"
                 value={doi}
-                onChange={e => setDoi(e.target.value)}
-                placeholder="10.5281/zenodo.agm.2026.0101"
+                onChange={e => { setDoi(e.target.value); setDoiCheck(''); }}
+                placeholder="10.xxxx/registered-identifier"
                 className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm font-mono focus:outline-none focus:ring-2 focus:ring-navy-900"
               />
+              <p className="mt-2 text-xs text-slate-500">Only enter a DOI already registered by your DOI provider. Saving a number here does not register it.</p>
+              <button type="button" disabled={!doi.trim() || checkingDoi} onClick={checkDoi} className="mt-2 text-xs text-teal-800 underline disabled:opacity-50">{checkingDoi ? 'Checking...' : 'Verify DOI registration'}</button>
+              <p role="status" className="mt-1 text-xs">{doiCheck}</p>
+
             </div>
             <div><label htmlFor="publication-date" className="block text-xs font-bold text-slate-700 mb-1">Nashr sanasi</label><input id="publication-date" type="date" value={publicationDate} onChange={event => setPublicationDate(event.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-navy-900" /></div>
             <div><label htmlFor="article-license" className="block text-xs font-bold text-slate-700 mb-1">Litsenziya</label><input id="article-license" required value={license} onChange={event => setLicense(event.target.value)} className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-navy-900" /></div>

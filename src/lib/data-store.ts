@@ -315,7 +315,7 @@ export class JournalStore {
     contact_email: 'editorial@agmjoural.uz',
     contact_phone: '+998 99 777 70 31',
     address: 'Toshkent shahri, Mirobod tumani, Nukus ko‘chasi 45-uy',
-    doi_prefix: '10.5281/zenodo.agm',
+    doi_prefix: '',
   };
 
   issues: Issue[] = process.env.VITEST ? [...TEST_ISSUES] : [];

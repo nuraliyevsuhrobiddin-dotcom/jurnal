@@ -1,3 +1,4 @@
+import { publicPageMetadata } from '@/lib/page-metadata';
 import React from 'react';
 import { Language } from '@/types/journal';
 import { getDictionary } from '@/lib/i18n/dictionaries';
@@ -94,4 +95,9 @@ export default async function EditorialBoardPage({
       </div>
     </div>
   );
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }) {
+ const { lang } = await params;
+ return publicPageMetadata((['en', 'uz', 'ru'].includes(lang) ? lang : 'en') as Language, "/editorial-board", "Editorial board", "Meet the editors and researchers responsible for the editorial work of AGM Journal.");
 }
