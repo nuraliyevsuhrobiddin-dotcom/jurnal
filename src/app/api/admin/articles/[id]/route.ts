@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { updateArticle, updateArticleStatus, getArticleById, deleteArticle } from '@/lib/db';
 import { Article, ArticleStatus } from '@/types/journal';
 import { articleSchema, articleUpdateSchema, articleClearFields } from '@/lib/article-validation';
+import { PublicationError } from '@/lib/publication-ready';
 
 export async function GET(
   request: NextRequest,
@@ -60,6 +61,7 @@ export async function PATCH(
     if (!updated) return NextResponse.json({ error: 'Article not found' }, { status: 404 });
     return NextResponse.json(updated);
   } catch (error: unknown) {
+    if (error instanceof PublicationError) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ error: (error instanceof Error ? error.message : null) || 'Server error' }, { status: 500 });
   }
 }

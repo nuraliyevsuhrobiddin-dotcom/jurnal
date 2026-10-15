@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCertificateByCode } from '@/lib/db';
+import { getCertificateByCode, getJournalSettings } from '@/lib/db';
 import { generateCertificatePdf } from '@/lib/pdf/generator';
 
 export async function GET(
@@ -18,7 +18,7 @@ export async function GET(
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin;
     const verificationUrl = `${baseUrl}/certificate/${cert.certificate_number}`;
 
-    const pdfBytes = await generateCertificatePdf(cert, verificationUrl);
+    const pdfBytes = await generateCertificatePdf(cert, verificationUrl, await getJournalSettings());
 
     return new NextResponse(Buffer.from(pdfBytes), {
       status: 200,

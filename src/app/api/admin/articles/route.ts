@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAllArticlesAdmin, createArticle } from '@/lib/db';
 import { z } from 'zod';
 import { articleSchema } from '@/lib/article-validation';
+import { PublicationError } from '@/lib/publication-ready';
+import { getAdminArticlePage } from '@/lib/article-page';
 
 function slugify(text: string): string {
   return text
@@ -13,10 +15,16 @@ function slugify(text: string): string {
     .slice(0, 80) || `article-${Date.now()}`;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const denied = await adminAccess();
   if (denied) return denied;
   try {
+    if (request.nextUrl.searchParams.has('page')) {
+      const values = request.nextUrl.searchParams;
+      const status = values.get('status') || undefined;
+      if (status && !['draft', 'under_review', 'approved', 'published', 'rejected', 'withdrawn', 'archived'].includes(status)) return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+      return NextResponse.json(await getAdminArticlePage({ page: values.get('page') || '1', query: values.get('q') || '', status }));
+    }
     const articles = await getAllArticlesAdmin();
     return NextResponse.json(articles);
   } catch {
@@ -41,6 +49,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(created, { status: 201 });
   } catch (error: unknown) {
+    if (error instanceof PublicationError) return NextResponse.json({ error: error.message }, { status: 400 });
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Validation failed', details: error.flatten() }, { status: 400 });
     }

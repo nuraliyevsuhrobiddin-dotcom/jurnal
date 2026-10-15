@@ -55,23 +55,24 @@ export function CitationBox({ article, lang = 'uz' }: CitationBoxProps) {
   };
 
   return (
-    <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 my-6">
+    <div className="bg-[#f0f4f3] border border-[#d6e0df] p-5 sm:p-6 my-8">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <div className="flex items-center gap-2 text-slate-800 font-bold text-sm">
-          <Quote className="w-4 h-4 text-gold-700" />
+          <Quote className="w-4 h-4 text-[#175f5b]" />
           <span>{text.cite}</span>
         </div>
 
-        <div className="flex items-center gap-1 bg-slate-200 p-0.5 rounded-lg text-xs font-semibold">
+        <div className="flex flex-wrap items-center gap-1 border-b border-[#b9cdca] text-xs font-semibold" role="group" aria-label={text.cite}>
           {(['APA', 'MLA', 'Chicago', 'BibTeX'] as const).map(fmt => (
             <button
               key={fmt}
+              type="button"
               onClick={() => setFormat(fmt)}
               aria-pressed={format === fmt}
-              className={`px-2.5 py-1 rounded transition-colors ${
+              className={`px-2.5 py-2 border-b-2 transition-colors ${
                 format === fmt
-                  ? 'bg-white text-navy-900 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'border-[#175f5b] text-[#175f5b] bg-white'
+                  : 'border-transparent text-slate-600 hover:text-[#175f5b]'
               }`}
             >
               {fmt}
@@ -80,15 +81,17 @@ export function CitationBox({ article, lang = 'uz' }: CitationBoxProps) {
         </div>
       </div>
 
-      <div className="relative bg-white border border-slate-200 rounded-lg p-3 font-mono text-xs text-slate-800 leading-relaxed overflow-x-auto whitespace-pre-wrap">
+      <div className="relative bg-white border border-[#d6e0df] p-4 font-mono text-xs text-slate-800 leading-loose whitespace-pre-wrap break-words [overflow-wrap:anywhere]" aria-live="polite">
         {currentText}
       </div>
 
       {copyError && <p role="status" className="text-sm text-red-700 mt-2">{text.error}</p>}
       <div className="mt-3 flex justify-end">
         <button
+          type="button"
           onClick={handleCopy}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-navy-900 text-white hover:bg-navy-800 text-xs font-medium transition-colors"
+          className="flex items-center gap-2 px-4 py-2.5 bg-[#175f5b] text-white hover:bg-[#104a47] text-xs font-medium transition-colors"
+          aria-live="polite"
         >
           {copied ? (
             <>

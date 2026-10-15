@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAccess } from '@/lib/admin-access';
 import { getArticleById, getJournalSettings, updateArticle } from '@/lib/db';
-import { generateArticleTitlePagePdf, mergePdfs } from '@/lib/pdf/generator';
+import { generateArticleTitlePagePdf, assemblePublicationPdf } from '@/lib/pdf/generator';
 import { readArticlePdf, saveArticlePdf } from '@/lib/pdf/storage';
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -26,9 +26,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
     const original = new Uint8Array(await file.arrayBuffer());
     if (Buffer.from(original.slice(0, 5)).toString() !== '%PDF-') return NextResponse.json({ error: 'Fayl PDF formatida emas.' }, { status: 400 });
-    const cover = await generateArticleTitlePagePdf(article, await getJournalSettings());
+    const settings = await getJournalSettings();
     let merged: Uint8Array;
-    try { merged = await mergePdfs([cover, original]); }
+    try { merged = await assemblePublicationPdf(article, settings, original); }
     catch { return NextResponse.json({ error: 'PDF o‘qilmadi. Fayl buzilgan yoki parol bilan himoyalangan.' }, { status: 400 }); }
     await saveArticlePdf(id, merged);
     await updateArticle(id, { pdf_url: `/api/articles/${id}/pdf`, pdf_file_size: merged.length });

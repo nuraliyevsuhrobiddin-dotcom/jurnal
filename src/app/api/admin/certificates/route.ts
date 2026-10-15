@@ -33,16 +33,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate certificates for an article
-    const { article_id, author_name, author_affiliation } = body;
+    const { article_id, author_name } = body;
     const article = await getArticleById(article_id);
 
     if (!article) {
       return NextResponse.json({ error: 'Article not found' }, { status: 404 });
     }
 
-    if (article.status !== 'published' && article.status !== 'approved') {
+    if (article.status !== 'published') {
       return NextResponse.json({
-        error: 'Sertifikat faqat tasdiqlangan yoki nashr qilingan maqolalar uchun chiqariladi'
+        error: 'Nashr sertifikati faqat nashr qilingan maqolalar uchun chiqariladi'
       }, { status: 400 });
     }
     const name = author_name || article.authors?.[0]?.full_name;
@@ -52,9 +52,11 @@ export async function POST(request: NextRequest) {
     const existing = (await getAllCertificatesAdmin()).find(cert => cert.article_id === article.id && cert.author_name === name && cert.status === 'valid');
     if (existing) return NextResponse.json(existing);
 
-    const vol = article.issue?.volume || 1;
-    const iss = article.issue?.issue_number || 1;
-    const yr = article.issue?.year || new Date().getFullYear();
+    if (!article.issue || !article.publication_date) return NextResponse.json({ error: 'Avval jurnal soni va nashr sanasini belgilang.' }, { status: 400 });
+    const author = article.authors.find(author => author.full_name === name)!;
+    const vol = article.issue.volume;
+    const iss = article.issue.issue_number;
+    const yr = article.issue.year;
 
     // Verification URL preview for QR code
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin;
@@ -64,7 +66,7 @@ export async function POST(request: NextRequest) {
     const newCert = await createCertificate({
       article_id: article.id,
       author_name: name,
-      author_affiliation: author_affiliation || (article.authors?.[0]?.affiliation || ''),
+      author_affiliation: author.affiliation || '',
       article_title: article.title_uz,
       issue_volume: vol,
       issue_number: iss,

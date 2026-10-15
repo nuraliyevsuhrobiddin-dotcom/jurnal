@@ -1,3 +1,5 @@
+import '@/components/layout/scholar.css';
+import '@/components/layout/interior.css';
 import React, { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { Language } from '@/types/journal';
@@ -19,11 +21,11 @@ export default async function LangLayout({
   const settings = await getJournalSettings();
 
   return (
-    <div className="public-site min-h-screen flex flex-col bg-paper text-slate-900 selection:bg-gold-100 selection:text-gold-900">
-      <Suspense fallback={<header className="bg-navy-900 h-20 shadow-md" />}>
+    <div className="public-site min-h-screen flex flex-col bg-paper text-slate-900 selection:bg-teal-100 selection:text-navy-900">
+      <Suspense fallback={<header className="bg-white h-20 border-b border-slate-200" />}>
         <Navbar lang={currentLang} settings={settings} />
       </Suspense>
-      <a href="#main-content" className="skip-link">Asosiy kontentga o&apos;tish</a>
+      <a href="#main-content" className="skip-link">{currentLang === 'en' ? 'Skip to content' : currentLang === 'ru' ? 'Перейти к содержанию' : 'Asosiy kontentga o‘tish'}</a>
       <main id="main-content" className="flex-1" lang={currentLang}>
         {children}
       </main>

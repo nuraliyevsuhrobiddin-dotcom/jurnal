@@ -23,7 +23,7 @@ export default async function PolicyVerificationPage({ params, searchParams }: {
   } : {
     title: 'Document version verification', matched: 'Content matches the current edition', different: 'A match with the current edition was not confirmed', detail: 'The content identifier in the QR code is compared with the current website document. This checks the document edition; it does not validate a person’s electronic signature.', version: 'Current version', date: 'Revision date', download: 'Download current PDF', hub: 'All policies', read: 'Read document',
   };
-  return <div className="journal-container py-8 space-y-6">
+  return <div className="journal-container interior-page verification-page py-8 space-y-6">
     <h1 className="text-3xl font-bold text-navy-900">{labels.title}</h1>
     <div className="bg-white rounded-xl border border-slate-200 p-6 sm:p-8 space-y-4 max-w-3xl">
       <div className={`flex items-center gap-3 font-bold ${match ? 'text-emerald-800' : 'text-gold-800'}`}>{match ? <CheckCircle2 /> : <FileWarning />}{match ? labels.matched : labels.different}</div>

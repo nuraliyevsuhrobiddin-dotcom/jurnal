@@ -1,7 +1,9 @@
 import { journalStore } from './data-store';
 import { randomUUID } from 'node:crypto';
+import { assertPublicationReady, PublicationError } from './publication-ready';
+import { distinctEditorialMembers } from './editorial-members';
 import { isServerSupabaseConfigured, createServerClient } from './supabase/server';
-import { remoteArticles, remoteRows, remoteSave, remoteSaveArticle, remoteSaveIssue, remoteSettings, remoteSaveSettings } from './remote-db';
+import { normalizeRemoteArticle, remoteArticles, remoteRows, remoteSave, remoteSaveArticle, remoteSaveIssue, remoteSettings, remoteSaveSettings } from './remote-db';
 
 import {
   Article,
@@ -113,8 +115,12 @@ export async function getArticleBySlug(slug: string): Promise<Article | null> {
 
 export async function getArticleById(id: string): Promise<Article | null> {
   journalStore.refresh();
-  const remote = await remoteArticles();
-  if (remote) return remote.find(article => article.id === id) || null;
+  const client = createServerClient();
+  if (client) {
+    const { data, error } = await client.from('articles').select('*, authors:article_authors(*), issue:issues(*)').eq('id', id).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data ? normalizeRemoteArticle(data as Article) : null;
+  }
   const article = journalStore.articles.find(a => a.id === id);
   if (!article) return null;
   return {
@@ -143,10 +149,17 @@ export async function getAllArticlesAdmin(): Promise<Article[]> {
 }
 
 export async function createArticle(data: Omit<Article, 'id' | 'created_at' | 'updated_at' | 'views_count' | 'downloads_count'>): Promise<Article> {
+  if (data.status === 'published') throw new PublicationError('Avval maqolani qoralama sifatida saqlang, jurnal soni va PDF faylini tayyorlang.');
   journalStore.refresh();
   const newId = randomUUID();
-  const existingArticles = await getAllArticlesAdmin();
-  if (existingArticles.some(article => article.slug === data.slug)) {
+  const client = createServerClient();
+  let slugExists: boolean;
+  if (client) {
+    const { data: existing, error } = await client.from('articles').select('id').eq('slug', data.slug).maybeSingle();
+    if (error) throw new Error(error.message);
+    slugExists = Boolean(existing);
+  } else slugExists = journalStore.articles.some(article => article.slug === data.slug);
+  if (slugExists) {
     data = { ...data, slug: `${data.slug}-${newId.slice(0, 8)}` };
   }
   if (data.issue_id && !(await getIssueById(data.issue_id))) throw new Error('Jurnal soni topilmadi');
@@ -175,12 +188,16 @@ export async function createArticle(data: Omit<Article, 'id' | 'created_at' | 'u
 }
 
 export async function updateArticle(id: string, updates: Partial<Article>): Promise<Article | null> {
+  const previous = await getArticleById(id);
+  if (!previous) return null;
+  if ((updates.status || previous.status) === 'published') {
+    const issueId = Object.hasOwn(updates, 'issue_id') ? updates.issue_id : previous.issue_id;
+    const issue = issueId ? await getIssueById(issueId) : undefined;
+    await assertPublicationReady({ ...previous, ...updates, issue: issue || undefined });
+  }
   journalStore.refresh();
-  const remote = await remoteArticles();
-  if (remote) {
-    const current = remote.find(article => article.id === id);
-    if (!current) return null;
-    const updated = { ...current, ...updates, id, created_at: current.created_at, updated_at: new Date().toISOString() };
+  if (createServerClient()) {
+    const updated = { ...previous, ...updates, id, created_at: previous.created_at, updated_at: new Date().toISOString() };
     await remoteSaveArticle(updated);
     await logAudit('ARTICLE_UPDATE', 'article', id, { updates });
     return updated;
@@ -204,13 +221,13 @@ export async function updateArticle(id: string, updates: Partial<Article>): Prom
 }
 
 export async function updateArticleStatus(id: string, newStatus: ArticleStatus, retractionReason?: string): Promise<Article | null> {
+  if (newStatus === 'published') return updateArticle(id, { status: newStatus, publication_date: (await getArticleById(id))?.publication_date || new Date().toISOString().slice(0, 10) });
   journalStore.refresh();
-  const remote = await remoteArticles();
-  if (remote) {
-    const current = remote.find(article => article.id === id);
+  if (createServerClient()) {
+    const current = await getArticleById(id);
     if (!current) return null;
     return updateArticle(id, { status: newStatus, retraction_reason: retractionReason || current.retraction_reason,
-      publication_date: newStatus === 'published' ? current.publication_date || new Date().toISOString().split('T')[0] : current.publication_date });
+      publication_date: current.publication_date });
   }
   const index = journalStore.articles.findIndex(a => a.id === id);
   if (index === -1) return null;
@@ -220,9 +237,7 @@ export async function updateArticleStatus(id: string, newStatus: ArticleStatus, 
     ...current,
     status: newStatus,
     retraction_reason: retractionReason || current.retraction_reason,
-    publication_date: newStatus === 'published' && !current.publication_date
-      ? new Date().toISOString().split('T')[0]
-      : current.publication_date,
+    publication_date: current.publication_date,
     updated_at: new Date().toISOString(),
   };
 
@@ -275,8 +290,12 @@ export async function getAllIssues(): Promise<Issue[]> {
 
 export async function getIssueById(id: string): Promise<Issue | null> {
   journalStore.refresh();
-  const remote = await remoteRows<Issue>('issues');
-  if (remote) return remote.find(issue => issue.id === id) || null;
+  const client = createServerClient();
+  if (client) {
+    const { data, error } = await client.from('issues').select('*').eq('id', id).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data as Issue | null;
+  }
   const issue = journalStore.issues.find(i => i.id === id);
   return issue || null;
 }
@@ -358,9 +377,9 @@ export async function deleteIssue(id: string): Promise<boolean> {
 export async function getEditorialBoard(): Promise<EditorialBoardMember[]> {
   journalStore.refresh();
   const remote = await remoteRows<EditorialBoardMember>('editorial_board');
-  if (remote) return remote.filter(member => member.is_active).sort((a, b) => a.order_index - b.order_index);
+  if (remote) return distinctEditorialMembers(remote.filter(member => member.is_active).sort((a, b) => a.order_index - b.order_index));
 
-  return journalStore.editorialBoard.filter(member => member.is_active).sort((a, b) => a.order_index - b.order_index);
+  return distinctEditorialMembers(journalStore.editorialBoard.filter(member => member.is_active).sort((a, b) => a.order_index - b.order_index));
 }
 
 export async function getAllEditorialBoardMembers(): Promise<EditorialBoardMember[]> {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { Article, ArticleStatus } from '@/types/journal';
 import { PlusCircle, Search, ExternalLink, Award, Trash2 } from 'lucide-react';
@@ -12,6 +12,10 @@ export default function AdminArticlesPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const requestSequence = useRef(0);
+  const [refresh, setRefresh] = useState(0);
 
   const handleDeleteArticle = async (article: Article) => {
     if (!window.confirm(`"${article.title_uz}" maqolasini butunlay o‘chirmoqchimisiz?`)) return;
@@ -30,19 +34,22 @@ export default function AdminArticlesPage() {
     }
   };
 
-  const loadArticles = () => {
-    return fetch('/api/admin/articles')
-      .then(async res => { if (!res.ok) throw new Error('Maqolalarni yuklab bo‘lmadi.'); return res.json(); })
-      .then(data => {
-        if (Array.isArray(data)) setArticles(data);
-      })
-      .catch(cause => setError(cause.message))
-      .finally(() => setLoading(false));
-  };
+  const loadArticles = () => setRefresh(value => value + 1);
 
   useEffect(() => {
-    loadArticles();
-  }, []);
+    const sequence = ++requestSequence.current;
+    let active = true;
+    const timer = setTimeout(() => {
+      setLoading(true);
+      const values = new URLSearchParams({ page: String(page), q: search, status: statusFilter });
+      fetch(`/api/admin/articles?${values}`)
+        .then(async response => { if (!response.ok) throw new Error('Maqolalar yuklanmadi.'); return response.json(); })
+        .then(data => { if (active && sequence === requestSequence.current) { setArticles(data.articles); setTotal(data.total); setError(''); } })
+        .catch(error => { if (active && sequence === requestSequence.current) setError(error.message); })
+        .finally(() => { if (active && sequence === requestSequence.current) setLoading(false); });
+    }, 250);
+    return () => { active = false; clearTimeout(timer); };
+  }, [page, search, statusFilter, refresh]);
 
   const handleStatusChange = async (articleId: string, newStatus: ArticleStatus) => {
     setActionLoading(articleId);
@@ -92,13 +99,7 @@ export default function AdminArticlesPage() {
     }
   };
 
-  const filtered = articles.filter(a => {
-    const matchesSearch = !search ||
-      a.title_uz.toLowerCase().includes(search.toLowerCase()) ||
-      (a.authors && a.authors.some(au => au.full_name.toLowerCase().includes(search.toLowerCase())));
-    const matchesStatus = !statusFilter || a.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filtered = articles;
 
   return (
     <div className="space-y-6">
@@ -130,7 +131,7 @@ export default function AdminArticlesPage() {
           <input
             type="text"
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => { setSearch(e.target.value); setPage(1); }}
             placeholder="Maqola nomi yoki muallif bo‘yicha qidirish..."
             className="w-full py-2 bg-transparent text-xs sm:text-sm text-slate-900 focus:outline-none"
           />
@@ -138,7 +139,7 @@ export default function AdminArticlesPage() {
 
         <select
           value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value)}
+          onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
           className="bg-slate-50 border border-slate-200 text-xs sm:text-sm rounded-lg px-3 py-2 text-slate-800 focus:outline-none"
         >
           <option value="">Barcha holatlar (Status)</option>
@@ -283,6 +284,11 @@ export default function AdminArticlesPage() {
           </div>
         )}
       </div>
+      <nav aria-label="Maqola sahifalari" className="flex justify-between items-center gap-4 text-sm">
+        <button disabled={page <= 1} onClick={() => setPage(page - 1)} className="disabled:opacity-40">← Oldingi</button>
+        <span>{page} / {Math.max(1, Math.ceil(total / 20))} · {total} maqola</span>
+        <button disabled={page * 20 >= total} onClick={() => setPage(page + 1)} className="disabled:opacity-40">Keyingi →</button>
+      </nav>
     </div>
   );
 }

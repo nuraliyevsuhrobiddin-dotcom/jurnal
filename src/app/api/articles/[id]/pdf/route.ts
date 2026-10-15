@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getArticleById, getJournalSettings } from '@/lib/db';
-import { generateArticleTitlePagePdf } from '@/lib/pdf/generator';
+import { getArticleById } from '@/lib/db';
+import { recordArticleMetric } from '@/lib/article-metrics';
 import { readArticlePdf } from '@/lib/pdf/storage';
 
 export async function GET(
@@ -15,8 +15,9 @@ export async function GET(
       return new NextResponse('Article not found', { status: 404 });
     }
 
-    const settings = await getJournalSettings();
-    const pdfBytes = await readArticlePdf(id) || await generateArticleTitlePagePdf(article, settings);
+    const pdfBytes = await readArticlePdf(id);
+    if (!pdfBytes) return new NextResponse('Full article PDF is not available. Please contact the editorial office.', { status: 404 });
+    await recordArticleMetric(request, id, 'downloads_count');
 
     return new NextResponse(Buffer.from(pdfBytes), {
       status: 200,

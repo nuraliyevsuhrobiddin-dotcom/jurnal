@@ -98,7 +98,7 @@ NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-public-key
 SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-secret-key
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
-NEXT_PUBLIC_DEFAULT_LOCALE=uz
+NEXT_PUBLIC_DEFAULT_LOCALE=en
 ```
 
 ### 3. Ma’lumotlar bazasini yuklash:
@@ -133,7 +133,7 @@ ISSN maydonida nazorat raqami noto‘g‘ri bo‘lsa ommaviy sahifa, PDF va meta
 ```bash
 npm run dev
 ```
-Sayt `http://localhost:3000/uz` manzilida ochiladi.
+Sayt `http://localhost:3000/en` manzilida ochiladi.
 Admin panel: `http://localhost:3000/admin`
 
 ---
@@ -161,7 +161,7 @@ npm run build
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `NEXT_PUBLIC_SITE_URL` (masalan: `https://agmjoural.uz`)
-   - `NEXT_PUBLIC_DEFAULT_LOCALE` (`uz`)
+   - `NEXT_PUBLIC_DEFAULT_LOCALE` (`en`)
    - `ADMIN_PASSWORD`
 4. **Deploy** tugmasini bosing. Loyiha Vercel serverless platformasida avtomatik ravishda quriladi va nashr etiladi.
 
@@ -171,6 +171,19 @@ GitHub repository: https://github.com/nuraliyevsuhrobiddin-dotcom/jurnal
 
 Set `NEXT_PUBLIC_SITE_URL=https://agmjoural.uz` in hosting environment variables before building. Configure all Supabase keys and a unique `ADMIN_PASSWORD` privately; `.env.example` contains no credentials. Run migrations 001?007 and then seed.sql. Hosted Supabase operations fail explicitly on database/schema errors and never write journal JSON to the local filesystem. Vercel requires Supabase credentials.
 
-Connect the purchased domain to the hosting project and apply the DNS records supplied by the host. Verify HTTPS, login, manuscript submission, PDF storage, issue publishing, and certificate downloads on the deployed site. Domain ownership alone does not deploy the application. Email delivery is not configured. Do not run demo seed content over existing production records without reviewing it first.
+Connect the purchased domain to the hosting project and apply the DNS records supplied by the host. Verify HTTPS, login, manuscript submission, PDF storage, issue publishing, and certificate downloads on the deployed site. Domain ownership alone does not deploy the application. Email receipts and editorial notifications use the optional Resend integration; configure RESEND_API_KEY and MAIL_FROM. Pending email is retained in /admin/notifications. Do not run demo seed content over existing production records without reviewing it first.
 
 If production logs report `permission denied for table`, run `supabase/migrations/007_service_role_permissions.sql` in the configured Supabase project SQL Editor as postgres. This grants access only to the server service_role; it does not disable RLS. Migration 003 provisions private manuscript storage. FULL_SETUP.sql combines migrations 001?007 and demo seed data for a new database; use the individual migrations for an existing database.
+
+
+## Launch hardening (migration 008)
+
+Apply `supabase/migrations/008_launch_hardening.sql` after migrations 001�007 **before deploying this version**. It installs shared request limits, atomic article counters, private notification storage and paginated catalogs. Missing hosted request protection rejects writes with 503. This file does not delete article or editorial records.
+
+Set `RESEND_API_KEY` and a verified `MAIL_FROM` sender to enable receipt delivery. Failed or unconfigured delivery remains in the durable outbox; retry pending messages from `/admin/notifications`. Resend API reference: https://resend.com/docs/api-reference/emails/send-email
+
+Standalone reverse proxies must replace X-Real-IP before enabling `TRUST_PROXY_IP=true`; otherwise request limits use a shared bucket. Never trust an incoming client header unchanged. Vercel uses its provider forwarding header automatically.
+
+Publishing now requires an issue, page range, valid author metadata and an uploaded full PDF. Save new articles as drafts first. Public PDF downloads no longer return a cover-only placeholder. Public catalog and admin list paginate after filtering. Identical board entries are collapsed on the public page without deleting source data.
+
+See [verification details](artifacts/launch-hardening.md).

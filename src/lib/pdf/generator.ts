@@ -1,4 +1,4 @@
-import { PDFDocument, PDFFont, rgb } from 'pdf-lib';
+import { PDFDocument, PDFFont, degrees, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -20,303 +20,94 @@ export async function embedJournalFonts(pdfDoc: PDFDocument) {
   };
 }
 
-function wrapText(text: string, maxWidth: number, fontSize: number, font: PDFFont): string[] {
-  const words = text.split(' ');
+/** Wrap every Unicode token, including long identifiers and URLs. */
+export function wrapPublicationText(text: string, maxWidth: number, fontSize: number, font: PDFFont): string[] {
   const lines: string[] = [];
-  let currentLine = '';
-
-  for (const word of words) {
-    const testLine = currentLine ? `${currentLine} ${word}` : word;
-    const testWidth = font.widthOfTextAtSize(testLine, fontSize);
-    if (testWidth <= maxWidth) {
-      currentLine = testLine;
-    } else {
-      if (currentLine) lines.push(currentLine);
-      currentLine = word;
+  for (const paragraph of text.replace(/\r/g, '').split('\n')) {
+    let line = '';
+    for (const word of paragraph.split(/\s+/).filter(Boolean)) {
+      if (font.widthOfTextAtSize(line ? `${line} ${word}` : word, fontSize) <= maxWidth) {
+        line = line ? `${line} ${word}` : word;
+        continue;
+      }
+      if (line) { lines.push(line); line = ''; }
+      for (const char of word) {
+        if (line && font.widthOfTextAtSize(line + char, fontSize) > maxWidth) { lines.push(line); line = ''; }
+        line += char;
+      }
     }
+    lines.push(line);
   }
-  if (currentLine) lines.push(currentLine);
   return lines;
+}
+const wrapText = wrapPublicationText;
+const navy = rgb(0.063, 0.169, 0.247), teal = rgb(0.05, 0.38, 0.39), muted = rgb(0.35, 0.41, 0.46);
+function fitFont(value: string, font: PDFFont, maximum: number, width: number) {
+  return Math.min(maximum, width / Math.max(font.widthOfTextAtSize(value, 1), 1));
 }
 
 // 1. GENERATE AUTHOR CERTIFICATE PDF
 export async function generateCertificatePdf(
   cert: Certificate,
-  verificationUrl: string
+  verificationUrl: string,
+  settings?: JournalSettings
 ): Promise<Uint8Array> {
-  const pdfDoc = await PDFDocument.create();
-
-  // Landscape A4 (841.89 x 595.28 points)
-  const width = 841.89;
-  const height = 595.28;
-  const page = pdfDoc.addPage([width, height]);
-
-  const { fontBold, fontRegular, fontOblique } = await embedJournalFonts(pdfDoc);
-
-  // Palette: Navy & Gold
-  const colorNavy = rgb(16 / 255, 43 / 255, 63 / 255); // Ink navy #102b3f
-  const colorGold = rgb(128 / 255, 99 / 255, 49 / 255); // Dark gold #806331
-  const colorDarkGray = rgb(0.2, 0.25, 0.3);
-  const colorLightGray = rgb(0.95, 0.96, 0.98);
-
-  // Outer Background & Elegant Academic Double Border
-  page.drawRectangle({
-    x: 0,
-    y: 0,
-    width,
-    height,
-    color: colorLightGray,
-  });
-
-  // Inner white card
-  page.drawRectangle({
-    x: 20,
-    y: 20,
-    width: width - 40,
-    height: height - 40,
-    color: rgb(1, 1, 1),
-  });
-
-  // Dark Navy outer frame
-  page.drawRectangle({
-    x: 30,
-    y: 30,
-    width: width - 60,
-    height: height - 60,
-    borderColor: colorNavy,
-    borderWidth: 3,
-  });
-
-  // Gold inner frame
-  page.drawRectangle({
-    x: 36,
-    y: 36,
-    width: width - 72,
-    height: height - 72,
-    borderColor: colorGold,
-    borderWidth: 1.5,
-  });
-
-  // Certificate Header
-  const orgName = "AGM SCIENTIFIC PUBLISHING ACADEMY";
-  page.drawText(orgName, {
-    x: (width - fontBold.widthOfTextAtSize(orgName, 13)) / 2,
-    y: height - 70,
-    size: 13,
-    font: fontBold,
-    color: colorNavy,
-  });
-
-  const journalName = "AGM JOURNAL";
-  page.drawText(journalName, {
-    x: (width - fontBold.widthOfTextAtSize(journalName, 28)) / 2,
-    y: height - 105,
-    size: 28,
-    font: fontBold,
-    color: colorNavy,
-  });
-
-  const journalSub = "INTERNATIONAL MULTIDISCIPLINARY SCIENTIFIC JOURNAL";
-  page.drawText(journalSub, {
-    x: (width - fontRegular.widthOfTextAtSize(journalSub, 9)) / 2,
-    y: height - 122,
-    size: 9,
-    font: fontRegular,
-    color: colorDarkGray,
-  });
-
-  // Certificate Badge / Title
-  const titleText = "CERTIFICATE OF PUBLICATION";
-  page.drawText(titleText, {
-    x: (width - fontBold.widthOfTextAtSize(titleText, 22)) / 2,
-    y: height - 165,
-    size: 22,
-    font: fontBold,
-    color: colorGold,
-  });
-
-  const certSub = "THIS IS TO CERTIFY THAT THE SCIENTIFIC RESEARCH PAPER HAS BEEN PEER-REVIEWED AND PUBLISHED";
-  page.drawText(certSub, {
-    x: (width - fontRegular.widthOfTextAtSize(certSub, 8.5)) / 2,
-    y: height - 185,
-    size: 8.5,
-    font: fontRegular,
-    color: colorDarkGray,
-  });
-
-  // Author Name
-  const authorIntro = "Presented to author:";
-  page.drawText(authorIntro, {
-    x: (width - fontRegular.widthOfTextAtSize(authorIntro, 11)) / 2,
-    y: height - 225,
-    size: 11,
-    font: fontRegular,
-    color: colorDarkGray,
-  });
-
-  const authorName = cert.author_name;
-  page.drawText(authorName, {
-    x: (width - fontBold.widthOfTextAtSize(authorName, 24)) / 2,
-    y: height - 255,
-    size: 24,
-    font: fontBold,
-    color: colorNavy,
-  });
-
-  if (cert.author_affiliation) {
-    const affLines = wrapText(cert.author_affiliation, width - 200, 10, fontRegular);
-    let affY = height - 275;
-    for (const line of affLines.slice(0, 2)) {
-      page.drawText(line, {
-        x: (width - fontRegular.widthOfTextAtSize(line, 10)) / 2,
-        y: affY,
-        size: 10,
-        font: fontRegular,
-        color: colorDarkGray,
-      });
-      affY -= 14;
+  if (cert.status !== 'valid') throw new Error('Certificate revoked');
+  const doc = await PDFDocument.create();
+  const { fontBold, fontRegular } = await embedJournalFonts(doc);
+  const W = 841.89, H = 595.28;
+  const navy = rgb(0.063, 0.169, 0.247), teal = rgb(0.06, 0.38, 0.39);
+  const gold = teal, muted = rgb(0.38, 0.43, 0.46);
+  const qr = await doc.embedPng(await generateQrPngBuffer(verificationUrl));
+  let page = doc.addPage([W, H]);
+  let y = H - 185;
+  const journalName = cert.journal_name || settings?.journal_name || 'AGM Journal';
+  function frame() {
+    page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: rgb(1, 1, 1) });
+    page.drawRectangle({ x: 25, y: 25, width: W - 50, height: H - 50, borderColor: gold, borderWidth: 0.8 });
+    page.drawRectangle({ x: W - 192, y: 26, width: 166, height: H - 52, color: navy });
+    page.drawText('AGM', { x: W - 165, y: H - 86, size: 32, font: fontBold, color: rgb(1, 1, 1) });
+    page.drawText('JOURNAL', { x: W - 163, y: H - 109, size: 11, font: fontRegular, color: rgb(0.75, 0.84, 0.83) });
+    page.drawImage(qr, { x: W - 163, y: 147, width: 110, height: 110 });
+    page.drawText('SCAN TO VERIFY', { x: W - 158, y: 129, size: 8, font: fontBold, color: rgb(1, 1, 1) });
+    page.drawText('ONLINE REGISTRY', { x: W - 158, y: 115, size: 7, font: fontRegular, color: rgb(0.75, 0.84, 0.83) });
+    page.drawText(journalName.toUpperCase(), { x: 54, y: H - 74, size: fitFont(journalName.toUpperCase(), fontBold, 19, W - 276), font: fontBold, color: navy });
+    page.drawLine({ start: { x: 54, y: H - 91 }, end: { x: W - 218, y: H - 91 }, thickness: 1.3, color: teal });
+    page.drawText(doc.getPageCount() === 1 ? 'SERTIFIKAT / CERTIFICATE' : 'CERTIFICATE / CONTINUED', { x: 54, y: H - 130, size: 24, font: fontBold, color: gold });
+    page.drawText('ILMIY MAQOLA NASHRI  /  SCIENTIFIC PUBLICATION', { x: 54, y: H - 149, size: 8, font: fontRegular, color: muted });
+  }
+  frame();
+  function text(value: string, size: number, bold = false, color = navy, gap = size * 1.4) {
+    const font = bold ? fontBold : fontRegular;
+    const clean = value.replace(/[\r\n\t]+/g, ' ');
+    for (const line of wrapText(clean, W - 276, size, font)) {
+      if (y < 134) { page = doc.addPage([W, H]); frame(); y = H - 185; }
+      page.drawText(line, { x: 54, y, size, font, color }); y -= gap;
     }
   }
-
-  // Article Title
-  const paperIntro = "For publishing the original scientific article entitled:";
-  page.drawText(paperIntro, {
-    x: (width - fontRegular.widthOfTextAtSize(paperIntro, 11)) / 2,
-    y: height - 325,
-    size: 11,
-    font: fontRegular,
-    color: colorDarkGray,
+  text('Taqdim etiladi / Presented to', 9, false, muted);
+  y -= 7;
+  text(cert.author_name, 24, true);
+  if (cert.author_affiliation) text(cert.author_affiliation, 9, false, muted);
+  y -= 15;
+  text('Quyidagi ilmiy maqola jurnalimizda nashr etilganini tasdiqlaydi:', 9, false, muted);
+  text('This certificate records authorship of the following published article:', 9, false, muted);
+  y -= 8;
+  text(cert.article_title, 14, true);
+  y -= 10;
+  text(`Jild / Volume ${cert.issue_volume}  \u00b7  Son / Issue ${cert.issue_number}  \u00b7  ${cert.issue_year}`, 10, true, teal);
+  text(`Nashr sanasi / Publication date: ${cert.issue_date}`, 9, false, muted);
+  if (settings && isValidIssn(settings.issn_online)) text(`ISSN: ${settings.issn_online}`, 8, false, muted);
+  doc.getPages().forEach((sheet, index) => {
+    sheet.drawLine({ start: { x: 54, y: 108 }, end: { x: W - 218, y: 108 }, thickness: 0.6, color: gold });
+    sheet.drawText(cert.certificate_number, { x: 54, y: 87, size: fitFont(cert.certificate_number, fontBold, 9, W - 276), font: fontBold, color: navy });
+    sheet.drawText(`Tekshiruv kodi / Verification: ${cert.verification_code}`, { x: 54, y: 70, size: fitFont(`Tekshiruv kodi / Verification: ${cert.verification_code}`, fontRegular, 8, W - 276), font: fontRegular, color: muted });
+    sheet.drawText('AGM Journal tahririyati / Editorial office', { x: 54, y: 50, size: 8, font: fontRegular, color: teal });
+    sheet.drawText(`${index + 1} / ${doc.getPageCount()}`, { x: W - 88, y: 53, size: 8, font: fontRegular, color: rgb(1, 1, 1) });
   });
-
-  const titleLines = wrapText(`"${cert.article_title}"`, width - 220, 14, fontBold);
-  let titleY = height - 350;
-  for (const line of titleLines.slice(0, 3)) {
-    page.drawText(line, {
-      x: (width - fontBold.widthOfTextAtSize(line, 14)) / 2,
-      y: titleY,
-      size: 14,
-      font: fontBold,
-      color: colorNavy,
-    });
-    titleY -= 18;
-  }
-
-  // Publication Details
-  const issueInfo = `Volume ${cert.issue_volume}, Issue ${cert.issue_number} (${cert.issue_year}) | Publication Date: ${cert.issue_date}`;
-  page.drawText(issueInfo, {
-    x: (width - fontOblique.widthOfTextAtSize(issueInfo, 11)) / 2,
-    y: titleY - 10,
-    size: 11,
-    font: fontOblique,
-    color: colorNavy,
-  });
-
-  // Bottom section: QR Code, Cert Number, Signatures
-  // Generate & Embed QR Code
-  try {
-    const qrBuffer = await generateQrPngBuffer(verificationUrl);
-    const qrImage = await pdfDoc.embedPng(qrBuffer);
-    const qrSize = 80;
-    const qrX = 65;
-    const qrY = 55;
-
-    page.drawImage(qrImage, {
-      x: qrX,
-      y: qrY,
-      width: qrSize,
-      height: qrSize,
-    });
-
-    const qrLabel = "Scan to verify online";
-    page.drawText(qrLabel, {
-      x: qrX,
-      y: qrY - 12,
-      size: 7.5,
-      font: fontRegular,
-      color: colorDarkGray,
-    });
-  } catch (err) {
-    console.warn("Could not embed QR code to certificate:", err);
-  }
-
-  // Center Certificate Metadata
-  const certNoText = `Certificate No: ${cert.certificate_number}`;
-  page.drawText(certNoText, {
-    x: 200,
-    y: 95,
-    size: 10,
-    font: fontBold,
-    color: colorNavy,
-  });
-
-  const verCodeText = `Verification Code: ${cert.verification_code}`;
-  page.drawText(verCodeText, {
-    x: 200,
-    y: 80,
-    size: 9,
-    font: fontRegular,
-    color: colorDarkGray,
-  });
-
-  const verUrlText = `Portal: ${verificationUrl}`;
-  page.drawText(verUrlText.substring(0, 65), {
-    x: 200,
-    y: 65,
-    size: 8,
-    font: fontRegular,
-    color: colorDarkGray,
-  });
-
-  // Right Signatures / Stamp
-  const signX = width - 240;
-  page.drawText("Editor-in-Chief", {
-    x: signX,
-    y: 115,
-    size: 10,
-    font: fontBold,
-    color: colorNavy,
-  });
-
-  page.drawText("Academician Sh. Ayupov", {
-    x: signX,
-    y: 85,
-    size: 10,
-    font: fontRegular,
-    color: colorDarkGray,
-  });
-
-  page.drawLine({
-    start: { x: signX, y: 100 },
-    end: { x: signX + 160, y: 100 },
-    thickness: 1,
-    color: colorGold,
-  });
-
-  page.drawText("AGM Journal Editorial Board", {
-    x: signX,
-    y: 70,
-    size: 8.5,
-    font: fontOblique,
-    color: colorDarkGray,
-  });
-
-  // Official Journal Blue Seal (Stamp)
-  try {
-    const sealBuffer = await readFile(path.join(process.cwd(), 'public/images/agm-journal-seal.png'));
-    const sealImage = await pdfDoc.embedPng(sealBuffer);
-    const sealSize = 94;
-    page.drawImage(sealImage, {
-      x: signX + 40,
-      y: 42,
-      width: sealSize,
-      height: sealSize,
-      opacity: 0.88,
-    });
-  } catch (err) {
-    console.warn("Could not embed official seal into certificate:", err);
-  }
-
-  return await pdfDoc.save();
+  doc.setTitle(`Certificate \u2014 ${cert.author_name}`); doc.setAuthor(journalName);
+  doc.setSubject(cert.certificate_number); doc.setKeywords([cert.certificate_number, cert.verification_code]);
+  return doc.save();
 }
 
 // 2. GENERATE ARTICLE TITLE / COVER SHEET PDF
@@ -334,18 +125,18 @@ export async function generateArticleTitlePagePdf(
   const abstract = (lang === 'ru' ? article.abstract_ru : lang === 'en' ? article.abstract_en : article.abstract_uz) || article.abstract_uz;
   const keywords = (lang === 'ru' ? article.keywords_ru : lang === 'en' ? article.keywords_en : article.keywords_uz) || article.keywords_uz || [];
   const labels = lang === 'uz'
-    ? { abstract: 'ANNOTATSIYA', keywords: 'Kalit so?zlar', citation: 'IQTIBOS UCHUN', volume: 'Jild', issue: 'Son', pages: 'Sahifalar', date: 'Nashr sanasi', id: 'Maqola ID', pending: 'Belgilanmagan', author: 'Mas?ul muallif' }
+    ? { abstract: 'ANNOTATSIYA', keywords: 'Kalit so‘zlar', citation: 'IQTIBOS UCHUN', volume: 'Jild', issue: 'Son', pages: 'Sahifalar', date: 'Nashr sanasi', id: 'Maqola ID', pending: 'Belgilanmagan', author: 'Mas’ul muallif' }
     : lang === 'ru'
-    ? { abstract: '?????????', keywords: '???????? ?????', citation: '??? ???????????', volume: '???', issue: '??????', pages: '????????', date: '???? ??????????', id: 'ID ??????', pending: '?? ???????', author: '?????????? ?????' }
+    ? { abstract: 'АННОТАЦИЯ', keywords: 'Ключевые слова', citation: 'КАК ЦИТИРОВАТЬ', volume: 'Том', issue: 'Выпуск', pages: 'Страницы', date: 'Опубликовано', id: 'ID статьи', pending: 'Не назначено', author: 'Автор для переписки' }
     : { abstract: 'ABSTRACT', keywords: 'Keywords', citation: 'HOW TO CITE', volume: 'Volume', issue: 'Issue', pages: 'Pages', date: 'Published', id: 'Article ID', pending: 'Not assigned', author: 'Corresponding author' };
-  const pageRange = article.page_first != null ? `${article.page_first}${article.page_last != null && article.page_last !== article.page_first ? '?' + article.page_last : ''}` : labels.pending;
+  const pageRange = article.page_first != null ? `${article.page_first}${article.page_last != null && article.page_last !== article.page_first ? '\u2013' + article.page_last : ''}` : labels.pending;
   const issueLine = article.issue ? `${labels.volume} ${article.issue.volume}  |  ${labels.issue} ${article.issue.issue_number}  |  ${article.issue.year}` : labels.pending;
   const articleId = `AGM-${article.id.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
   const site = (process.env.NEXT_PUBLIC_SITE_URL || 'https://agmjoural.uz').replace(/\/$/, '');
   let page = doc.addPage([width, height]);
   let y = height - 135;
   function header() {
-    page.drawText(settings.journal_name.toUpperCase(), { x: margin, y: height - 51, size: 23, font: fontBold, color: navy });
+    page.drawText(settings.journal_name.toUpperCase(), { x: margin, y: height - 51, size: fitFont(settings.journal_name.toUpperCase(), fontBold, 23, width - margin * 2), font: fontBold, color: navy });
     page.drawText('RESEARCH PUBLICATION  /  OPEN ACCESS', { x: margin, y: height - 70, size: 8, font: fontRegular, color: teal });
     page.drawLine({ start: { x: margin, y: height - 82 }, end: { x: width - margin, y: height - 82 }, thickness: 1.5, color: teal });
     page.drawText(issueLine, { x: margin, y: height - 103, size: 9, font: fontBold, color: navy });
@@ -399,12 +190,12 @@ export async function generateArticleTitlePagePdf(
   const year = article.issue?.year || article.publication_date?.slice(0, 4);
   const issueCitation = article.issue ? `, ${article.issue.volume}(${article.issue.issue_number})` : '';
   text(`${authorNames}${year ? ' (' + year + ')' : ''}. ${title}. ${settings.journal_name}${issueCitation}${article.page_first != null ? ', ' + pageRange : ''}.`, 8.5, false, muted, 13);
-  text(`${article.license} ? ${site}/${lang}/article/${article.slug}`, 8, false, muted, 12);
+  text(`${article.license} \u00b7 ${site}/${lang}/article/${article.slug}`, 8, false, muted, 12);
   const pages = doc.getPages();
   pages.forEach((sheet, index) => {
     sheet.drawLine({ start: { x: margin, y: 53 }, end: { x: width - margin, y: 53 }, thickness: 0.5, color: muted });
-    sheet.drawText(`${settings.journal_name}  |  ${articleId}`, { x: margin, y: 37, size: 7.5, font: fontRegular, color: muted });
-    sheet.drawText(`${index + 1} / ${pages.length}`, { x: width - margin - 40, y: 37, size: 7.5, font: fontRegular, color: muted });
+    sheet.drawText(`${settings.journal_name}  |  ${articleId}`, { x: margin, y: 37, size: fitFont(`${settings.journal_name}  |  ${articleId}`, fontRegular, 7.5, width - margin * 2 - 60), font: fontRegular, color: muted });
+    sheet.drawText(`Metadata ${index + 1} / ${pages.length}`, { x: width - margin - 74, y: 37, size: 7.5, font: fontRegular, color: muted });
   });
   doc.setTitle(title); doc.setAuthor(authorNames); doc.setSubject(issueLine); doc.setCreator(settings.journal_name);
   return doc.save();
@@ -423,72 +214,76 @@ export async function mergePdfs(pdfBuffers: Uint8Array[]): Promise<Uint8Array> {
   return await mergedPdf.save();
 }
 
-// 4. GENERATE ISSUE TABLE OF CONTENTS (TOC)
-export async function generateIssueTocPdf(
-  issue: Issue,
-  articles: Article[]
-): Promise<Uint8Array> {
-  const pdfDoc = await PDFDocument.create();
-  const width = 595.28;
-  const height = 841.89;
-  const page = pdfDoc.addPage([width, height]);
+/** Brand the original page artwork without extracting/reflowing scientific content. */
+export async function assemblePublicationPdf(article: Article, settings: JournalSettings, original: Uint8Array): Promise<Uint8Array> {
+  const source = await PDFDocument.load(original);
+  if (!source.getPageCount()) throw new Error('Empty manuscript');
+  const doc = await PDFDocument.load(await generateArticleTitlePagePdf(article, settings));
+  const { fontRegular, fontBold } = await embedJournalFonts(doc);
+  const W = 595.28, H = 841.89, M = 32;
+  const metadataPages = doc.getPageCount();
+  const articleId = `AGM-${article.id.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+  for (let i = 0; i < source.getPageCount(); i++) {
+    // Retain the visible crop and rotation, including landscape manuscripts.
+    const originalPage = source.getPage(i);
+    const crop = originalPage.getCropBox();
+    const embedded = await doc.embedPage(originalPage, { left: crop.x, bottom: crop.y, right: crop.x + crop.width, top: crop.y + crop.height });
+    const rotation = ((originalPage.getRotation().angle % 360) + 360) % 360;
+    const sideways = rotation === 90 || rotation === 270;
+    const visibleW = sideways ? embedded.height : embedded.width;
+    const visibleH = sideways ? embedded.width : embedded.height;
+    const scale = Math.min((W - M * 2) / visibleW, (H - 112) / visibleH);
+    const w = visibleW * scale, h = visibleH * scale;
+    const x = (W - w) / 2, y = 54 + (H - 112 - h) / 2;
+    const page = doc.addPage([W, H]);
+    page.drawText(settings.journal_name.toUpperCase(), { x: M, y: H - 29, size: fitFont(settings.journal_name.toUpperCase(), fontBold, 10, W - M * 2 - 100), font: fontBold, color: navy });
+    page.drawText(articleId, { x: W - M - 88, y: H - 29, size: 8, font: fontRegular, color: muted });
+    page.drawLine({ start: { x: M, y: H - 41 }, end: { x: W - M, y: H - 41 }, thickness: 0.8, color: teal });
+    // PDF rotation is clockwise, whereas drawPage angles are counterclockwise.
+    const offsets = rotation === 90 ? [0, h] : rotation === 180 ? [w, h] : rotation === 270 ? [w, 0] : [0, 0];
+    page.drawPage(embedded, { x: x + offsets[0], y: y + offsets[1], xScale: scale, yScale: scale, rotate: degrees(-rotation) });
+    page.drawLine({ start: { x: M, y: 42 }, end: { x: W - M, y: 42 }, thickness: 0.5, color: muted });
+    const range = article.page_first != null && article.page_last != null && article.page_last - article.page_first + 1 === source.getPageCount() ? ` | Journal page ${article.page_first + i}` : '';
+    page.drawText(`Manuscript ${i + 1} / ${source.getPageCount()}${range}`, { x: M, y: 26, size: 7, font: fontRegular, color: muted });
+    page.drawText(`PDF ${metadataPages + i + 1} / ${metadataPages + source.getPageCount()}`, { x: W - M - 65, y: 26, size: 7, font: fontRegular, color: muted });
+  }
+  return doc.save();
+}
 
-  const { fontBold, fontRegular } = await embedJournalFonts(pdfDoc);
-
-  const colorNavy = rgb(16 / 255, 43 / 255, 63 / 255);
-  const colorGold = rgb(128 / 255, 99 / 255, 49 / 255);
-
-  // Top Title
-  page.drawText("AGM JOURNAL", {
-    x: 40,
-    y: height - 50,
-    size: 20,
-    font: fontBold,
-    color: colorNavy,
+// Paginated issue contents; page ranges are only printed when assigned.
+export async function generateIssueTocPdf(issue: Issue, articles: Article[]): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  const { fontBold, fontRegular } = await embedJournalFonts(doc);
+  const W = 595.28, H = 841.89, M = 44;
+  let page = doc.addPage([W, H]), y = H - 144;
+  function header() {
+    page.drawText('AGM JOURNAL', { x: M, y: H - 51, size: 23, font: fontBold, color: navy });
+    page.drawText('TABLE OF CONTENTS', { x: M, y: H - 76, size: 10, font: fontBold, color: teal });
+    page.drawLine({ start: { x: M, y: H - 89 }, end: { x: W - M, y: H - 89 }, thickness: 1.4, color: teal });
+    page.drawText(`Volume ${issue.volume}  \u00b7  Issue ${issue.issue_number}  \u00b7  ${issue.year}`, { x: M, y: H - 111, size: 10, font: fontRegular, color: muted });
+  }
+  function line(value: string, size: number, bold = false, color = navy) {
+    for (const text of wrapText(value, W - M * 2 - 29, size, bold ? fontBold : fontRegular)) {
+      if (y < 76) { page = doc.addPage([W, H]); header(); y = H - 144; }
+      page.drawText(text, { x: M + 29, y, size, font: bold ? fontBold : fontRegular, color }); y -= size * 1.5;
+    }
+  }
+  header();
+  if (!articles.length) line('No articles have been assigned to this issue.', 10, false, muted);
+  articles.forEach((article, index) => {
+    if (y < 150) { page = doc.addPage([W, H]); header(); y = H - 144; }
+    page.drawText(String(index + 1).padStart(2, '0'), { x: M, y, size: 10, font: fontBold, color: teal });
+    const title = (article.original_language === 'en' ? article.title_en : article.original_language === 'ru' ? article.title_ru : article.title_uz) || article.title_uz;
+    line(title, 11, true);
+    line((article.authors || []).map(a => a.full_name).join(', '), 9, false, muted);
+    const pages = article.page_first != null ? `Pages ${article.page_first}${article.page_last != null && article.page_last !== article.page_first ? '\u2013' + article.page_last : ''}` : 'Pages not assigned';
+    line(pages + (article.doi ? `  \u00b7  DOI: ${article.doi}` : ''), 8, false, teal);
+    y -= 17;
   });
-
-  page.drawText(`TABLE OF CONTENTS — VOLUME ${issue.volume}, ISSUE ${issue.issue_number} (${issue.year})`, {
-    x: 40,
-    y: height - 75,
-    size: 11,
-    font: fontBold,
-    color: colorGold,
+  doc.getPages().forEach((sheet, index) => {
+    sheet.drawLine({ start: { x: M, y: 53 }, end: { x: W - M, y: 53 }, thickness: 0.5, color: muted });
+    sheet.drawText(`AGM Journal  |  Contents  |  ${index + 1} / ${doc.getPageCount()}`, { x: M, y: 36, size: 8, font: fontRegular, color: muted });
   });
-
-  let currentY = height - 120;
-
-  articles.forEach((art, idx) => {
-    const title = art.title_uz;
-    const authors = (art.authors || []).map(a => a.full_name).join(', ');
-    const pages = `pp. ${art.page_first || 1}-${art.page_last || 10}`;
-
-    page.drawText(`${idx + 1}. ${title}`, {
-      x: 40,
-      y: currentY,
-      size: 11,
-      font: fontBold,
-      color: colorNavy,
-    });
-    currentY -= 15;
-
-    page.drawText(authors, {
-      x: 55,
-      y: currentY,
-      size: 9.5,
-      font: fontRegular,
-      color: rgb(0.3, 0.3, 0.3),
-    });
-
-    page.drawText(pages, {
-      x: width - 100,
-      y: currentY,
-      size: 9.5,
-      font: fontBold,
-      color: colorGold,
-    });
-
-    currentY -= 25;
-  });
-
-  return await pdfDoc.save();
+  doc.setTitle(`Contents \u2014 Volume ${issue.volume}, Issue ${issue.issue_number} (${issue.year})`);
+  return doc.save();
 }

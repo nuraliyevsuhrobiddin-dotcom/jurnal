@@ -44,7 +44,7 @@ export default function AdminPdfGeneratorPage() {
           DOCX va PDF generator vositasi
         </h1>
         <p className="text-xs sm:text-sm text-slate-500 mt-1">
-          Ilmiy maqolalarni qabul qilish, Word (.docx) hujjatlarini tahlil qilish va titul sahifasi qo‘shish
+          Word hujjatlarini tahlil qilish va maqola PDF’larini jurnal maketida tayyorlash
         </p>
       </div>
 
@@ -58,7 +58,7 @@ export default function AdminPdfGeneratorPage() {
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          Rejim B: Word (DOCX) tahlili
+          Word (DOCX) tahlili
         </button>
         <button
           onClick={() => setActiveTab('pdf')}
@@ -68,7 +68,7 @@ export default function AdminPdfGeneratorPage() {
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          Rejim A: Tayyor PDF va Titul sahifasi
+          Jurnal PDF maketi
         </button>
       </div>
 
@@ -170,10 +170,10 @@ export default function AdminPdfGeneratorPage() {
         <div className="bg-white rounded-2xl academic-border academic-shadow p-8 space-y-6">
           <div className="space-y-2">
             <h3 className="text-base font-bold text-navy-900">
-              Rejim A: Tayyor PDF fayli va Titul varag‘ini birlashtirish
+              Maqolani nashrga tayyorlash
             </h3>
             <p className="text-xs text-slate-600 leading-relaxed">
-              AGM Journal standartidagi titul sahifasi (Cover Sheet) serverda dinamik generatsiya qilinadi. Unda maqola nomi, mualliflar, DOI, ISSN va rasmiy iqtibos formatlari kiritiladi.
+              Sarlavha, mualliflar, annotatsiya va nashr rekvizitlari yagona jurnal maketida tayyorlanadi. Asl maqola sahifalariga jurnal sarlavhasi va raqamlar qo‘shiladi; matn, jadvallar va formulalar saqlanadi.
             </p>
           </div>
 

@@ -1,0 +1,76 @@
+/* Public interiors share the catalog's quiet scholarly typography and rules. */
+.interior-page { padding-top: 42px; padding-bottom: 56px; color: #173448; }
+.interior-page > div:first-child:not(.issue-banner), .interior-page > header { padding-bottom: 25px; border-bottom: 1px solid #dce5e4; }
+.interior-page h1 { font-family: Georgia, 'Times New Roman', serif; font-size: clamp(30px, 3.5vw, 43px); line-height: 1.2; font-weight: 500; letter-spacing: -.025em; }
+.interior-page h1 > svg { display: none; }
+.interior-kicker { font-size: 11px; color: #177568; font-weight: 700; letter-spacing: .15em; margin-bottom: 12px; }
+.interior-page .academic-border, .interior-page .academic-shadow { border: 1px solid #dce5e4; box-shadow: none; border-radius: 3px; }
+.interior-page [class*="text-gold-"] { color: #177568; }
+.interior-page [class*="bg-gold-"] { background: #edf5f3; border-color: #d1e5df; }
+.interior-page a, .interior-page p { overflow-wrap: anywhere; }
+.interior-page input, .interior-page select, .interior-page textarea, .interior-page button { border-radius: 3px; }
+.interior-page :is(input,select,textarea):focus-visible { outline: 2px solid #177568; outline-offset: 3px; }
+.interior-page :is(a,button):focus-visible { outline: 2px solid #177568; outline-offset: 4px; }
+.articles-page form { box-shadow: none; border-radius: 3px; background: #f6f8f7; }
+.interior-page .article-card { border-radius: 3px; box-shadow: none; border-color: #dce5e4; }
+.interior-page .article-card:hover { border-color: #7fa9a1; box-shadow: none; }
+.interior-page .article-card > div:first-child { height: 2px; opacity: 1; }
+.interior-page .article-title { font-family: Georgia, serif; font-weight: 500; line-height: 1.45; }
+.interior-page .article-type, .interior-page .article-issue, .interior-page .article-keyword, .interior-page .article-access { border-radius: 2px; }
+.interior-page .article-read { background: #176e63; border-radius: 3px; box-shadow: none; }
+.interior-page .article-pdf { border-radius: 3px; box-shadow: none; }
+.interior-page .article-footer { background: #f8faf9; }
+.interior-page .article-doi { white-space: normal; overflow-wrap: anywhere; }
+.current-page .issue-banner { background: #f3f7f6; color: #173448; border: 1px solid #dce5e4; border-radius: 3px; box-shadow: none; padding: 28px; }
+.current-page .issue-banner p, .current-page .issue-banner [class*="text-slate-"] { color: #526773; }
+.current-page .issue-banner [class*="text-emerald-"] { color: #176e63; background: #e5efec; border-radius: 2px; }
+.current-page .issue-banner [class*="border-gold-"] { border-color: #b9cdca; border-radius: 2px; box-shadow: 0 5px 12px #17344816; }
+.archive-page .issue-archive-cover { height: 250px; background: #eff4f2; }
+.archive-page .issue-archive-cover > img { object-fit: contain; padding: 24px; }
+.archive-page .issue-archive-cover > div:not([role="img"]) { display: none; }
+.archive-page h2 { background: transparent; padding-left: 0; font-family: Georgia, serif; font-weight: 500; }
+.contact-page .rounded-2xl { border-radius: 3px; box-shadow: none; }
+.contact-page > div:nth-child(2) { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 40px; }
+.contact-page > div:nth-child(2) > div:first-child > div { border-width: 0 0 1px; padding: 18px 0 28px; }
+.contact-form button { background: #176e63; }
+.contact-form :is(input,textarea) { background: #fbfcfc; }
+.editorial-board-page h2 { font-family: Georgia, serif; font-weight: 500; font-size: 24px; }
+.editorial-board-page [class*="rounded-full"] { border-radius: 2px; }
+.verification-page .rounded-xl, .verification-page .rounded-lg { border-radius: 3px; }
+.interior-empty { border: 1px solid #dce5e4; background: #f7f9f8; padding: 48px 28px; text-align: center; }
+.interior-empty svg { margin: 0 auto 20px; color: #177568; }
+.interior-empty h2 { font-family: Georgia, serif; font-size: 26px; margin-bottom: 12px; }
+.interior-empty p { color: #526773; font-size: 14px; margin: 0 auto 22px; max-width: 570px; }
+.interior-empty a { color: #176e63; font-weight: 600; font-size: 14px; }
+@media screen {
+ .public-site .policy-page { background: #f8faf9; }
+ .public-site .policy-banner { background: #f3f7f6; color: #173448; border-bottom: 1px solid #dce5e4; padding: 42px 0 36px; }
+ .public-site .policy-banner h1 { font-size: clamp(30px,3.5vw,43px); font-weight: 500; letter-spacing: -.025em; }
+ .public-site .policy-banner p:not(.policy-kicker), .public-site .policy-hub-meta { color: #526773; }
+ .public-site :is(.policy-kicker,.policy-banner .policy-kicker,.policy-breadcrumb,.policy-toc a span,.policy-sections h2 span,.policy-hub-group-heading span,.policy-hub-link svg) { color: #177568; }
+ .public-site .policy-breadcrumb span { color: #526773; }
+ .public-site .policy-document { box-shadow: none; border-radius: 3px; }
+ .public-site .policy-seal { border: 1px solid #cbded8; border-radius: 2px; transform: none; color: #176e63; width: 90px; height: 84px; background: #f5f9f7; }
+ .public-site .policy-seal span { font-size: 22px; }
+ .public-site .policy-button { background: #176e63; color: white; border-color: #176e63; border-radius: 3px; }
+ .public-site .policy-button:hover { background: #11584f; border-color: #11584f; }
+ .public-site .policy-button-secondary { background: white; color: #173448; border-color: #b9cdca; }
+ .public-site .policy-button-secondary:hover { background: #edf5f2; }
+ .public-site :is(.policy-toc a:hover,.policy-hub-link:hover h3) { color: #177568; }
+ .public-site .policy-hub { background: white; }
+ .public-site .submission-form, .public-site .submission-success { border-radius: 3px; }
+ .public-site .submission-success strong { background: #eaf4ef; overflow-wrap: anywhere; }
+ .public-site .submission-upload { background: #f3f7f6; }
+ .public-site .submission-form input:not([type=checkbox]), .public-site .submission-form textarea, .public-site .submission-form select { border-radius: 3px; }
+ .public-site .policy-metadata dd, .public-site .policy-document-end a { overflow-wrap: anywhere; }
+}
+@media (max-width: 767px) {
+ .interior-page { padding-top: 28px; padding-bottom: 36px; }
+ .contact-page > div:nth-child(2) { grid-template-columns: minmax(0, 1fr); gap: 25px; }
+ .current-page .issue-banner { padding: 20px; flex-wrap: wrap; }
+ .current-page .issue-banner > div:last-child { min-width: 180px; }
+ .interior-empty { padding: 32px 18px; }
+ .public-site .policy-hub-group { grid-template-columns: minmax(0, 1fr); gap: 9px; }
+ .public-site .policy-document-head { align-items: flex-start; }
+ .public-site .policy-seal { width: 72px; height: 74px; }
+}

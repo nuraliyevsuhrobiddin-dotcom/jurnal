@@ -46,7 +46,7 @@ export function ArticleCard({ article, lang, theme = 'light' }: ArticleCardProps
   return (
     <article data-home-reveal={theme === 'dark' ? '' : undefined} className={`article-card ${theme === 'dark' ? 'article-card-dark home-lift' : ''} group bg-white rounded-xl border border-slate-200/90 shadow-sm hover:shadow-xl hover:border-navy-800/40 transition-all duration-300 flex flex-col overflow-hidden relative`}>
       {/* Top accent gradient bar on hover */}
-      <div className="h-1 w-full shrink-0 bg-gold-500 opacity-80 group-hover:opacity-100 transition-opacity" />
+      <div className="h-1 w-full shrink-0 bg-teal-700 opacity-80 group-hover:opacity-100 transition-opacity" />
 
       <div className="p-5 space-y-3 flex-1">
         {/* Top Badges */}
@@ -80,12 +80,12 @@ export function ArticleCard({ article, lang, theme = 'light' }: ArticleCardProps
         {/* Authors */}
         <div className="space-y-1">
           <div className="article-authors flex items-center gap-1.5 text-xs font-bold text-slate-800">
-            <User className="w-3.5 h-3.5 text-gold-700 shrink-0" />
+            <User className="w-3.5 h-3.5 text-teal-700 shrink-0" />
             <span className="line-clamp-1">
               {authors.map((a, i) => (
                 <span key={a.id || i}>
                   {a.full_name}
-                  {a.is_corresponding && <sup className="text-gold-700 font-black ml-0.5">*</sup>}
+                  {a.is_corresponding && <sup className="text-teal-700 font-black ml-0.5">*</sup>}
                   {i < authors.length - 1 ? ', ' : ''}
                 </span>
               ))}
@@ -138,7 +138,7 @@ export function ArticleCard({ article, lang, theme = 'light' }: ArticleCardProps
             rel="noopener noreferrer"
             className="article-pdf inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-bold transition-all shadow-xs"
           >
-            <Download className="w-3.5 h-3.5 text-gold-700" />
+            <Download className="w-3.5 h-3.5 text-teal-700" />
             <span>PDF</span>
           </Link>
 
@@ -147,7 +147,7 @@ export function ArticleCard({ article, lang, theme = 'light' }: ArticleCardProps
             className="article-read inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-navy-900 hover:bg-navy-800 text-white font-bold transition-all shadow-sm"
           >
             <span>{dict.common.readMore}</span>
-            <ExternalLink className="w-3 h-3 text-gold-400" />
+            <ExternalLink className="w-3 h-3 text-white" />
           </Link>
         </div>
       </div>

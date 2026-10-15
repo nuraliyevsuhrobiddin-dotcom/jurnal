@@ -31,7 +31,7 @@ export function ContactForm({ lang = 'uz' }: { lang?: Language }) {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-5">
+    <form onSubmit={submit} className="contact-form space-y-5">
       <div>
         <label htmlFor="contact-name" className="block text-sm font-semibold mb-2">{dict.nameLabel}</label>
         <input id="contact-name" name="name" autoComplete="name" required minLength={2} maxLength={150} placeholder={dict.namePlaceholder} className="w-full px-4 py-3 rounded-lg border border-slate-300" />

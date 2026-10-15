@@ -15,14 +15,14 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "AGM Journal — International Scientific Journal",
-  description: "AGM Journal: ilmiy maqolalar, jurnal sonlari va ochiq ilmiy tadqiqotlar.",
+  description: "AGM Journal: research articles, journal issues and open-access scientific publications.",
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   await connection();
   return (
     <html
-      lang="uz"
+      lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>

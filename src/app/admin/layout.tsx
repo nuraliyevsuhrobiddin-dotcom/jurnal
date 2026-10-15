@@ -45,6 +45,7 @@ export default function AdminLayout({
   }
 
   const menuItems = [
+    { href: '/admin/notifications', label: 'Email bildirishnomalari', icon: Mail },
     { href: '/admin/messages', label: 'Murojaatlar', icon: Mail },
     { href: '/admin', label: 'Boshqaruv paneli', icon: LayoutDashboard },
     { href: '/admin/articles', label: 'Maqolalar ro‘yxati', icon: FileText },

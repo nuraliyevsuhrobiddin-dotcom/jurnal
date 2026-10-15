@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createHash } from 'node:crypto';
+import { after, NextRequest, NextResponse } from 'next/server';
+import { deliverNotification, queueNotification } from '@/lib/notifications';
+import { boundedBody, BodyLimitError } from '@/lib/bounded-body';
+import { protectRequest } from '@/lib/request-limit';
 import { PDFDocument } from 'pdf-lib';
 import { createArticle } from '@/lib/db';
 import { manuscriptSubmissionSchema } from '@/lib/submission-validation';
@@ -7,15 +9,16 @@ import { removeManuscript, saveManuscript } from '@/lib/manuscript-storage';
 import { POLICY_VERSION } from '@/types/policies';
 import { isDocxArchive } from '@/lib/docx-validation';
 
-const requestWindows = new Map<string, { count: number; expires: number }>();
-
 export async function POST(request: NextRequest) {
   const origin = request.headers.get('origin');
   if (origin && origin !== request.nextUrl.origin) return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
+  const limited = await protectRequest(request, 'submission-upload', 10);
+  if (limited) return limited;
   const size = Number(request.headers.get('content-length') || 0);
   if (size > 22 * 1024 * 1024) return NextResponse.json({ error: 'File exceeds 20 MB limit' }, { status: 413 });
   try {
-    const form = await request.formData();
+    const bytesBody = await boundedBody(request, 22 * 1024 * 1024);
+    const form = await new Request(request.url, { method: 'POST', headers: { 'Content-Type': request.headers.get('content-type') || '' }, body: Buffer.from(bytesBody) }).formData();
     const result = manuscriptSubmissionSchema.safeParse(Object.fromEntries(form.entries()));
     if (!result.success) return NextResponse.json({ error: 'Please complete the required metadata and declarations.', details: result.error.flatten() }, { status: 400 });
     const file = form.get('file');
@@ -28,11 +31,8 @@ export async function POST(request: NextRequest) {
       try { await PDFDocument.load(bytes); } catch { return NextResponse.json({ error: 'Upload a readable PDF without password protection.' }, { status: 400 }); }
     } else if (!isDocxArchive(bytes)) return NextResponse.json({ error: 'The DOCX file is not a valid unencrypted Word document within the size limits.' }, { status: 400 });
     const now = Date.now();
-    for (const [key, value] of requestWindows) if (value.expires < now) requestWindows.delete(key);
-    const key = createHash('sha256').update(result.data.email.toLowerCase()).digest('hex');
-    const window = requestWindows.get(key) || { count: 0, expires: now + 15 * 60 * 1000 };
-    if (window.count >= 5) return NextResponse.json({ error: 'Submission limit reached. Please try later.' }, { status: 429 });
-    window.count++; requestWindows.set(key, window);
+    const emailLimit = await protectRequest(request, 'submission-email', 5, 900, result.data.email.toLowerCase());
+    if (emailLimit) return emailLimit;
     const stored = await saveManuscript(file, bytes, extension);
     try {
       const data = result.data;
@@ -47,12 +47,18 @@ export async function POST(request: NextRequest) {
         submission_notes: `Public author submission; policy version ${POLICY_VERSION}; author confirms originality, all-author consent and no simultaneous submission. Received ${new Date(now).toISOString()}.`,
         authors: [{ id: uuid, article_id: '', full_name: data.author_name, email: data.email, affiliation: data.affiliation, country: data.country, is_corresponding: true, order_index: 1 }],
       });
-      return NextResponse.json({ success: true, submission_id: article.id, reference: `AGM-SUB-${uuid.slice(0, 8).toUpperCase()}` }, { status: 201 });
+      const reference = `AGM-SUB-${uuid.slice(0, 8).toUpperCase()}`;
+      try {
+        const notification = await queueNotification({ recipient: data.email, subject: `AGM Journal — ${reference}`, body: `Your manuscript has been received. Receipt does not constitute acceptance for publication.\n\nReference: ${reference}\nTitle: ${data.title}\n\nThe editorial office will contact you after review.` });
+        after(async () => { await deliverNotification(notification); });
+      } catch (error) { console.error('Submission receipt queue failed:', error); }
+      return NextResponse.json({ success: true, submission_id: article.id, reference }, { status: 201 });
     } catch (cause) {
       await removeManuscript(stored);
       throw cause;
     }
   } catch (cause) {
+    if (cause instanceof BodyLimitError) return NextResponse.json({ error: 'File exceeds 20 MB limit' }, { status: 413 });
     console.error('Manuscript submission failed:', cause);
     return NextResponse.json({ error: 'The submission could not be saved. Please try again or contact the editorial office.' }, { status: 500 });
   }

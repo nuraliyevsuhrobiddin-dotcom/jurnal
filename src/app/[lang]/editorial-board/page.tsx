@@ -14,20 +14,31 @@ export default async function EditorialBoardPage({
   const dict = getDictionary(currentLang);
 
   const members = await getEditorialBoard();
+  const roles = {
+    uz: { editor_in_chief: 'Bosh muharrir', deputy_editor: 'Bosh muharrir o‘rinbosari', editorial_board_member: 'Tahririyat hay’ati a’zosi', scientific_secretary: 'Ilmiy kotib', managing_editor: 'Mas’ul kotib' },
+    en: { editor_in_chief: 'Editor in chief', deputy_editor: 'Deputy editor', editorial_board_member: 'Editorial board member', scientific_secretary: 'Scientific secretary', managing_editor: 'Managing editor' },
+    ru: { editor_in_chief: 'Главный редактор', deputy_editor: 'Заместитель главного редактора', editorial_board_member: 'Член редакционной коллегии', scientific_secretary: 'Учёный секретарь', managing_editor: 'Ответственный секретарь' },
+  };
+  const countries: Record<string, { en: string; ru: string }> = {
+    'O‘zbekiston': { en: 'Uzbekistan', ru: 'Узбекистан' },
+    'Germaniya': { en: 'Germany', ru: 'Германия' },
+    'Rossiya': { en: 'Russia', ru: 'Россия' },
+  };
 
   return (
-    <div className="journal-container py-10 space-y-10">
+    <div className="journal-container interior-page editorial-board-page py-10 space-y-10">
       <div className="space-y-2">
         <h1 className="text-3xl sm:text-4xl font-extrabold text-navy-900 flex items-center gap-3">
           <Users className="w-8 h-8 text-gold-700" />
           <span>{dict.nav.editorial}</span>
         </h1>
         <p className="text-sm text-slate-500">
-          AGM Journal xalqaro ilmiy tahririyat hay‘ati va ilmiy maslahatchilari tarkibi
+          {currentLang === 'en' ? 'The editorial board and scientific advisors of AGM Journal.' : currentLang === 'ru' ? 'Редакционная коллегия и научные консультанты AGM Journal.' : 'AGM Journal tahririyat hayati va ilmiy maslahatchilari.'}
         </p>
       </div>
 
       <div className="space-y-6">
+        {members.length === 0 && <div className="interior-empty"><p>{dict.common.noResults}</p></div>}
         {members.map((member) => (
           <div
             key={member.id}
@@ -36,10 +47,10 @@ export default async function EditorialBoardPage({
             <div className="space-y-2 flex-1">
               <div className="flex items-center gap-2">
                 <span className="px-3 py-1 rounded-full text-xs font-bold bg-gold-50 text-gold-800 border border-gold-200">
-                  {member.academic_title || member.role.replace('_', ' ').toUpperCase()}
+                  {roles[currentLang][member.role]}
                 </span>
                 <span className="text-xs text-slate-500 font-medium">
-                  {member.country}
+                  {currentLang === 'uz' ? member.country : countries[member.country]?.[currentLang] || member.country}
                 </span>
               </div>
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { IssueCoverImage } from '@/components/issues/IssueCoverImage';
-import { notFound } from 'next/navigation';
+import Link from 'next/link';
 import { Language } from '@/types/journal';
 import { getDictionary } from '@/lib/i18n/dictionaries';
 import { getCurrentIssue, getPublishedArticles } from '@/lib/db';
@@ -17,7 +17,7 @@ export default async function CurrentIssuePage({
   const dict = getDictionary(currentLang);
 
   const issue = await getCurrentIssue();
-  if (!issue) notFound();
+  if (!issue) return <div className="journal-container interior-page current-page py-10 space-y-8"><header><p className="interior-kicker">AGM JOURNAL</p><h1>{dict.nav.current}</h1></header><section className="interior-empty"><BookOpen size={32} /><h2>{currentLang === 'en' ? 'The next issue is in preparation' : currentLang === 'ru' ? 'Новый выпуск готовится к публикации' : 'Navbatdagi son nashrga tayyorlanmoqda'}</h2><p>{currentLang === 'en' ? 'Published research is available in the article catalog and archive.' : currentLang === 'ru' ? 'Опубликованные исследования доступны в каталоге статей и архиве.' : 'Chop etilgan tadqiqotlarni maqolalar katalogi va arxivdan topishingiz mumkin.'}</p><Link href={`/${currentLang}/articles`}>{dict.nav.articles} →</Link></section></div>;
 
   const articles = await getPublishedArticles({ issueId: issue.id });
 
@@ -35,13 +35,13 @@ export default async function CurrentIssuePage({
   const coverUrl = issue.cover_image_url && !/^\/images\/issue-\d+-cover\.png$/i.test(issue.cover_image_url) ? issue.cover_image_url : '/images/issue-cover-default.svg';
 
   return (
-    <div className="journal-container issue-page py-8 space-y-6">
+    <div className="journal-container interior-page current-page issue-page py-8 space-y-6">
       {/* Issue Banner */}
       <div className="bg-gradient-to-br from-navy-950 via-navy-900 to-navy-800 issue-banner rounded-xl text-white p-5 sm:p-6 shadow-sm flex items-start sm:items-center gap-4 sm:gap-6">
         {/* Cover badge */}
         <div className="shrink-0 space-y-1.5">
           <div className="relative h-36 w-28 overflow-hidden rounded-md border border-gold-400/60 shadow-2xl sm:h-44 sm:w-32">
-            <IssueCoverImage src={coverUrl} alt={`${title || dict.nav.current} muqovasi`} className="object-cover" />
+            <IssueCoverImage src={coverUrl} alt={`${title || dict.nav.current} — ${currentLang === 'en' ? 'issue cover' : currentLang === 'ru' ? 'обложка выпуска' : 'jurnal muqovasi'}`} className="object-cover" />
           </div>
           <p className="text-center text-[9px] font-bold text-gold-300">Vol. {issue.volume} · No. {issue.issue_number} · {issue.year}</p>
         </div>

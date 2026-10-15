@@ -19,7 +19,7 @@ export default async function ContactPage({
   const cleanPhone = formattedPhone.replace(/[^\d+]/g, '');
 
   return (
-    <div className="journal-container py-12 space-y-10">
+    <div className="journal-container interior-page contact-page py-12 space-y-10">
       <div className="space-y-3">
         <h1 className="text-3xl sm:text-4xl font-extrabold text-navy-900">
           {dict.nav.contact}

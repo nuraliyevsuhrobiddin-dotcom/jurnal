@@ -12,7 +12,7 @@ export function validAdminSession(session?: string) {
   if (!process.env.ADMIN_PASSWORD) return process.env.NODE_ENV !== 'production';
   if (!session) return false;
   const [expires, signature] = session.split('.');
-  if (!expires || !signature || Number(expires) < Date.now()) return false;
+  if (!expires || !signature || !/^\d+$/.test(expires) || !Number.isSafeInteger(Number(expires)) || Number(expires) < Date.now()) return false;
   const expected = createHmac('sha256', process.env.ADMIN_PASSWORD).update(`agm:${expires}`).digest('hex');
   const actual = Buffer.from(signature);
   const required = Buffer.from(expected);

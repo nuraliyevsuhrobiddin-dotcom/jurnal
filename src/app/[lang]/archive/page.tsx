@@ -32,7 +32,7 @@ export default async function ArchivePage({
   const sortedYears = Object.keys(issuesByYear).map(Number).sort((a, b) => b - a);
 
   return (
-    <div className="journal-container py-10 space-y-10">
+    <div className="journal-container interior-page archive-page py-10 space-y-10">
       <div className="space-y-2">
         <h1 className="text-3xl sm:text-4xl font-extrabold text-navy-900 flex items-center gap-3">
           <Archive className="w-8 h-8 text-gold-700" />
@@ -44,11 +44,12 @@ export default async function ArchivePage({
       </div>
 
       <div className="space-y-12">
+        {sortedYears.length === 0 && <div className="interior-empty"><Archive size={32} /><h2>{dict.common.noResults}</h2><Link href={`/${currentLang}/articles`}>{dict.nav.articles} &rarr;</Link></div>}
         {sortedYears.map((year) => (
           <div key={year} className="space-y-6">
             <div className="flex items-center gap-4">
               <h2 className="text-2xl font-bold text-navy-900 bg-slate-100 px-4 py-1 rounded-lg">
-                {year} Yil
+                {year}
               </h2>
               <div className="h-px bg-slate-200 flex-1"></div>
             </div>
@@ -68,7 +69,7 @@ export default async function ArchivePage({
                     className="overflow-hidden rounded-xl academic-border academic-shadow bg-white flex flex-col justify-between hover:border-teal-700 transition-all"
                   >
                     <div className="issue-archive-cover relative h-56 overflow-hidden bg-navy-900">
-                      <IssueCoverImage src={iss.cover_image_url} alt={`${title || `${iss.volume}-jild, ${iss.issue_number}-son`} muqovasi`} className="object-cover transition-transform duration-500 hover:scale-105" />
+                      <IssueCoverImage src={iss.cover_image_url} alt={`${title || `Vol. ${iss.volume}, No. ${iss.issue_number}`} — ${currentLang === 'en' ? 'issue cover' : currentLang === 'ru' ? 'обложка выпуска' : 'jurnal muqovasi'}`} className="object-cover transition-transform duration-500 hover:scale-105" />
                       <div className="absolute inset-0 bg-gradient-to-t from-navy-950/95 via-navy-950/25 to-navy-950/10" />
                       <div className="absolute inset-x-4 bottom-4 text-white"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-gold-300">AGM Journal · {iss.year}</p><p className="mt-1 line-clamp-2 font-serif text-lg font-bold">{title}</p></div>
                     </div>

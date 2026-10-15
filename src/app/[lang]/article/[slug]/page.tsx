@@ -1,5 +1,6 @@
-﻿import React from 'react';
+import React from 'react';
 import { notFound } from 'next/navigation';
+import { ArticleView } from '@/components/article/ArticleView';
 import Link from 'next/link';
 import { Language } from '@/types/journal';
 import { getDictionary } from '@/lib/i18n/dictionaries';
@@ -40,6 +41,7 @@ export default async function ArticleDetailPage({ params }: { params: Promise<{ 
 
   return (
     <div className={`journal-container ${styles.publication}`}>
+      <ArticleView id={article.id} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />
       <nav className={styles.breadcrumb} aria-label={text.contents}>
         <Link href={`/${currentLang}`}>{text.home}</Link><span aria-hidden="true">/</span>
@@ -56,7 +58,7 @@ export default async function ArticleDetailPage({ params }: { params: Promise<{ 
       <div className={styles.layout}>
         <article className={styles.paper}>
           <header className={styles.articleHeader}>
-            <div className={styles.articleKind}><span>{text.types[article.article_type]}</span><span>{article.license}</span></div>
+            <div className={styles.articleKind}><span>{text.types[article.article_type]}</span><Link href={`/${currentLang}/open-access`}>{article.license}</Link></div>
             {article.status === 'withdrawn' && <p role="alert" className={styles.retraction}>{dict.article.retractedNotice}{article.retraction_reason && `: ${article.retraction_reason}`}</p>}
             <h1>{title}</h1>
             <div className={styles.authorNames}>{(article.authors || []).map((author, index) => <span key={author.id || index}>{author.full_name}<sup>{index + 1}{author.is_corresponding ? '*' : ''}</sup>{index < (article.authors || []).length - 1 ? ',' : ''}</span>)}</div>
@@ -76,7 +78,7 @@ export default async function ArticleDetailPage({ params }: { params: Promise<{ 
               {article.issue && <><div><dt>{text.volume} / {text.issue}</dt><dd>{article.issue.volume} / {article.issue.issue_number}</dd></div><div><dt>{text.year}</dt><dd>{article.issue.year}</dd></div></>}
               <div><dt>{text.pages}</dt><dd>{pages}</dd></div>
               {article.publication_date && <div><dt>{text.published}</dt><dd><time dateTime={article.publication_date}>{article.publication_date}</time></dd></div>}
-              <div><dt>{text.language}</dt><dd>{article.original_language.toUpperCase()}</dd></div><div><dt>{text.license}</dt><dd>{article.license}</dd></div>
+              <div><dt>{text.language}</dt><dd>{article.original_language.toUpperCase()}</dd></div><div><dt>{text.license}</dt><dd><Link href={`/${currentLang}/open-access`}>{article.license}<ArrowUpRight size={12} /></Link></dd></div>
             </dl></section>
             <div className={styles.metrics}><div><strong>{article.views_count}</strong><span>{text.views}</span></div><div><strong>{article.downloads_count}</strong><span>{text.downloads}</span></div></div>
             <nav className={styles.sideSection} aria-label={text.contents}><h2>{text.contents}</h2><a href="#abstract">{dict.article.abstract}<ArrowUpRight size={13} /></a><a href="#citation">APA / MLA / Chicago / BibTeX<ArrowUpRight size={13} /></a>{article.references_list?.length > 0 && <a href="#references">{dict.article.references}<ArrowUpRight size={13} /></a>}</nav>

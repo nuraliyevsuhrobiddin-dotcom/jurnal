@@ -1,6 +1,10 @@
-import { describe, it, expect } from 'vitest';
-import { getPublishedArticles, getAllArticlesAdmin, createArticle, updateArticleStatus } from '@/lib/db';
+import { describe, it, expect, vi } from 'vitest';
+import { getPublishedArticles, getAllArticlesAdmin, createArticle, updateArticleStatus, updateArticle } from '@/lib/db';
 import { journalStore } from '@/lib/data-store';
+vi.mock('@/lib/pdf/storage', () => ({ readArticlePdf: vi.fn(async () => {
+  const { PDFDocument } = await import('pdf-lib');
+  const pdf = await PDFDocument.create(); pdf.addPage(); pdf.addPage(); return pdf.save();
+}) }));
 
 describe('Articles Management & Lifecycle Tests', () => {
   it('should only return published articles to the public, hiding drafts and under_review', async () => {
@@ -95,7 +99,11 @@ describe('Articles Management & Lifecycle Tests', () => {
     const approvedArticle = await updateArticleStatus(testArticle.id, 'approved');
     expect(approvedArticle?.status).toBe('approved');
 
-    // 3. Publish
+    // An approved draft still cannot bypass the publication checks.
+    await expect(updateArticleStatus(testArticle.id, 'published')).rejects.toThrow();
+    await updateArticle(testArticle.id, { authors: [{ id: 'test-author', article_id: testArticle.id, full_name: 'Test Author', affiliation: 'Research University', country: 'UZ', is_corresponding: true, order_index: 1 }], issue_id: journalStore.issues[0].id,
+      page_first: 1, page_last: 2, pdf_url: `/api/articles/${testArticle.id}/pdf`, pdf_file_size: 1000 });
+    // 3. Publish only after metadata and a readable full PDF are present.
     const publishedArticle = await updateArticleStatus(testArticle.id, 'published');
     expect(publishedArticle?.status).toBe('published');
     expect(publishedArticle?.publication_date).toBeDefined();

@@ -6,7 +6,7 @@ import { POLICY_DATE, POLICY_VERSION, type PolicyDocument } from '@/types/polici
 
 const W = 595.28, H = 841.89, M = 48, BOTTOM = 64;
 const navy = rgb(16 / 255, 43 / 255, 63 / 255);
-const gold = rgb(128 / 255, 99 / 255, 49 / 255);
+const gold = rgb(23 / 255, 95 / 255, 91 / 255);
 const ink = rgb(.12, .19, .24), muted = rgb(.31, .39, .45);
 const text = (lang: Language, uz: string, en: string, ru: string) => lang === 'uz' ? uz : lang === 'ru' ? ru : en;
 
@@ -43,9 +43,10 @@ export async function generatePolicyPdf(options: {
   const chapterStarts: { title: string; page: number }[] = [];
   function nextPage() {
     page = pdf.addPage([W, H]);
-    page.drawRectangle({ x: 0, y: H - 51, width: W, height: 51, color: navy });
+    page.drawRectangle({ x: 0, y: H - 59, width: W, height: 59, color: rgb(.95, .97, .96) });
     const brand = wrapPolicyText(settings.journal_name, fontBold, 13, W - M * 2)[0];
-    page.drawText(brand, { x: M, y: H - 31, size: 13, font: fontBold, color: rgb(1, 1, 1) });
+    page.drawText(brand, { x: M, y: H - 31, size: 13, font: fontBold, color: navy });
+    page.drawLine({ start: { x: M, y: H - 49 }, end: { x: W - M, y: H - 49 }, thickness: .8, color: gold });
     y = H - 82;
   }
   function ensure(height: number) { if (y - height < BOTTOM) nextPage(); }

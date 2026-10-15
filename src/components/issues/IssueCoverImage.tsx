@@ -10,7 +10,7 @@ export function IssueCoverImage({ src, alt, className = '' }: { src?: string; al
   const [failed, setFailed] = useState(false);
 
   if (failed) {
-    return <div role="img" aria-label={alt} className={`bg-[radial-gradient(ellipse_at_center,#c7aa7244,transparent_58%),linear-gradient(145deg,#24516a,#071827)] ${className}`} />;
+    return <div role="img" aria-label={alt} className={`absolute inset-0 bg-navy-900 flex items-center justify-center p-5 text-white font-serif text-xl ${className}`}>AGM<br />JOURNAL</div>;
   }
 
   return <Image src={normalized} alt={alt} fill unoptimized sizes="(max-width: 767px) 100vw, 240px" className={className} onError={() => setFailed(true)} />;
