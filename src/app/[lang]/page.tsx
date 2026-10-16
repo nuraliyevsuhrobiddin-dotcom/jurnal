@@ -1,3 +1,4 @@
+import { IssueCoverImage } from '@/components/issues/IssueCoverImage';
 import Link from 'next/link';
 import { ArrowUpRight, Search, ArrowRight, BookOpen } from 'lucide-react';
 import { Language } from '@/types/journal';
@@ -33,7 +34,7 @@ export default async function HomePage({ params }: { params: Promise<{ lang: str
       <div><p className="catalog-eyebrow">{t.eyebrow}</p><h1>{t.title}</h1><p className="catalog-intro-text">{t.intro}</p>
         <form action={`/${currentLang}/articles`} method="GET" className="catalog-search"><Search size={20} aria-hidden="true" /><input name="q" aria-label={dict.hero.searchPlaceholder} placeholder={dict.hero.searchPlaceholder} /><button type="submit">{dict.hero.searchButton}<ArrowRight size={17} /></button></form>
       </div>
-      <aside className="catalog-issue"><span className="catalog-eyebrow">{t.current}</span>{issue ? <><div className="catalog-issue-number">{issue.year}<span>VOL. {issue.volume} / NO. {issue.issue_number}</span></div><p>{issue[`title_${currentLang}`] || issue.title_uz || t.scope}</p><Link href={`/${currentLang}/current`}>{dict.sections.exploreIssue}<ArrowUpRight size={16} /></Link></> : <p>{t.noIssue}</p>}<Link className="catalog-archive-link" href={`/${currentLang}/archive`}>{t.archive}<ArrowRight size={15} /></Link></aside>
+      <aside className="catalog-issue"><span className="catalog-eyebrow">{t.current}</span>{issue ? <><Link className="catalog-current-cover" href={`/${currentLang}/current`} aria-label={t.current}><IssueCoverImage src={issue.cover_image_url} alt={`${issue.title_en || issue.title_uz || t.current} cover`} className="object-contain" /></Link><div className="catalog-issue-number">{issue.year}<span>VOL. {issue.volume} / NO. {issue.issue_number}</span></div><p>{issue[`title_${currentLang}`] || issue.title_uz || t.scope}</p><Link href={`/${currentLang}/current`}>{dict.sections.exploreIssue}<ArrowUpRight size={16} /></Link></> : <p>{t.noIssue}</p>}<Link className="catalog-archive-link" href={`/${currentLang}/archive`}>{t.archive}<ArrowRight size={15} /></Link></aside>
     </div></section>
     <section className="journal-container catalog-subjects" aria-labelledby="subjects-title"><div className="catalog-section-heading"><div><p className="catalog-eyebrow">{t.collections}</p><h2 id="subjects-title">{t.browse}</h2></div><span className="catalog-section-index">01 — 07</span></div>
       <div className="catalog-subject-grid">{subjectCollections.map((subject, i) => <article className="catalog-subject" key={subject.id}>
