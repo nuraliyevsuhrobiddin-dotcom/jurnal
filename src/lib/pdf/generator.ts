@@ -197,7 +197,7 @@ export async function generateArticleTitlePagePdf(
     sheet.drawText(`${settings.journal_name}  |  ${articleId}`, { x: margin, y: 37, size: fitFont(`${settings.journal_name}  |  ${articleId}`, fontRegular, 7.5, width - margin * 2 - 60), font: fontRegular, color: muted });
     sheet.drawText(`Metadata ${index + 1} / ${pages.length}`, { x: width - margin - 74, y: 37, size: 7.5, font: fontRegular, color: muted });
   });
-  doc.setTitle(title); doc.setAuthor(authorNames); doc.setSubject(issueLine); doc.setCreator(settings.journal_name);
+  doc.setTitle(title); doc.setAuthor(authorNames); doc.setSubject(issueLine); doc.setCreator(settings.journal_name); doc.setKeywords(['AGM_METADATA_ONLY']);
   return doc.save();
 }
 
@@ -218,10 +218,9 @@ export async function mergePdfs(pdfBuffers: Uint8Array[]): Promise<Uint8Array> {
 export async function assemblePublicationPdf(article: Article, settings: JournalSettings, original: Uint8Array): Promise<Uint8Array> {
   const source = await PDFDocument.load(original);
   if (!source.getPageCount()) throw new Error('Empty manuscript');
-  const doc = await PDFDocument.load(await generateArticleTitlePagePdf(article, settings));
+  const doc = await PDFDocument.create();
   const { fontRegular, fontBold } = await embedJournalFonts(doc);
   const W = 595.28, H = 841.89, M = 32;
-  const metadataPages = doc.getPageCount();
   const articleId = `AGM-${article.id.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
   for (let i = 0; i < source.getPageCount(); i++) {
     // Retain the visible crop and rotation, including landscape manuscripts.
@@ -245,8 +244,11 @@ export async function assemblePublicationPdf(article: Article, settings: Journal
     page.drawLine({ start: { x: M, y: 42 }, end: { x: W - M, y: 42 }, thickness: 0.5, color: muted });
     const range = article.page_first != null && article.page_last != null && article.page_last - article.page_first + 1 === source.getPageCount() ? ` | Journal page ${article.page_first + i}` : '';
     page.drawText(`Manuscript ${i + 1} / ${source.getPageCount()}${range}`, { x: M, y: 26, size: 7, font: fontRegular, color: muted });
-    page.drawText(`PDF ${metadataPages + i + 1} / ${metadataPages + source.getPageCount()}`, { x: W - M - 65, y: 26, size: 7, font: fontRegular, color: muted });
+    page.drawText(`PDF ${i + 1} / ${source.getPageCount()}`, { x: W - M - 65, y: 26, size: 7, font: fontRegular, color: muted });
   }
+  doc.setTitle((article.original_language === 'en' ? article.title_en : article.original_language === 'ru' ? article.title_ru : article.title_uz) || article.title_uz);
+  doc.setAuthor((article.authors || []).map(a => a.full_name).join(', '));
+  doc.setCreator(settings.journal_name); doc.setKeywords(['AGM_FULL_ARTICLE_V2']);
   return doc.save();
 }
 

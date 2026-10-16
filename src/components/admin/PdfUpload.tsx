@@ -18,7 +18,7 @@ export function PdfUpload() {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const file = data.get('file');
-    if (!(file instanceof File) || file.size === 0 || file.size > MAX_UPLOAD_BYTES) { setStatus('4 MB gacha PDF faylini tanlang.'); return; }
+    if (!(file instanceof File) || file.size === 0 || file.size > MAX_UPLOAD_BYTES) { setStatus('4 MB gacha to‘liq maqola faylini tanlang.'); return; }
     const id = String(data.get('article_id'));
     data.delete('article_id');
     setBusy(true); setStatus(''); setPreview('');
@@ -34,8 +34,8 @@ export function PdfUpload() {
   return <form onSubmit={submit} className="space-y-5">
     <div><label htmlFor="pdf-article" className="block font-semibold text-sm mb-2">Maqolani tanlang</label>
       <select id="pdf-article" name="article_id" required defaultValue="" className="w-full rounded-lg border border-slate-300 p-3"><option value="" disabled>Maqola…</option>{articles.map(article => <option key={article.id} value={article.id}>{article.title_uz}</option>)}</select></div>
-    <div><label htmlFor="pdf-file" className="block font-semibold text-sm mb-2">Maqolaning to‘liq PDF fayli (4 MB gacha)</label><input id="pdf-file" name="file" type="file" accept="application/pdf,.pdf" required className="w-full text-sm" /></div>
-    <p className="text-sm text-slate-600">Jurnal titul sahifasi, sahifa raqamlari va nashr rekvizitlari qo‘shiladi. Yuklangan fayldagi matn, formulalar va jadvallar saqlanadi. Oldin saqlangan PDF’ni yangi maketga o‘tkazish uchun asl faylini qayta yuklang.</p>
+    <div><label htmlFor="pdf-file" className="block font-semibold text-sm mb-2">To‘liq maqola PDF yoki DOCX fayli (4 MB gacha)</label><input id="pdf-file" name="file" type="file" accept=".pdf,.docx" required className="w-full text-sm" /></div>
+    <p className="text-sm text-slate-600">PDF birinchi betdan asl maqola sahifalari bilan ochiladi. Alohida annotatsiya yoki qo‘llanma qo‘shilmaydi. Oddiy DOCX to‘liq matndan PDF’ga tayyorlanadi; rasm, jadval va formulali Word hujjatini PDF sifatida yuklang.</p>
     <button disabled={busy || !articles.length} className="px-5 py-3 bg-navy-900 text-white rounded-lg font-semibold disabled:opacity-50">{busy ? 'Tayyorlanmoqda…' : 'PDF tayyorlash va saqlash'}</button>
     <p role="status" className="text-sm text-slate-700">{status}</p>
     {preview && <a href={preview} target="_blank" rel="noopener noreferrer" className="inline-block text-teal-800 underline">PDF faylini ko‘rish</a>}

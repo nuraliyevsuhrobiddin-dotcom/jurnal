@@ -173,7 +173,7 @@ export default function AdminPdfGeneratorPage() {
               Maqolani nashrga tayyorlash
             </h3>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Sarlavha, mualliflar, annotatsiya va nashr rekvizitlari yagona jurnal maketida tayyorlanadi. Asl maqola sahifalariga jurnal sarlavhasi va raqamlar qo‘shiladi; matn, jadvallar va formulalar saqlanadi.
+              Bu yerda maqolaning o‘z PDF yoki DOCX fayli saqlanadi. PDF yuklab olinganda birinchi betdan to‘liq maqola chiqadi; annotatsiya yoki qo‘llanma uning o‘rniga berilmaydi. PDF’dagi matn, jadvallar va formulalar saqlanadi.
             </p>
           </div>
 

@@ -16,8 +16,7 @@ export async function assertPublicationReady(article: Article) {
   if (!bytes) throw new PublicationError('Maqola PDF fayli saqlash joyida topilmadi. Qayta yuklang.');
   try {
     const pdf = await PDFDocument.load(bytes);
-    // Uploads include one generated title page plus the manuscript.
-    if (pdf.getPageCount() < 2) throw new Error('Missing manuscript');
+    if (pdf.getPageCount() < 1 || pdf.getKeywords()?.includes('AGM_METADATA_ONLY')) throw new Error('Missing manuscript');
   } catch {
     throw new PublicationError('To‘liq va o‘qiladigan maqola PDF faylini yuklang.');
   }

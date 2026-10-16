@@ -63,12 +63,12 @@ describe('Publication readiness', () => {
     await expect(assertPublicationReady(article)).rejects.toThrow('topilmadi');
   });
   it('rejects cover-only/corrupt PDFs and permits a readable full PDF', async () => {
-    const document = await PDFDocument.create(); document.addPage();
+    const document = await PDFDocument.create(); document.addPage(); document.setKeywords(['AGM_METADATA_ONLY']);
     vi.mocked(readArticlePdf).mockResolvedValue(await document.save());
     await expect(assertPublicationReady(article)).rejects.toThrow();
     vi.mocked(readArticlePdf).mockResolvedValue(new Uint8Array([1, 2, 3]));
     await expect(assertPublicationReady(article)).rejects.toThrow();
-    document.addPage(); vi.mocked(readArticlePdf).mockResolvedValue(await document.save());
+    document.setKeywords(['AGM_FULL_ARTICLE_V2']); vi.mocked(readArticlePdf).mockResolvedValue(await document.save());
     await expect(assertPublicationReady(article)).resolves.toBeUndefined();
   });
 });

@@ -13,6 +13,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { Article, Issue, Language } from '@/types/journal';
+import { MAX_UPLOAD_BYTES } from '@/lib/upload-limits';
 
 interface AuthorInput {
   id: string;
@@ -33,6 +34,10 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [docxParsing, setDocxParsing] = useState(false);
+  const [savedArticleId, setSavedArticleId] = useState(initialArticle?.id || '');
+  const [publicationFile, setPublicationFile] = useState<File | null>(null);
+  const [pdfReady, setPdfReady] = useState(Boolean(initialArticle?.pdf_url));
+  const [preparedPdfUrl, setPreparedPdfUrl] = useState(initialArticle?.pdf_url ? `/api/admin/articles/${initialArticle.id}/pdf` : '');
 
   // Form states
   const [titleUz, setTitleUz] = useState(initialArticle?.title_uz || '');
@@ -88,7 +93,7 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
       .then(data => {
         if (Array.isArray(data)) {
           setIssues(data);
-          if (!initialArticle && data.length > 0) setIssueId(data[0].id);
+          if (!initialArticle && data.length > 0) setIssueId((data.find(issue => issue.is_current) || data[0]).id);
         }
       })
       .catch(console.error);
@@ -126,6 +131,9 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
   const handleDocxUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size === 0 || file.size > MAX_UPLOAD_BYTES || !/\.(pdf|docx)$/i.test(file.name)) { setErrorMsg('4 MB gacha to‘liq maqola PDF yoki DOCX faylini tanlang.'); return; }
+    setPublicationFile(file);
+    if (/\.pdf$/i.test(file.name)) { setSuccessMsg('To‘liq maqola PDF’i tanlandi. Maydonlarni to‘ldirib saqlang.'); return; }
 
     setDocxParsing(true);
     setErrorMsg(null);
@@ -158,7 +166,7 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
         setReferences(data.extractedReferences.join('\n'));
       }
 
-      setSuccessMsg(`DOCX muvaffaqiyatli tahlil qilindi! So‘zlar soni: ${data.wordCount}`);
+      setSuccessMsg(`DOCX tanlandi va maydonlar to‘ldirildi (${data.wordCount} so‘z). Saqlashda to‘liq matn PDF’ga tayyorlanadi.`);
     } catch (err: unknown) {
       setErrorMsg((err instanceof Error ? err.message : null) || 'DOCX faylni o‘qib bo‘lmadi');
     } finally {
@@ -204,7 +212,7 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
       keywords_ru: keywordsRu ? keywordsRu.split(',').map(k => k.trim()).filter(Boolean) : [],
       original_language: originalLanguage,
       article_type: articleType,
-      status,
+      status: publicationFile || (!pdfReady && initialArticle?.manuscript_file_url) || (!savedArticleId && status === 'published') ? 'draft' : status,
       issue_id: issueId || undefined,
       page_first: pageFirst ? parseInt(pageFirst) : undefined,
       page_last: pageLast ? parseInt(pageLast) : undefined,
@@ -219,8 +227,8 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
     };
 
     try {
-      const res = await fetch(initialArticle ? `/api/admin/articles/${initialArticle.id}` : '/api/admin/articles', {
-        method: initialArticle ? 'PATCH' : 'POST',
+      const res = await fetch(savedArticleId ? `/api/admin/articles/${savedArticleId}` : '/api/admin/articles', {
+        method: savedArticleId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
@@ -229,13 +237,29 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
       if (!res.ok) {
         throw new Error(data.error || 'Maqolani saqlashda xatolik yuz berdi');
       }
-
-      setSuccessMsg(initialArticle ? 'Maqola o‘zgarishlari saqlandi!' : 'Maqola muvaffaqiyatli yaratildi!');
-      setTimeout(() => {
-        router.push('/admin/articles');
-      }, 1200);
+      setSavedArticleId(data.id);
+      let ready = pdfReady;
+      if (publicationFile || (!pdfReady && initialArticle?.manuscript_file_url)) {
+        const form = new FormData();
+        if (publicationFile) form.set('file', publicationFile); else form.set('use_manuscript', 'true');
+        const upload = await fetch(`/api/admin/articles/${data.id}/pdf`, { method: 'POST', body: form });
+        const uploaded = await upload.json();
+        if (!upload.ok) throw new Error(`Qoralama saqlandi. ${uploaded.error || 'To‘liq fayl tayyorlanmadi.'}`);
+        ready = true; setPdfReady(true); setPublicationFile(null); setPreparedPdfUrl(uploaded.url);
+        setPageFirst(String(uploaded.page_first)); setPageLast(String(uploaded.page_last));
+      }
+      if (status === 'published' && data.status !== 'published') {
+        if (!ready) throw new Error('Qoralama saqlandi. Nashr qilish uchun shu oynada to‘liq maqola faylini tanlang.');
+        const publish = await fetch(`/api/admin/articles/${data.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'change_status', status: 'published' }) });
+        const published = await publish.json();
+        if (!publish.ok) throw new Error(published.error || 'Nashr qilib bo‘lmadi.');
+      }
+      setSuccessMsg(ready ? 'Maqola va to‘liq fayl saqlandi. PDF’ni quyidagi havoladan tekshiring.' : 'Qoralama saqlandi. To‘liq maqola faylini shu oynada tanlashingiz mumkin.');
+      router.refresh();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: unknown) {
       setErrorMsg((err instanceof Error ? err.message : null) || 'Xatolik yuz berdi');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setLoading(false);
     }
@@ -257,7 +281,7 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
             {initialArticle ? 'Ilmiy maqolani tahrirlash' : 'Yangi ilmiy maqola kiritish'}
           </h1>
           <p className="text-xs sm:text-sm text-slate-500">
-            Maqola metama’lumotlari, mualliflar ro‘yxati va ilmiy annotatsiyalar
+            To‘liq maqola fayli, mualliflar va nashr ma’lumotlarini shu oynada saqlang.
           </p>
         </div>
       </div>
@@ -270,20 +294,20 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
           <div className="space-y-1">
             <h3 className="text-sm font-bold text-navy-900 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-gold-700" />
-              <span>Word (.docx) faylini yuklab, avtomatik to‘ldirish</span>
+              <span>To‘liq maqola fayli — PDF yoki DOCX</span>
             </h3>
             <p className="text-xs text-slate-600">
-              DOCX faylni yuklang: tizim sarlavha, annotatsiya, kalit so‘zlar va adabiyotlarni avtomatik ajratib oladi.
+              Faylni tanlang va pastdagi saqlash tugmasini bosing. PDF barcha sahifalari bilan saqlanadi. Oddiy DOCX to‘liq matndan PDF’ga aylantiriladi; jadval, rasm va formulali hujjatni Word’dan PDF qilib yuklang.
             </p>
           </div>
 
           <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-navy-900 hover:bg-navy-800 text-white text-xs font-bold cursor-pointer transition-colors shrink-0 shadow-sm">
             <UploadCloud className="w-4 h-4 text-gold-400" />
-            <span>{docxParsing ? 'Tahlil qilinmoqda...' : 'DOCX faylni tanlash'}</span>
+            <span>{docxParsing ? 'Tahlil qilinmoqda...' : 'Maqola faylini tanlash'}</span>
             <input
               type="file"
-              accept=".docx"
-              disabled={docxParsing}
+              accept=".pdf,.docx"
+              disabled={docxParsing || loading}
               onChange={handleDocxUpload}
               className="hidden"
             />
@@ -291,6 +315,10 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
         </div>
       </div>
 
+      <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm space-y-2">
+        <p>{publicationFile ? `Tanlangan fayl: ${publicationFile.name}` : pdfReady ? 'To‘liq maqola PDF’i saqlangan.' : initialArticle?.manuscript_file_url ? 'Yuborilgan qo‘lyozma saqlash vaqtida ishlatiladi.' : 'To‘liq maqola fayli hali tanlanmagan.'}</p>
+        {preparedPdfUrl && <a href={preparedPdfUrl} target="_blank" rel="noopener noreferrer" className="font-semibold text-teal-800 underline">To‘liq maqola PDF’ini ochish</a>}
+      </div>
       {/* Alerts */}
       {errorMsg && (
         <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs sm:text-sm flex items-center gap-2">
@@ -699,7 +727,7 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || docxParsing}
             className="px-8 py-3 rounded-xl bg-navy-900 hover:bg-navy-800 text-white text-xs sm:text-sm font-bold shadow-md transition-all hover:scale-102 disabled:opacity-50"
           >
             {loading ? 'Saqlanmoqda...' : 'Maqolani saqlash'}
