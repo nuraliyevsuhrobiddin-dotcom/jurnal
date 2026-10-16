@@ -5,6 +5,7 @@ import path from 'node:path';
 import { generateQrPngBuffer } from './qr';
 import { Article, Certificate, Issue, JournalSettings } from '@/types/journal';
 import { isValidIssn } from '@/lib/identifiers';
+import { resolveSubjectId, subjectLabel } from '@/lib/subjects';
 
 // Helper to wrap text into lines fitting within maxWidth
 export async function embedJournalFonts(pdfDoc: PDFDocument) {
@@ -237,6 +238,8 @@ export async function assemblePublicationPdf(article: Article, settings: Journal
     const page = doc.addPage([W, H]);
     page.drawText(settings.journal_name.toUpperCase(), { x: M, y: H - 29, size: fitFont(settings.journal_name.toUpperCase(), fontBold, 10, W - M * 2 - 100), font: fontBold, color: navy });
     page.drawText(articleId, { x: W - M - 88, y: H - 29, size: 8, font: fontRegular, color: muted });
+    const section = subjectLabel(resolveSubjectId(article), 'en') || '';
+    page.drawText(section.toUpperCase(), { x: M, y: H - 39, size: 6, font: fontRegular, color: teal });
     page.drawLine({ start: { x: M, y: H - 41 }, end: { x: W - M, y: H - 41 }, thickness: 0.8, color: teal });
     // PDF rotation is clockwise, whereas drawPage angles are counterclockwise.
     const offsets = rotation === 90 ? [0, h] : rotation === 180 ? [w, h] : rotation === 270 ? [w, 0] : [0, 0];
@@ -253,14 +256,14 @@ export async function assemblePublicationPdf(article: Article, settings: Journal
 }
 
 // Paginated issue contents; page ranges are only printed when assigned.
-export async function generateIssueTocPdf(issue: Issue, articles: Article[], journalName = 'AGM Journal'): Promise<Uint8Array> {
+export async function generateIssueTocPdf(issue: Issue, articles: Article[], journalName = 'AGM Journal', sectionName?: string): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const { fontBold, fontRegular } = await embedJournalFonts(doc);
   const W = 595.28, H = 841.89, M = 44;
   let page = doc.addPage([W, H]), y = H - 144;
   function header() {
     page.drawText(journalName.toUpperCase(), { x: M, y: H - 51, size: fitFont(journalName.toUpperCase(), fontBold, 23, W - M * 2), font: fontBold, color: navy });
-    page.drawText('TABLE OF CONTENTS', { x: M, y: H - 76, size: 10, font: fontBold, color: teal });
+    page.drawText(sectionName ? `CONTENTS / ${sectionName.toUpperCase()}` : 'TABLE OF CONTENTS', { x: M, y: H - 76, size: 10, font: fontBold, color: teal });
     page.drawLine({ start: { x: M, y: H - 89 }, end: { x: W - M, y: H - 89 }, thickness: 1.4, color: teal });
     page.drawText(`Volume ${issue.volume}  \u00b7  Issue ${issue.issue_number}  \u00b7  ${issue.year}`, { x: M, y: H - 111, size: 10, font: fontRegular, color: muted });
   }

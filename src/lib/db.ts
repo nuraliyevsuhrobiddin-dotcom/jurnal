@@ -44,7 +44,7 @@ export async function getPublishedArticles(params?: {
       .from('articles')
       .select('*, authors:article_authors(*), issue:issues(*)')
       .eq('status', 'published')
-      .order('publication_date', { ascending: false });
+      .order('publication_date', { ascending: false }).order('id');
 
     if (params?.issueId) {
       queryBuilder = queryBuilder.eq('issue_id', params.issueId);
@@ -54,14 +54,21 @@ export async function getPublishedArticles(params?: {
       queryBuilder = queryBuilder.limit(params.limit);
     }
 
-    const { data, error } = await queryBuilder;
-    if (error) throw new Error(error.message);
+    const data: Article[] = [];
+    const batchSize = params?.limit && !params.query ? Math.min(params.limit, 500) : 500;
+    for (let offset = 0; ; offset += batchSize) {
+      const result = await queryBuilder.range(offset, offset + batchSize - 1);
+      if (result.error) throw new Error(result.error.message);
+      const batch = (result.data || []).map(row => normalizeRemoteArticle(row as Article));
+      data.push(...batch);
+      if (batch.length < batchSize || (params?.limit && !params.query && data.length >= params.limit)) break;
+    }
     if (data) {
       if (params?.query) {
         const matches = (data as Article[]).filter(a => matchesArticle(a, params.query!));
         return params.limit ? matches.slice(0, params.limit) : matches;
       }
-      return data as Article[];
+      return params?.limit ? data.slice(0, params.limit) : data;
     }
   }
 
@@ -101,7 +108,7 @@ export async function getArticleBySlug(slug: string): Promise<Article | null> {
       .maybeSingle();
 
     if (error) throw new Error(error.message);
-    else return data as Article | null;
+    else return data ? normalizeRemoteArticle(data as Article) : null;
   }
 
   const article = journalStore.articles.find(a => a.slug === slug && a.status === 'published');
@@ -139,7 +146,7 @@ export async function getAllArticlesAdmin(): Promise<Article[]> {
       .order('created_at', { ascending: false });
 
     if (error) throw new Error(error.message);
-    else return data as Article[];
+    else return (data as Article[]).map(normalizeRemoteArticle);
   }
 
   return journalStore.articles.map(article => ({

@@ -2,6 +2,7 @@ import { Article, JournalSettings, Language } from '@/types/journal';
 import { Metadata } from 'next';
 import { isValidIssn } from '@/lib/identifiers';
 import { SITE_URL } from './site-url';
+import { resolveSubjectId, subjectLabel } from './subjects';
 
 const BASE_URL = SITE_URL;
 
@@ -120,6 +121,7 @@ export function generateArticleJsonLd(article: Article, settings: JournalSetting
     'headline': title,
     'name': title,
     'description': abstract,
+    'articleSection': subjectLabel(resolveSubjectId(article), lang),
     'dateModified': article.updated_at,
     'isAccessibleForFree': true,
     ...(article.license === 'CC BY 4.0' ? { license: 'https://creativecommons.org/licenses/by/4.0/' } : {}),

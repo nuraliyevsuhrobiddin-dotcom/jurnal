@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { normalizeDoi, isValidDoi } from './identifiers';
+import { findSubject } from './subjects';
 
 export const articleBaseSchema = z.object({
   title_uz: z.string().min(5, 'O‘zbekcha sarlavha kamida 5 ta belgidan iborat bo‘lishi kerak'),
@@ -15,6 +16,7 @@ export const articleBaseSchema = z.object({
   article_type: z.enum(['original_research', 'review', 'short_communication', 'case_study']).default('original_research'),
   status: z.enum(['draft', 'under_review', 'approved', 'published', 'rejected', 'withdrawn', 'archived']).default('draft'),
   issue_id: z.string().optional(),
+  subject_id: z.string().refine(value => value === 'auto' || Boolean(findSubject(value)), 'Noto‘g‘ri fan yo‘nalishi').optional(),
   page_first: z.number().int().positive().optional(),
   page_last: z.number().int().positive().optional(),
   doi: z.string().trim().transform(normalizeDoi).refine(value => !value || isValidDoi(value), 'DOI formati noto‘g‘ri: 10.xxxx/identifier').optional(),

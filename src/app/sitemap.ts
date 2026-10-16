@@ -3,6 +3,7 @@ import { getPublishedArticles, getAllIssues } from '@/lib/db';
 import { connection } from 'next/server';
 import { policyIds } from '@/types/policies';
 import { SITE_URL } from '@/lib/site-url';
+import { subjectCollections } from '@/lib/subjects';
 
 const BASE_URL = SITE_URL;
 
@@ -32,6 +33,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   for (const id of policyIds) if (!staticRoutes.includes(`/${id}`)) staticRoutes.push(`/${id}`);
   staticRoutes.push('/policies', '/submit', '/announcements', '/integrations');
+  staticRoutes.push(...subjectCollections.map(subject => `/subjects/${subject.id}`));
   const sitemapEntries: MetadataRoute.Sitemap = [];
 
   // 1. Static pages across all 3 locales

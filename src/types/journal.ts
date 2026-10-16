@@ -32,6 +32,7 @@ export interface Article {
   id: string;
   slug: string;
   issue_id?: string;
+  subject_id?: string;
   original_language: Language;
 
   // Multilingual titles

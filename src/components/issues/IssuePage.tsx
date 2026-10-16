@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { Language } from '@/types/journal';
 import { getDictionary } from '@/lib/i18n/dictionaries';
 import { getCurrentIssue, getIssueById, getPublishedArticles } from '@/lib/db';
-import { ArticleCard } from '@/components/article/ArticleCard';
+import { IssueSubjectSections } from '@/components/subjects/IssueSubjectSections';
 import { BookOpen, Calendar, CheckCircle2 } from 'lucide-react';
 
 export async function IssuePage({ lang: currentLang, issueId }: { lang: Language; issueId?: string }) {
@@ -90,11 +90,7 @@ export async function IssuePage({ lang: currentLang, issueId }: { lang: Language
         </div>
 
         {articles.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {articles.map((article) => (
-              <ArticleCard key={article.id} article={article} lang={currentLang} />
-            ))}
-          </div>
+          <IssueSubjectSections articles={articles} issue={issue} lang={currentLang} />
         ) : (
           <p className="text-sm text-slate-500 text-center py-10 bg-white rounded-xl border border-slate-200">
             {dict.common.noResults}

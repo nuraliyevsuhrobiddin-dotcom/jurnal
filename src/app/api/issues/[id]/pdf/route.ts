@@ -3,6 +3,7 @@ import { getIssueById, getPublishedArticles, getJournalSettings } from '@/lib/db
 import { buildIssueCollection, IssueCollectionError } from '@/lib/pdf/issue-collection';
 import { protectRequest } from '@/lib/request-limit';
 import { streamPdf } from '@/lib/pdf/stream';
+import { findSubject, matchesSubject } from '@/lib/subjects';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -15,9 +16,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const issue = await getIssueById(id);
     if (!issue) return new NextResponse('Issue not found', { status: 404 });
     const [articles, settings] = await Promise.all([getPublishedArticles({ issueId: id }), getJournalSettings()]);
-    const bytes = await buildIssueCollection(issue, articles, settings);
+    const requestedSubject = request.nextUrl.searchParams.get('subject');
+    const subject = findSubject(requestedSubject || undefined);
+    if (requestedSubject && !subject) return new NextResponse('Subject not found', { status: 404 });
+    const selected = subject ? articles.filter(article => matchesSubject(article, subject)) : articles;
+    const bytes = await buildIssueCollection(issue, selected, settings, undefined, subject?.id);
     return new NextResponse(streamPdf(bytes), { headers: {
-      'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="agm-volume-${issue.volume}-issue-${issue.issue_number}-${issue.year}.pdf"`,
+      'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="agm-volume-${issue.volume}-issue-${issue.issue_number}-${issue.year}${subject ? '-' + subject.id : ''}.pdf"`,
       'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
     } });
   } catch (error) {

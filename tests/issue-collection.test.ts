@@ -21,10 +21,10 @@ describe('Complete issue PDF', () => {
     const bytes = await buildIssueCollection({ ...issue, cover_image_url: undefined }, [b, makeArticle('draft', 2, 'draft'), { ...a, id: 'other', issue_id: 'other' }, a], settings, reader);
     const result = await PDFDocument.load(bytes);
     expect(reader.mock.calls.map(([id]) => id)).toEqual(['first', 'second']);
-    expect(result.getPageCount()).toBe(5);
+    expect(result.getPageCount()).toBe(6);
     expect(result.getPage(0).getWidth()).toBeCloseTo(595.28);
-    expect(result.getPage(2).getWidth()).toBe(401);
-    expect(result.getPage(4).getWidth()).toBe(403);
+    expect(result.getPage(3).getWidth()).toBe(401);
+    expect(result.getPage(5).getWidth()).toBe(403);
     expect(result.getTitle()).toContain(`Issue ${issue.issue_number}`);
   });
   it('fails rather than serving an incomplete collection when a PDF is missing or damaged', async () => {

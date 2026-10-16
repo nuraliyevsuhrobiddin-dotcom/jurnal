@@ -1,10 +1,12 @@
 import { createServerClient } from './supabase/server';
 import type { Article, Issue, JournalSettings } from '@/types/journal';
+import { readSubjectMetadata, writeSubjectMetadata } from './subjects';
 
 /** SQL NULL optional columns correspond to omitted values in the editorial form schema. */
 export function normalizeRemoteArticle(article: Article): Article {
   const withoutNull = <T extends object>(value: T): T => Object.fromEntries(Object.entries(value).filter(([, field]) => field !== null)) as T;
-  return { ...withoutNull(article), authors: (article.authors || []).map(withoutNull) };
+  const metadata = readSubjectMetadata(article.submission_notes);
+  return { ...withoutNull(article), ...metadata, subject_id: metadata.subject_id || article.subject_id, authors: (article.authors || []).map(withoutNull) };
 }
 
 
@@ -35,7 +37,8 @@ export async function remoteSave(table: string, value: object): Promise<boolean>
 export async function remoteSaveArticle(article: Article): Promise<boolean> {
   const client = createServerClient();
   if (!client) return false;
-  const { authors = [], issue: _issue, ...record } = article;
+  const { authors = [], issue: _issue, subject_id, ...record } = article;
+  record.submission_notes = writeSubjectMetadata(subject_id, record.submission_notes);
   void _issue;
   const { error } = await client.rpc('save_journal_article', { article_data: record, author_data: authors });
   if (error) throw new Error(error.message);

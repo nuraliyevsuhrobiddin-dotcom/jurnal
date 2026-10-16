@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { from, client } = vi.hoisted(() => {
+const { from, rpc, client } = vi.hoisted(() => {
   const from = vi.fn();
   const rpc = vi.fn();
   return { from, rpc, client: { from, rpc } };
@@ -11,7 +11,8 @@ vi.mock('@/lib/supabase/server', () => ({
   isServerSupabaseConfigured: true,
 }));
 
-import { remoteRows, remoteSave, remoteSettings } from '@/lib/remote-db';
+import { remoteRows, remoteSave, remoteSettings, remoteSaveArticle, normalizeRemoteArticle } from '@/lib/remote-db';
+import { journalStore } from '@/lib/data-store';
 import { JournalStore } from '@/lib/data-store';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
@@ -19,6 +20,17 @@ import path from 'node:path';
 
 describe('Hosted persistence safeguards', () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it('stores a manual discipline in the same atomic article operation and restores it on read', async () => {
+    rpc.mockResolvedValue({ error: null });
+    const paper = { ...journalStore.articles[0], subject_id: 'economics-business', submission_notes: 'Original author notes' };
+    await remoteSaveArticle(paper);
+    const saved = rpc.mock.calls[0][1].article_data;
+    expect(saved.subject_id).toBeUndefined();
+    expect(saved.submission_notes).toContain('[AGM_SUBJECT:economics-business]');
+    const restored = normalizeRemoteArticle({ ...saved, authors: paper.authors });
+    expect(restored.subject_id).toBe('economics-business'); expect(restored.submission_notes).toBe('Original author notes');
+  });
 
   it('propagates permission errors instead of switching storage', async () => {
     from.mockReturnValue({ select: () => Promise.resolve({ error: { message: 'permission denied for relation articles' } }) });

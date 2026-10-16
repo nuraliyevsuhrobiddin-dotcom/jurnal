@@ -7,6 +7,8 @@ import { embedJournalFonts, generateIssueTocPdf, wrapPublicationText } from './g
 import { readArticlePdf } from './storage';
 import { createServerClient } from '@/lib/supabase/server';
 import { orderIssueArticles } from '@/lib/issues/article-order';
+import { subjectCoverSvg } from '@/lib/issues/subject-cover-art';
+import { findSubject, subjectCollections, resolveSubjectId } from '@/lib/subjects';
 export { orderIssueArticles } from '@/lib/issues/article-order';
 
 const MAX_BYTES = 100 * 1024 * 1024;
@@ -75,13 +77,15 @@ export async function generateIssueCoverPdf(issue: Issue, settings: JournalSetti
 }
 
 export async function buildIssueCollection(issue: Issue, articles: Article[], settings: JournalSettings,
-  readPdf: (id: string) => Promise<Uint8Array | null> = readArticlePdf) {
-  const published = orderIssueArticles(articles.filter(a => a.status === 'published' && a.issue_id === issue.id));
+  readPdf: (id: string) => Promise<Uint8Array | null> = readArticlePdf, subjectId?: string) {
+  const subject = findSubject(subjectId);
+  if (subjectId && !subject) throw new IssueCollectionError('Unknown subject collection.', 404);
+  const published = orderIssueArticles(articles.filter(a => a.status === 'published' && a.issue_id === issue.id && (!subject || resolveSubjectId(a) === subject.id)));
   if (!published.length) throw new IssueCollectionError('This issue has no published articles yet.', 404);
   if (published.length > 150) throw new IssueCollectionError('This issue exceeds the automatic collection limit. Contact the editorial office.', 413);
   const result = await PDFDocument.create();
-  const cover = await coverBytes(issue.cover_image_url);
-  if (issue.cover_image_url && issue.cover_image_url !== '/images/issue-cover-default.svg' && !cover) {
+  const cover = subject ? await sharp(Buffer.from(subjectCoverSvg(subject.id, issue, settings))).png().toBuffer() : await coverBytes(issue.cover_image_url);
+  if (!subject && issue.cover_image_url && issue.cover_image_url !== '/images/issue-cover-default.svg' && !cover) {
     throw new IssueCollectionError('The issue cover is unavailable. Upload a JPG, PNG or WebP cover in issue settings, or select the default cover.', 409);
   }
   async function append(bytes: Uint8Array) {
@@ -91,19 +95,26 @@ export async function buildIssueCollection(issue: Issue, articles: Article[], se
   }
   try { await append(await generateIssueCoverPdf(issue, settings, cover)); }
   catch { throw new IssueCollectionError('The issue cover cannot be read. Upload a valid JPG, PNG or WebP cover in issue settings.', 409); }
-  await append(await generateIssueTocPdf(issue, published, settings.journal_name));
+  const groups = subject ? [{ subject, articles: published }] : subjectCollections.map(section => ({ subject: section, articles: published.filter(a => resolveSubjectId(a) === section.id) })).filter(group => group.articles.length);
+  await append(await generateIssueTocPdf(issue, groups.flatMap(group => group.articles), settings.journal_name, subject?.labels.en));
   let total = 0;
-  for (const article of published) {
-    const bytes = await readPdf(article.id);
-    if (!bytes) throw new IssueCollectionError('A published article PDF is missing. The editorial office must restore it before downloading the complete issue.', 409);
-    total += bytes.byteLength;
-    if (total > MAX_BYTES) throw new IssueCollectionError('This issue exceeds the 100 MB automatic collection limit.', 413);
-    try { await append(bytes); } catch (error) {
-      if (error instanceof IssueCollectionError) throw error;
-      throw new IssueCollectionError('An article PDF cannot be read. Please contact the editorial office.', 409);
+  for (const group of groups) {
+    if (!subject) {
+      const image = await sharp(Buffer.from(subjectCoverSvg(group.subject.id, issue, settings))).png().toBuffer();
+      await append(await generateIssueCoverPdf(issue, settings, image));
+    }
+    for (const article of group.articles) {
+      const bytes = await readPdf(article.id);
+      if (!bytes) throw new IssueCollectionError('A published article PDF is missing. The editorial office must restore it before downloading the complete issue.', 409);
+      total += bytes.byteLength;
+      if (total > MAX_BYTES) throw new IssueCollectionError('This issue exceeds the 100 MB automatic collection limit.', 413);
+      try { await append(bytes); } catch (error) {
+        if (error instanceof IssueCollectionError) throw error;
+        throw new IssueCollectionError('An article PDF cannot be read. Please contact the editorial office.', 409);
+      }
     }
   }
-  result.setTitle(`${settings.journal_name} — Volume ${issue.volume}, Issue ${issue.issue_number} (${issue.year})`);
+  result.setTitle(`${settings.journal_name}${subject ? ' — ' + subject.labels.en : ''} — Volume ${issue.volume}, Issue ${issue.issue_number} (${issue.year})`);
   result.setAuthor(settings.publisher || settings.journal_name);
   result.setSubject('Complete journal issue: cover, table of contents and published articles');
   return result.save();

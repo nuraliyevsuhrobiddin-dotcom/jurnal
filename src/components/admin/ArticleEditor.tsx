@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Article, Issue, Language } from '@/types/journal';
 import { MAX_UPLOAD_BYTES } from '@/lib/upload-limits';
+import { subjectCollections, resolveSubjectId, subjectLabel } from '@/lib/subjects';
 
 interface AuthorInput {
   id: string;
@@ -37,6 +38,7 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
   const [savedArticleId, setSavedArticleId] = useState(initialArticle?.id || '');
   const [publicationFile, setPublicationFile] = useState<File | null>(null);
   const [pdfReady, setPdfReady] = useState(Boolean(initialArticle?.pdf_url));
+  const [subjectId, setSubjectId] = useState(initialArticle?.subject_id || 'auto');
   const [preparedPdfUrl, setPreparedPdfUrl] = useState(initialArticle?.pdf_url ? `/api/admin/articles/${initialArticle.id}/pdf` : '');
 
   // Form states
@@ -214,6 +216,7 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
       article_type: articleType,
       status: publicationFile || (!pdfReady && initialArticle?.manuscript_file_url) || (!savedArticleId && status === 'published') ? 'draft' : status,
       issue_id: issueId || undefined,
+      subject_id: subjectId,
       page_first: pageFirst ? parseInt(pageFirst) : undefined,
       page_last: pageLast ? parseInt(pageLast) : undefined,
       doi: doi.trim() || undefined,
@@ -336,6 +339,14 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
 
       {/* Main Creation Form */}
       <form onSubmit={handleSubmit} className="space-y-8">
+        <section className="rounded-xl border border-teal-200 bg-teal-50 p-5 space-y-3">
+          <label htmlFor="article-subject" className="block text-sm font-semibold text-navy-900">Fan yo‘nalishi va nashr muqovasi</label>
+          <select id="article-subject" value={subjectId} onChange={e => setSubjectId(e.target.value)} className="w-full rounded-lg border border-slate-300 bg-white p-3 text-sm">
+            <option value="auto">Avtomatik — maqola mazmuniga qarab</option>
+            {subjectCollections.map(subject => <option key={subject.id} value={subject.id}>{subject.labels.uz}</option>)}
+          </select>
+          <p className="text-sm text-slate-700">{subjectId === 'auto' ? `Aniqlangan yo‘nalish: ${subjectLabel(resolveSubjectId({ title_uz: titleUz, title_en: titleEn, title_ru: titleRu, abstract_uz: abstractUz, abstract_en: abstractEn, abstract_ru: abstractRu, keywords_uz: keywordsUz.split(','), keywords_en: keywordsEn.split(','), keywords_ru: keywordsRu.split(',') } as Article), 'uz')}.` : `Tanlangan yo‘nalish: ${subjectLabel(subjectId, 'uz')}.`} Nashrdan so‘ng maqola shu yo‘nalish sahifasida va uning muqovali to‘plamida ko‘rinadi.</p>
+        </section>
         {/* SECTION 1: TITLES (UZ, EN, RU) */}
         <div className="bg-white rounded-2xl academic-border academic-shadow p-6 sm:p-8 space-y-5">
           <h2 className="text-base font-bold text-navy-900 border-b border-slate-100 pb-3 flex items-center gap-2">

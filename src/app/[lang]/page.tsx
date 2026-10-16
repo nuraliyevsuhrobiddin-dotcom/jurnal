@@ -5,7 +5,8 @@ import { getDictionary } from '@/lib/i18n/dictionaries';
 import { getPublishedArticles, getCurrentIssue } from '@/lib/db';
 import { ArticleCard } from '@/components/article/ArticleCard';
 import './catalog.css';
-import { subjectCollections } from '@/lib/subjects';
+import { subjectCollections, subjectLabel } from '@/lib/subjects';
+import { SubjectCover } from '@/components/subjects/SubjectCover';
 import { publicPageMetadata } from '@/lib/page-metadata';
 import { siteUrl } from '@/lib/site-url';
 
@@ -20,14 +21,6 @@ const copy = {
   en: { eyebrow: 'AGM JOURNAL · RESEARCH PUBLICATIONS', title: 'Research publications', intro: 'Articles, subject collections and journal issues in one catalog.', browse: 'Browse by discipline', collections: 'Subject collections within AGM Journal', section: 'Subject collection', explore: 'Explore articles', latest: 'Latest research', all: 'All articles', current: 'Current issue', archive: 'Issue archive', empty: 'No published articles are available yet.', author: 'For authors', guidelines: 'Submission guidelines', review: 'Peer review process', policies: 'Publishing policies', noIssue: 'The current issue has not been announced yet.', scope: 'Multidisciplinary research journal', labels: ['Natural sciences', 'Engineering & technology', 'Medicine & life sciences', 'Economics & business', 'Social sciences', 'Education & humanities'], descriptions: ['Physics, chemistry, mathematics and environmental research.', 'Computing, engineering and applied innovation.', 'Biology, health and medical research.', 'Economic development, finance and management.', 'Society, law and social processes.', 'Education, linguistics, history and culture.'] },
   ru: { eyebrow: 'AGM JOURNAL · НАУЧНЫЕ ПУБЛИКАЦИИ', title: 'Каталог научных публикаций', intro: 'Статьи, тематические коллекции и выпуски журнала в едином каталоге.', browse: 'Научные направления', collections: 'Тематические коллекции AGM Journal', section: 'Тематическая коллекция', explore: 'Смотреть статьи', latest: 'Последние статьи', all: 'Все статьи', current: 'Текущий выпуск', archive: 'Архив выпусков', empty: 'Опубликованных статей пока нет.', author: 'Для авторов', guidelines: 'Требования к рукописям', review: 'Процесс рецензирования', policies: 'Издательская политика', noIssue: 'Текущий выпуск ещё не объявлен.', scope: 'Междисциплинарный научный журнал', labels: ['Естественные науки', 'Инженерия и технологии', 'Медицина и биология', 'Экономика и бизнес', 'Социальные науки', 'Образование и гуманитарные науки'], descriptions: ['Физика, химия, математика и исследования окружающей среды.', 'Вычислительная техника, инженерия и прикладные инновации.', 'Биология, здоровье и медицинские исследования.', 'Экономическое развитие, финансы и управление.', 'Общество, право и социальные процессы.', 'Образование, языкознание, история и культура.'] },
 };
-const subjects = [
-  { name: 'Natural\nSciences', query: 'physics', color: 'teal', number: '01' },
-  { name: 'Engineering\n& Technology', query: 'technology', color: 'blue', number: '02' },
-  { name: 'Medicine &\nLife Sciences', query: 'medicine', color: 'sage', number: '03' },
-  { name: 'Economics\n& Business', query: 'economics', color: 'ochre', number: '04' },
-  { name: 'Social\nSciences', query: 'society', color: 'clay', number: '05' },
-  { name: 'Education &\nHumanities', query: 'education', color: 'violet', number: '06' },
-];
 export default async function HomePage({ params }: { params: Promise<{ lang: string }> }) {
   const { lang } = await params;
   const currentLang = (['uz', 'en', 'ru'].includes(lang) ? lang : 'uz') as Language;
@@ -42,10 +35,10 @@ export default async function HomePage({ params }: { params: Promise<{ lang: str
       </div>
       <aside className="catalog-issue"><span className="catalog-eyebrow">{t.current}</span>{issue ? <><div className="catalog-issue-number">{issue.year}<span>VOL. {issue.volume} / NO. {issue.issue_number}</span></div><p>{issue[`title_${currentLang}`] || issue.title_uz || t.scope}</p><Link href={`/${currentLang}/current`}>{dict.sections.exploreIssue}<ArrowUpRight size={16} /></Link></> : <p>{t.noIssue}</p>}<Link className="catalog-archive-link" href={`/${currentLang}/archive`}>{t.archive}<ArrowRight size={15} /></Link></aside>
     </div></section>
-    <section className="journal-container catalog-subjects" aria-labelledby="subjects-title"><div className="catalog-section-heading"><div><p className="catalog-eyebrow">{t.collections}</p><h2 id="subjects-title">{t.browse}</h2></div><span className="catalog-section-index">01 — 06</span></div>
-      <div className="catalog-subject-grid">{subjects.map((subject, i) => <article className="catalog-subject" key={subject.query}>
-        <Link href={`/${currentLang}/articles?subject=${subjectCollections[i].id}`} className={`subject-cover cover-${subject.color}`} aria-label={`${t.labels[i]} — ${t.explore}`}><span className="cover-masthead">AGM <span>JOURNAL</span></span><span className="cover-series">SUBJECT COLLECTION / {subject.number}</span><strong>{subject.name}</strong><span className="cover-art" aria-hidden="true"><i /><i /><i /></span><span className="cover-foot">RESEARCH & SCHOLARSHIP <ArrowUpRight size={16} /></span></Link>
-        <div className="subject-info"><span>{t.section} / {subject.number}</span><h3><Link href={`/${currentLang}/articles?subject=${subjectCollections[i].id}`}>{t.labels[i]}</Link></h3><p>{t.descriptions[i]}</p><Link className="catalog-text-link" href={`/${currentLang}/articles?subject=${subjectCollections[i].id}`}>{t.explore}<ArrowUpRight size={15} /></Link></div>
+    <section className="journal-container catalog-subjects" aria-labelledby="subjects-title"><div className="catalog-section-heading"><div><p className="catalog-eyebrow">{t.collections}</p><h2 id="subjects-title">{t.browse}</h2></div><span className="catalog-section-index">01 — 07</span></div>
+      <div className="catalog-subject-grid">{subjectCollections.map((subject, i) => <article className="catalog-subject" key={subject.id}>
+        <Link href={`/${currentLang}/subjects/${subject.id}`} aria-label={`${subjectLabel(subject.id, currentLang)} — ${t.explore}`}><SubjectCover subjectId={subject.id} issueId={issue?.id} alt={`AGM Journal — ${subject.labels.en}`} /></Link>
+        <div className="subject-info"><span>{t.section} / {String(i + 1).padStart(2, '0')}</span><h3><Link href={`/${currentLang}/subjects/${subject.id}`}>{subjectLabel(subject.id, currentLang)}</Link></h3><p>{t.descriptions[i] || (currentLang === 'en' ? 'Research connecting disciplines and emerging fields.' : currentLang === 'ru' ? 'Исследования на стыке научных дисциплин.' : 'Fanlararo va yangi ilmiy sohalardagi tadqiqotlar.')}</p><Link className="catalog-text-link" href={`/${currentLang}/subjects/${subject.id}`}>{t.explore}<ArrowUpRight size={15} /></Link></div>
       </article>)}</div>
     </section>
     <section className="catalog-publications"><div className="journal-container"><div className="catalog-section-heading"><div><p className="catalog-eyebrow">AGM JOURNAL</p><h2>{t.latest}</h2></div><Link className="catalog-text-link" href={`/${currentLang}/articles`}>{t.all}<ArrowRight size={16} /></Link></div>{articles.length ? <div className="catalog-article-grid">{articles.map(article => <ArticleCard key={article.id} article={article} lang={currentLang} />)}</div> : <div className="catalog-empty"><BookOpen size={25} /><p>{t.empty}</p></div>}</div></section>

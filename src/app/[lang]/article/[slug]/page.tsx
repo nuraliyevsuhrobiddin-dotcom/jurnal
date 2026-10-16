@@ -1,4 +1,6 @@
 import React from 'react';
+import { resolveSubjectId, subjectLabel } from '@/lib/subjects';
+import { SubjectCover } from '@/components/subjects/SubjectCover';
 import { notFound } from 'next/navigation';
 import { ArticleView } from '@/components/article/ArticleView';
 import Link from 'next/link';
@@ -60,7 +62,7 @@ export default async function ArticleDetailPage({ params }: { params: Promise<{ 
           <header className={styles.articleHeader}>
             <div className={styles.articleKind}><span>{text.types[article.article_type]}</span><Link href={`/${currentLang}/open-access`}>{article.license}</Link></div>
             {article.status === 'withdrawn' && <p role="alert" className={styles.retraction}>{dict.article.retractedNotice}{article.retraction_reason && `: ${article.retraction_reason}`}</p>}
-            <h1>{title}</h1>
+            <Link href={`/${currentLang}/subjects/${resolveSubjectId(article)}`} className="text-sm font-semibold text-teal-800 underline underline-offset-4">{subjectLabel(resolveSubjectId(article), currentLang)}</Link><h1>{title}</h1>
             <div className={styles.authorNames}>{(article.authors || []).map((author, index) => <span key={author.id || index}>{author.full_name}<sup>{index + 1}{author.is_corresponding ? '*' : ''}</sup>{index < (article.authors || []).length - 1 ? ',' : ''}</span>)}</div>
             {(article.authors || []).length > 0 && <div className={styles.affiliations} aria-label={text.authors}>{(article.authors || []).map((author, index) => <div key={author.id || index}><p><sup>{index + 1}</sup> {[author.affiliation, author.country].filter(Boolean).join(', ')}</p>{author.orcid && <a href={`https://orcid.org/${author.orcid}`} target="_blank" rel="noopener noreferrer">ORCID {author.orcid}<ArrowUpRight size={12} /></a>}{author.is_corresponding && <p className={styles.corresponding}>* {dict.article.corresponding}</p>}</div>)}</div>}
             {article.doi && <a className={styles.doi} href={`https://doi.org/${article.doi}`} target="_blank" rel="noopener noreferrer">https://doi.org/{article.doi}<ArrowUpRight size={14} /></a>}
@@ -72,6 +74,7 @@ export default async function ArticleDetailPage({ params }: { params: Promise<{ 
         </article>
         <aside className={styles.sidebar}>
           <div className={styles.sidebarInner}>
+            <Link href={`/${currentLang}/subjects/${resolveSubjectId(article)}${article.issue_id ? `?issue=${article.issue_id}` : ''}`} className="block max-w-40 mx-auto mb-5"><SubjectCover subjectId={resolveSubjectId(article)} issueId={article.issue_id} alt={`AGM Journal — ${subjectLabel(resolveSubjectId(article), 'en')}`} /></Link>
             <Link href={`/${currentLang}/article/${article.slug}/fulltext.pdf`} target="_blank" rel="noopener noreferrer" className={styles.download}><Download size={18} />{dict.article.downloadPdf}<ArrowUpRight size={16} /></Link>
             <section className={styles.sideSection}><h2>{text.details}</h2><dl>
               <div><dt>{text.id}</dt><dd className={styles.identifier}>{articleId}</dd></div>

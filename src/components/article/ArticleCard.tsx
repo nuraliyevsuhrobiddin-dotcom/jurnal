@@ -1,4 +1,5 @@
 import React from 'react';
+import { resolveSubjectId, subjectLabel } from '@/lib/subjects';
 import Link from 'next/link';
 import { Article, Language } from '@/types/journal';
 import { getDictionary } from '@/lib/i18n/dictionaries';
@@ -69,6 +70,7 @@ export function ArticleCard({ article, lang, theme = 'light' }: ArticleCardProps
           </div>
         </div>
 
+        <Link href={`/${lang}/subjects/${resolveSubjectId(article)}`} className="text-xs font-semibold text-teal-800 underline underline-offset-4">{subjectLabel(resolveSubjectId(article), lang)}</Link>
         {/* Title */}
         <h3 className="article-title text-lg sm:text-xl font-extrabold text-navy-900 group-hover:text-teal-700 transition-colors leading-snug">
           <Link href={`/${lang}/article/${article.slug}`} className="flex items-start justify-between gap-2">
