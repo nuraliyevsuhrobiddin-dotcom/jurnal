@@ -30,14 +30,14 @@ export async function parseDocxFile(buffer: Buffer): Promise<ParsedDocxResult> {
 
     // 2. Extracted Abstract
     let extractedAbstract: string | undefined;
-    const abstractMatch = rawText.match(/(?:abstract|annotatsiya|аннотация)[:\s]+([\s\S]*?)(?=(?:keywords|kalit so'zlar|ключевые слова|kirish|introduction|введение))/i);
+    const abstractMatch = rawText.match(/(?:abstract|annotatsiya|аннотация)[:\s]+([\s\S]*?)(?=(?:key\s*words|kalit\s+so[‘’ʻʼ'`]?zlar|ключевые слова|kirish|introduction|введение|$))/i);
     if (abstractMatch && abstractMatch[1]) {
       extractedAbstract = abstractMatch[1].trim();
     }
 
     // 3. Extracted Keywords
     let extractedKeywords: string[] | undefined;
-    const keywordsMatch = rawText.match(/(?:keywords|kalit so'zlar|ключевые слова)[:\s]+([^\n\r]+)/i);
+    const keywordsMatch = rawText.match(/(?:key\s*words|kalit\s+so[‘’ʻʼ'`]?zlar|ключевые слова)[:\s]+([^\n\r]+)/i);
     if (keywordsMatch && keywordsMatch[1]) {
       extractedKeywords = keywordsMatch[1]
         .split(/[,;]/)

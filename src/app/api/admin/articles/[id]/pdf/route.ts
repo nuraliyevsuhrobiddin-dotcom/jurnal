@@ -46,8 +46,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     let merged: Uint8Array;
     try { merged = await assemblePublicationPdf(prepared, settings, original); }
     catch { return NextResponse.json({ error: 'PDF o‘qilmadi. Fayl buzilgan yoki parol bilan himoyalangan.' }, { status: 400 }); }
-    await saveArticlePdf(id, merged);
     const stored = form.get('use_manuscript') === 'true' ? null : await saveManuscript(file, sourceBytes, extension);
+    await saveArticlePdf(id, merged);
     await updateArticle(id, { pdf_url: `/api/articles/${id}/pdf`, pdf_file_size: merged.length, page_first: first, page_last: prepared.page_last,
       ...(stored ? { manuscript_file_url: `/api/admin/manuscripts/${stored.id}` } : {}) });
     return NextResponse.json({ success: true, url: `/api/admin/articles/${id}/pdf`, page_count: pageCount, page_first: first, page_last: prepared.page_last });

@@ -69,7 +69,8 @@ describe('Publication readiness', () => {
     vi.mocked(readArticlePdf).mockResolvedValue(new Uint8Array([1, 2, 3]));
     await expect(assertPublicationReady(article)).rejects.toThrow();
     document.setKeywords(['AGM_FULL_ARTICLE_V2']); vi.mocked(readArticlePdf).mockResolvedValue(await document.save());
-    await expect(assertPublicationReady(article)).resolves.toBeUndefined();
+    await expect(assertPublicationReady(article)).rejects.toThrow('betlari');
+    await expect(assertPublicationReady({ ...article, page_first: 1, page_last: 1 })).resolves.toBeUndefined();
   });
 });
 

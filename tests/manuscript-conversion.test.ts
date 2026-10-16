@@ -7,6 +7,7 @@ import { generateArticleTitlePagePdf, assemblePublicationPdf } from '@/lib/pdf/g
 import { generatePolicyPdf } from '@/lib/pdf/policy-generator';
 import { getPolicyDocument } from '@/lib/policies';
 import { journalStore } from '@/lib/data-store';
+import { parseDocxFile } from '@/lib/pdf/docx-parser';
 
 const settings = journalStore.settings;
 async function docx(body: string) {
@@ -16,6 +17,12 @@ async function docx(body: string) {
   return zip.generateAsync({ type: 'uint8array' });
 }
 describe('Full manuscript conversion', () => {
+  it.each(['‘', '’', 'ʻ', 'ʼ', "'"])('extracts Uzbek keywords with apostrophe %s without including the full body in the abstract', async apostrophe => {
+    const body = ['Research title', 'Annotatsiya: Research summary and evidence.', `Kalit so${apostrophe}zlar: pedagogika, ta’lim`, 'Kirish', 'Complete scientific body text.'].map(text => `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`).join('');
+    const parsed = await parseDocxFile(Buffer.from(await docx(body)));
+    expect(parsed.extractedKeywords).toEqual(['pedagogika', 'ta’lim']);
+    expect(parsed.extractedAbstract).toBe('Research summary and evidence.');
+  });
   it('keeps all source PDF pages and never prepends an abstract sheet', async () => {
     const source = await PDFDocument.create(); source.addPage().drawText('Full research body');
     const bytes = await manuscriptToPdf(await source.save(), 'pdf', settings);
