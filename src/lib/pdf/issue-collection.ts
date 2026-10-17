@@ -99,10 +99,6 @@ export async function buildIssueCollection(issue: Issue, articles: Article[], se
   await append(await generateIssueTocPdf(issue, groups.flatMap(group => group.articles), settings.journal_name, subject?.labels.en));
   let total = 0;
   for (const group of groups) {
-    if (!subject) {
-      const image = await sharp(Buffer.from(subjectCoverSvg(group.subject.id, issue, settings))).png().toBuffer();
-      await append(await generateIssueCoverPdf(issue, settings, image));
-    }
     for (const article of group.articles) {
       const bytes = await readPdf(article.id);
       if (!bytes) throw new IssueCollectionError('A published article PDF is missing. The editorial office must restore it before downloading the complete issue.', 409);

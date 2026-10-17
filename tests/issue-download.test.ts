@@ -4,7 +4,6 @@ import { PDFDocument } from 'pdf-lib';
 import { journalStore } from '@/lib/data-store';
 import { GET } from '@/app/api/issues/[id]/pdf/route';
 import { readArticlePdf } from '@/lib/pdf/storage';
-import { resolveSubjectId } from '@/lib/subjects';
 
 vi.mock('@/lib/pdf/storage', () => ({ readArticlePdf: vi.fn() }));
 const request = () => new NextRequest('http://localhost/api/issues/test/pdf');
@@ -21,7 +20,7 @@ describe('Issue PDF download route', () => {
     expect(response.headers.get('cache-control')).toBe('no-store');
     const pdf = await PDFDocument.load(await response.arrayBuffer());
     const papers = journalStore.articles.filter(a => a.status === 'published' && a.issue_id === issue.id);
-    expect(pdf.getPageCount()).toBe(2 + papers.length + new Set(papers.map(resolveSubjectId)).size);
+    expect(pdf.getPageCount()).toBe(2 + papers.length);
   });
   it('returns 409 for missing published PDF and 404 for malformed issue IDs', async () => {
     vi.mocked(readArticlePdf).mockResolvedValue(null);

@@ -132,7 +132,11 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
   // Upload and parse DOCX file to auto-populate metadata
   const handleDocxUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    setPublicationFile(null);
     if (file.size === 0 || file.size > MAX_UPLOAD_BYTES || !/\.(pdf|docx)$/i.test(file.name)) { setErrorMsg('4 MB gacha to‘liq maqola PDF yoki DOCX faylini tanlang.'); return; }
     setPublicationFile(file);
     if (/\.pdf$/i.test(file.name)) { setSuccessMsg('To‘liq maqola PDF’i tanlandi. Maydonlarni to‘ldirib saqlang.'); return; }
@@ -170,6 +174,7 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
 
       setSuccessMsg(`DOCX tanlandi va maydonlar to‘ldirildi (${data.wordCount} so‘z). Saqlashda to‘liq matn PDF’ga tayyorlanadi.`);
     } catch (err: unknown) {
+      setPublicationFile(null);
       setErrorMsg((err instanceof Error ? err.message : null) || 'DOCX faylni o‘qib bo‘lmadi');
     } finally {
       setDocxParsing(false);
@@ -324,14 +329,14 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
       </div>
       {/* Alerts */}
       {errorMsg && (
-        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs sm:text-sm flex items-center gap-2">
+        <div role="alert" className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs sm:text-sm flex items-center gap-2">
           <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
           <span>{errorMsg}</span>
         </div>
       )}
 
       {successMsg && (
-        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs sm:text-sm flex items-center gap-2">
+        <div role="status" className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs sm:text-sm flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
           <span>{successMsg}</span>
         </div>

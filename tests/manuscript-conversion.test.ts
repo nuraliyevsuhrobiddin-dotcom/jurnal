@@ -37,6 +37,12 @@ describe('Full manuscript conversion', () => {
     const guide = await generatePolicyPdf({ documents: [policy], settings, lang: 'uz', title: policy.title, verificationUrl: 'https://example.com', hash: 'test' });
     await expect(manuscriptToPdf(guide, 'pdf', settings)).rejects.toThrow('qo‘llanmasi');
   });
+  it('rejects a previously prepared article instead of adding another journal frame', async () => {
+    const source = await PDFDocument.create();
+    source.addPage().drawText('Full research body');
+    const prepared = await assemblePublicationPdf(journalStore.articles[0], settings, await source.save());
+    await expect(manuscriptToPdf(prepared, 'pdf', settings)).rejects.toThrow('asl PDF yoki DOCX');
+  });
   it('converts the complete DOCX body including text after the abstract over multiple pages', async () => {
     const body = '<w:p><w:r><w:t>Title</w:t></w:r></w:p>' + Array.from({ length: 100 }, (_, i) => `<w:p><w:r><w:t>Research body paragraph ${i}: methods, results and conclusions.</w:t></w:r></w:p>`).join('');
     const pdf = await PDFDocument.load(await manuscriptToPdf(await docx(body), 'docx', settings));

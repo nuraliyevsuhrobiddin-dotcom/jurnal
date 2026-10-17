@@ -11,6 +11,7 @@ export class ManuscriptFileError extends Error {}
 
 export function assertNotJournalDocument(doc: PDFDocument, settings: JournalSettings) {
   const title = doc.getTitle()?.trim();
+  if (doc.getKeywords()?.includes('AGM_FULL_ARTICLE_V2')) throw new ManuscriptFileError('Bu jurnal uchun tayyorlangan PDF. Ramka takrorlanmasligi uchun asl PDF yoki DOCX qo‘lyozmani yuklang.');
   if (doc.getKeywords()?.includes('AGM_METADATA_ONLY')) throw new ManuscriptFileError('Bu faqat annotatsiya varag‘i. To‘liq maqola faylini tanlang.');
   const titles = ['Publication policies handbook', 'Nashr siyosatlari to‘plami', 'Редакционные политики'];
   for (const lang of ['en', 'uz', 'ru'] as const) for (const id of policyIds) titles.push(getPolicyDocument(id, lang, settings).title);

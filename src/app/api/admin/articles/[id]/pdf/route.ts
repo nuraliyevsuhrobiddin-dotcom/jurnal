@@ -8,6 +8,8 @@ import { manuscriptToPdf, ManuscriptFileError } from '@/lib/pdf/manuscript-conve
 import { readManuscript, saveManuscript } from '@/lib/manuscript-storage';
 import { readArticlePdf, saveArticlePdf } from '@/lib/pdf/storage';
 import { streamPdf } from '@/lib/pdf/stream';
+import { readUploadForm, UploadFormError } from '@/lib/upload-form';
+import { BodyLimitError } from '@/lib/bounded-body';
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const denied = await adminAccess(); if (denied) return denied;
@@ -26,13 +28,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { id } = await params;
     const article = await getArticleById(id);
     if (!article) return NextResponse.json({ error: 'Maqola topilmadi' }, { status: 404 });
-    const form = await request.formData();
+    const form = await readUploadForm(request);
     let file = form.get('file');
+    let reusedManuscript = false;
     if (!(file instanceof File) && form.get('use_manuscript') === 'true') {
       const manuscriptId = article.manuscript_file_url?.match(/^\/api\/admin\/manuscripts\/([a-f0-9-]{36})$/i)?.[1];
       const stored = manuscriptId ? await readManuscript(manuscriptId) : null;
       if (!stored) return NextResponse.json({ error: 'Yuborilgan qo‘lyozma topilmadi. Faylni qayta tanlang.' }, { status: 404 });
       file = new File([Buffer.from(stored.bytes)], stored.metadata.name, { type: stored.metadata.contentType });
+      reusedManuscript = true;
     }
     if (!(file instanceof File) || file.size === 0 || file.size > MAX_UPLOAD_BYTES) return NextResponse.json({ error: '4 MB gacha to‘liq maqola PDF yoki DOCX faylini tanlang.' }, { status: 400 });
     const extension = file.name.split('.').pop()?.toLowerCase();
@@ -46,12 +50,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     let merged: Uint8Array;
     try { merged = await assemblePublicationPdf(prepared, settings, original); }
     catch { return NextResponse.json({ error: 'PDF o‘qilmadi. Fayl buzilgan yoki parol bilan himoyalangan.' }, { status: 400 }); }
-    const stored = form.get('use_manuscript') === 'true' ? null : await saveManuscript(file, sourceBytes, extension);
+    const stored = reusedManuscript ? null : await saveManuscript(file, sourceBytes, extension);
     await saveArticlePdf(id, merged);
     await updateArticle(id, { pdf_url: `/api/articles/${id}/pdf`, pdf_file_size: merged.length, page_first: first, page_last: prepared.page_last,
       ...(stored ? { manuscript_file_url: `/api/admin/manuscripts/${stored.id}` } : {}) });
     return NextResponse.json({ success: true, url: `/api/admin/articles/${id}/pdf`, page_count: pageCount, page_first: first, page_last: prepared.page_last });
   } catch (cause) {
+    if (cause instanceof BodyLimitError) return NextResponse.json({ error: 'Fayl hajmi 4 MB dan oshmasligi kerak.' }, { status: 413 });
+    if (cause instanceof UploadFormError) return NextResponse.json({ error: cause.message }, { status: 400 });
     if (cause instanceof ManuscriptFileError) return NextResponse.json({ error: cause.message }, { status: 400 });
     return NextResponse.json({ error: cause instanceof Error ? cause.message : 'PDF saqlanmadi.' }, { status: 500 });
   }

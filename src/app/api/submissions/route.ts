@@ -1,7 +1,8 @@
 import { MAX_UPLOAD_BYTES, MAX_UPLOAD_BODY_BYTES } from '@/lib/upload-limits';
 import { after, NextRequest, NextResponse } from 'next/server';
 import { deliverNotification, queueNotification } from '@/lib/notifications';
-import { boundedBody, BodyLimitError } from '@/lib/bounded-body';
+import { BodyLimitError } from '@/lib/bounded-body';
+import { readUploadForm, UploadFormError } from '@/lib/upload-form';
 import { protectRequest } from '@/lib/request-limit';
 import { PDFDocument } from 'pdf-lib';
 import { createArticle } from '@/lib/db';
@@ -18,8 +19,7 @@ export async function POST(request: NextRequest) {
   const size = Number(request.headers.get('content-length') || 0);
   if (size > MAX_UPLOAD_BODY_BYTES) return NextResponse.json({ error: 'File exceeds 4 MB limit' }, { status: 413 });
   try {
-    const bytesBody = await boundedBody(request, MAX_UPLOAD_BODY_BYTES);
-    const form = await new Request(request.url, { method: 'POST', headers: { 'Content-Type': request.headers.get('content-type') || '' }, body: Buffer.from(bytesBody) }).formData();
+    const form = await readUploadForm(request);
     const result = manuscriptSubmissionSchema.safeParse(Object.fromEntries(form.entries()));
     if (!result.success) return NextResponse.json({ error: 'Please complete the required metadata and declarations.', details: result.error.flatten() }, { status: 400 });
     const file = form.get('file');
@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
       throw cause;
     }
   } catch (cause) {
+    if (cause instanceof UploadFormError) return NextResponse.json({ error: 'Upload a valid multipart form with a manuscript file.' }, { status: 400 });
     if (cause instanceof BodyLimitError) return NextResponse.json({ error: 'File exceeds 4 MB limit' }, { status: 413 });
     console.error('Manuscript submission failed:', cause);
     return NextResponse.json({ error: 'The submission could not be saved. Please try again or contact the editorial office.' }, { status: 500 });

@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAccess } from '@/lib/admin-access';
 import { createServerClient } from '@/lib/supabase/server';
+import { readUploadForm } from '@/lib/upload-form';
+import { BodyLimitError } from '@/lib/bounded-body';
 
 export const runtime = 'nodejs';
 
@@ -27,8 +29,9 @@ export async function POST(request: NextRequest) {
 
   let formData: FormData;
   try {
-    formData = await request.formData();
-  } catch {
+    formData = await readUploadForm(request);
+  } catch (error) {
+    if (error instanceof BodyLimitError) return NextResponse.json({ error: 'Muqova fayli 4 MB dan oshmasligi kerak.' }, { status: 413 });
     return NextResponse.json({ error: 'Rasm faylini o‘qib bo‘lmadi.' }, { status: 400 });
   }
 
