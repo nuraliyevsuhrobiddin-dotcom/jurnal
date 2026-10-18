@@ -1,3 +1,4 @@
+import { collectionPendingMessage } from '@/lib/issues/collection-policy';
 import { notFound } from 'next/navigation';
 import { orderIssueArticles } from '@/lib/issues/article-order';
 import React from 'react';
@@ -73,9 +74,10 @@ export async function IssuePage({ lang: currentLang, issueId }: { lang: Language
         </div>
       </div>
 
-      {articles.length > 0 ? <IssueDownloadLink id={issue.id} lang={currentLang} /> : <section className="rounded-lg border border-teal-200 bg-teal-50 p-5 space-y-3">
+      {articles.length > 0 ? <IssueDownloadLink id={issue.id} lang={currentLang} articleCount={articles.length} /> : <section className="rounded-lg border border-teal-200 bg-teal-50 p-5 space-y-3">
         <h2 className="font-semibold text-navy-900">{currentLang === 'en' ? 'Submissions are open for this issue' : currentLang === 'ru' ? 'Приём статей в этот выпуск открыт' : 'Ushbu songa maqolalar qabul qilinmoqda'}</h2>
-        <p className="text-sm text-slate-700">{currentLang === 'en' ? 'Accepted articles will appear here after editorial review and publication. The complete issue PDF will become available when articles are published.' : currentLang === 'ru' ? 'Принятые статьи появятся после редакционной проверки и публикации. Затем будет доступен полный PDF выпуска.' : 'Qabul qilingan maqolalar tahririy tekshiruv va nashrdan so‘ng shu yerda ko‘rinadi. Shundan keyin to‘liq son PDF’i ham ochiladi.'}</p>
+        <p className="text-sm text-slate-700">{currentLang === 'en' ? 'Accepted articles will appear here after editorial review and publication. ' : currentLang === 'ru' ? 'Принятые статьи появятся после редакционной проверки и публикации. ' : 'Qabul qilingan maqolalar tahririy tekshiruv va nashrdan so‘ng shu yerda ko‘rinadi. '}</p>
+        <p className="text-sm text-slate-700">{collectionPendingMessage(currentLang, 0)}</p>
         <Link className="inline-flex text-sm font-semibold text-teal-800 underline" href={`/${currentLang}/submit`}>{currentLang === 'en' ? 'Submit a manuscript' : currentLang === 'ru' ? 'Отправить рукопись' : 'Maqola yuborish'} &rarr;</Link>
       </section>}
       {/* Table of Contents Section */}

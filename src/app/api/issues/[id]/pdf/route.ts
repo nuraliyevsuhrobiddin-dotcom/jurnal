@@ -1,3 +1,4 @@
+import { MIN_COLLECTION_ARTICLES, collectionPendingMessage } from '@/lib/issues/collection-policy';
 import { NextRequest, NextResponse } from 'next/server';
 import { getIssueById, getPublishedArticles, getJournalSettings } from '@/lib/db';
 import { buildIssueCollection, IssueCollectionError } from '@/lib/pdf/issue-collection';
@@ -20,6 +21,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const subject = findSubject(requestedSubject || undefined);
     if (requestedSubject && !subject) return new NextResponse('Subject not found', { status: 404 });
     const selected = subject ? articles.filter(article => matchesSubject(article, subject)) : articles;
+    if (selected.length < MIN_COLLECTION_ARTICLES) return new NextResponse(collectionPendingMessage('uz', selected.length), { status: 409, headers: { 'Cache-Control': 'no-store' } });
     const bytes = await buildIssueCollection(issue, selected, settings, undefined, subject?.id);
     return new NextResponse(streamPdf(bytes), { headers: {
       'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="agm-volume-${issue.volume}-issue-${issue.issue_number}-${issue.year}${subject ? '-' + subject.id : ''}.pdf"`,

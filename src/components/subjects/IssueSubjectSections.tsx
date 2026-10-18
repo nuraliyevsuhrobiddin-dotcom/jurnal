@@ -1,3 +1,4 @@
+import { MIN_COLLECTION_ARTICLES, collectionPendingMessage } from '@/lib/issues/collection-policy';
 import Link from 'next/link';
 import { subjectCollections, resolveSubjectId, subjectLabel } from '@/lib/subjects';
 import type { Article, Issue, Language } from '@/types/journal';
@@ -11,6 +12,6 @@ export function IssueSubjectSections({ articles, issue, lang }: { articles: Arti
     const papers = articles.filter(article => resolveSubjectId(article) === subject.id);
     if (!papers.length) return null;
     const href = `/${lang}/subjects/${subject.id}?issue=${issue.id}`;
-    return <section key={subject.id} className={styles.issueSection}><div className={styles.sectionTop}><Link href={href}><SubjectCover subjectId={subject.id} issueId={issue.id} alt={`AGM Journal — ${subject.labels.en}`} /></Link><div><p className={styles.eyebrow}>{labels.collection}</p><h3><Link href={href}>{subjectLabel(subject.id, lang)}</Link></h3><p>{papers.length} {lang === 'en' && papers.length === 1 ? 'article' : labels.count} · Vol. {issue.volume} / No. {issue.issue_number} / {issue.year}</p><div className={styles.sectionLinks}><Link href={href}>{labels.browse} &rarr;</Link><a href={`/api/issues/${issue.id}/pdf?subject=${subject.id}`}>{labels.download} &darr;</a></div></div></div><div className={styles.articles}>{papers.map(article => <ArticleCard key={article.id} article={article} lang={lang} />)}</div></section>;
+    return <section key={subject.id} className={styles.issueSection}><div className={styles.sectionTop}><Link href={href}><SubjectCover subjectId={subject.id} issueId={issue.id} alt={`AGM Journal — ${subject.labels.en}`} /></Link><div><p className={styles.eyebrow}>{labels.collection}</p><h3><Link href={href}>{subjectLabel(subject.id, lang)}</Link></h3><p>{papers.length} {lang === 'en' && papers.length === 1 ? 'article' : labels.count} · Vol. {issue.volume} / No. {issue.issue_number} / {issue.year}</p><div className={styles.sectionLinks}><Link href={href}>{labels.browse} &rarr;</Link>{papers.length >= MIN_COLLECTION_ARTICLES ? <a href={`/api/issues/${issue.id}/pdf?subject=${subject.id}`}>{labels.download} &darr;</a> : <span role="status">{collectionPendingMessage(lang, papers.length)}</span>}</div></div></div><div className={styles.articles}>{papers.map(article => <ArticleCard key={article.id} article={article} lang={lang} />)}</div></section>;
   })}</div>;
 }
