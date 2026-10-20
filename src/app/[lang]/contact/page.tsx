@@ -81,6 +81,13 @@ export default async function ContactPage({
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }) {
- const { lang } = await params;
- return publicPageMetadata((['en', 'uz', 'ru'].includes(lang) ? lang : 'en') as Language, "/contact", "Contact the journal", "Contact the editorial office of AGM Journal about submissions and published research.");
+  const { lang } = await params;
+  const language = (['uz', 'en', 'ru'].includes(lang) ? lang : 'uz') as Language;
+  const titles = { uz: 'Bog‘lanish', en: 'Contact the journal', ru: 'Контакты' };
+  const descriptions = {
+    uz: 'AGM Journal tahririyati bilan maqolalar yuborish va ilmiy hamkorlik masalalarida bog‘lanish.',
+    en: 'Contact the editorial office of AGM Journal about submissions and published research.',
+    ru: 'Свяжитесь с редакцией AGM Journal по вопросам подачи рукописей и научного сотрудничества.',
+  };
+  return publicPageMetadata(language, '/contact', titles[language], descriptions[language]);
 }

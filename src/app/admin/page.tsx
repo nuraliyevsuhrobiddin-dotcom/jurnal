@@ -1,4 +1,5 @@
 import React from 'react';
+import { internationalMetadataGaps } from '@/lib/international-metadata';
 import Link from 'next/link';
 import { getJournalStats, getAuditLogs, getAllArticlesAdmin } from '@/lib/db';
 import { FileText, CheckCircle2, Clock, Award, BookMarked, AlertTriangle, PlusCircle, History, ShieldCheck } from 'lucide-react';
@@ -11,9 +12,25 @@ export default async function AdminDashboardPage() {
   ]);
 
   const recentArticles = articles.slice(0, 5);
+  const incompletePublished = articles.filter(article => article.status === 'published')
+    .map(article => ({ article, gaps: internationalMetadataGaps(article) }))
+    .filter(item => item.gaps.length > 0);
 
   return (
     <div className="space-y-8">
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 space-y-3" aria-labelledby="international-readiness">
+        <h2 id="international-readiness" className="text-lg font-bold text-navy-900">Xalqaro nashrga tayyorgarlik</h2>
+        <p className="text-sm text-slate-600">Nashr qilingan {incompletePublished.length} ta maqolada inglizcha metama’lumot yetishmaydi. Yangi nashrlar sarlavha, annotatsiya va kalit so‘zlarsiz chiqarilmaydi.</p>
+        <p className="text-sm text-slate-600">Bu tekshiruv Scopusga qabul yoki ilmiy sifat bahosi emas. Tahririyat ISSN ro‘yxati, haqiqiy taqriz dalillari, nashr jadvali, adabiyotlar va tahririyat tarkibini alohida tekshirishi kerak.</p>
+        {incompletePublished.length > 0 && <ul className="space-y-2 text-sm">
+          {incompletePublished.slice(0, 10).map(({ article, gaps }) => <li key={article.id}>
+            <Link href={`/admin/articles/${article.id}/edit`} className="font-semibold text-teal-700 underline">{article.title_uz}</Link>
+            <span className="text-slate-600"> — {gaps.join(', ')}</span>
+          </li>)}
+        </ul>}
+        <Link href="/admin/articles" className="inline-block text-sm font-semibold text-teal-700 underline">Barcha maqolalarni tekshirish</Link>
+        <a href="https://www.elsevier.com/products/scopus/content/content-policy-and-selection" target="_blank" rel="noreferrer" className="block text-sm text-teal-700 underline">Scopus rasmiy tanlov mezonlari</a>
+      </section>
       {/* Top Banner */}
       <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-6 rounded-2xl academic-border academic-shadow">
         <div>

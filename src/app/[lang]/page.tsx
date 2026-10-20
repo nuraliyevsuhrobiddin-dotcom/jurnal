@@ -1,4 +1,5 @@
 import { IssueCoverImage } from '@/components/issues/IssueCoverImage';
+import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowUpRight, Search, ArrowRight, BookOpen } from 'lucide-react';
 import { Language } from '@/types/journal';
@@ -14,13 +15,53 @@ import { siteUrl } from '@/lib/site-url';
 export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }) {
   const { lang } = await params;
   const language = (['en', 'uz', 'ru'].includes(lang) ? lang : 'en') as Language;
-  return publicPageMetadata(language, '', 'AGM Journal — International Scientific Journal', 'Open-access multidisciplinary research. Browse published articles, journal issues, author guidelines and editorial policies.');
+  const titles = { uz: 'AGM Journal — Xalqaro ilmiy jurnal', en: 'AGM Journal — International Scientific Journal', ru: 'AGM Journal — Международный научный журнал' };
+  const descriptions = { uz: 'Ochiq kirishdagi ko‘p tarmoqli ilmiy tadqiqotlar. Nashr etilgan maqolalar, jurnal sonlari, mualliflar uchun talablar va tahririyat siyosati.', en: 'Open-access multidisciplinary research. Browse published articles, journal issues, author guidelines and editorial policies.', ru: 'Междисциплинарные научные исследования открытого доступа. Опубликованные статьи, выпуски журнала, требования к авторам и редакционная политика.' };
+  return publicPageMetadata(language, '', titles[language], descriptions[language]);
 }
 
 const copy = {
-  uz: { eyebrow: 'AGM JOURNAL · ILMIY NASHRLAR', title: 'Ilmiy nashrlar katalogi', intro: 'Maqolalar, fan yo‘nalishlari va jurnal sonlari — yagona katalogda.', browse: 'Fan yo‘nalishlari', collections: 'AGM Journal mavzuli to‘plamlari', section: 'Mavzuli to‘plam', explore: 'Maqolalarni ko‘rish', latest: 'So‘nggi maqolalar', all: 'Barcha maqolalar', current: 'Joriy son', archive: 'Sonlar arxivi', empty: 'Nashr etilgan maqolalar hali mavjud emas.', author: 'Mualliflar uchun', guidelines: 'Maqola tayyorlash talablari', review: 'Taqriz jarayoni', policies: 'Nashr siyosatlari', noIssue: 'Joriy son hali e’lon qilinmagan.', scope: 'Ko‘p tarmoqli ilmiy jurnal', labels: ['Tabiiy fanlar', 'Muhandislik va texnologiya', 'Tibbiyot va hayot fanlari', 'Iqtisodiyot va biznes', 'Ijtimoiy fanlar', 'Ta’lim va gumanitar fanlar'], descriptions: ['Fizika, kimyo, matematika va atrof-muhit tadqiqotlari.', 'Hisoblash texnikasi, muhandislik va amaliy innovatsiyalar.', 'Biologiya, salomatlik va tibbiyot tadqiqotlari.', 'Iqtisodiy rivojlanish, moliya va boshqaruv.', 'Jamiyat, huquq va ijtimoiy jarayonlar.', 'Pedagogika, tilshunoslik, tarix va madaniyat.'] },
-  en: { eyebrow: 'AGM JOURNAL · RESEARCH PUBLICATIONS', title: 'Research publications', intro: 'Articles, subject collections and journal issues in one catalog.', browse: 'Browse by discipline', collections: 'Subject collections within AGM Journal', section: 'Subject collection', explore: 'Explore articles', latest: 'Latest research', all: 'All articles', current: 'Current issue', archive: 'Issue archive', empty: 'No published articles are available yet.', author: 'For authors', guidelines: 'Submission guidelines', review: 'Peer review process', policies: 'Publishing policies', noIssue: 'The current issue has not been announced yet.', scope: 'Multidisciplinary research journal', labels: ['Natural sciences', 'Engineering & technology', 'Medicine & life sciences', 'Economics & business', 'Social sciences', 'Education & humanities'], descriptions: ['Physics, chemistry, mathematics and environmental research.', 'Computing, engineering and applied innovation.', 'Biology, health and medical research.', 'Economic development, finance and management.', 'Society, law and social processes.', 'Education, linguistics, history and culture.'] },
-  ru: { eyebrow: 'AGM JOURNAL · НАУЧНЫЕ ПУБЛИКАЦИИ', title: 'Каталог научных публикаций', intro: 'Статьи, тематические коллекции и выпуски журнала в едином каталоге.', browse: 'Научные направления', collections: 'Тематические коллекции AGM Journal', section: 'Тематическая коллекция', explore: 'Смотреть статьи', latest: 'Последние статьи', all: 'Все статьи', current: 'Текущий выпуск', archive: 'Архив выпусков', empty: 'Опубликованных статей пока нет.', author: 'Для авторов', guidelines: 'Требования к рукописям', review: 'Процесс рецензирования', policies: 'Издательская политика', noIssue: 'Текущий выпуск ещё не объявлен.', scope: 'Междисциплинарный научный журнал', labels: ['Естественные науки', 'Инженерия и технологии', 'Медицина и биология', 'Экономика и бизнес', 'Социальные науки', 'Образование и гуманитарные науки'], descriptions: ['Физика, химия, математика и исследования окружающей среды.', 'Вычислительная техника, инженерия и прикладные инновации.', 'Биология, здоровье и медицинские исследования.', 'Экономическое развитие, финансы и управление.', 'Общество, право и социальные процессы.', 'Образование, языкознание, история и культура.'] },
+  uz: { eyebrow: 'AGM JOURNAL · ILMIY NASHRLAR', title: 'Ilmiy nashrlar katalogi', intro: 'Maqolalar, fan yo‘nalishlari va jurnal sonlari — yagona katalogda.', browse: 'Fan yo‘nalishlari', collections: 'AGM Journal mavzuli to‘plamlari', section: 'Mavzuli to‘plam', explore: 'Maqolalarni ko‘rish', latest: 'So‘nggi maqolalar', all: 'Barcha maqolalar', current: 'Joriy son', archive: 'Sonlar arxivi', empty: 'Nashr etilgan maqolalar hali mavjud emas.', author: 'Mualliflar uchun', guidelines: 'Maqola tayyorlash talablari', review: 'Taqriz jarayoni', policies: 'Nashr siyosatlari', noIssue: 'Joriy son hali e’lon qilinmagan.', scope: 'Ko‘p tarmoqli ilmiy jurnal', labels: ['Tabiiy fanlar', 'Muhandislik va texnologiya', 'Tibbiyot va hayot fanlari', 'Iqtisodiyot va biznes', 'Ijtimoiy fanlar', 'Ta’lim va gumanitar fanlar', 'Ko‘p tarmoqli tadqiqotlar'], descriptions: ['Fizika, kimyo, matematika va atrof-muhit tadqiqotlari.', 'Hisoblash texnikasi, muhandislik va amaliy innovatsiyalar.', 'Biologiya, salomatlik va tibbiyot tadqiqotlari.', 'Iqtisodiy rivojlanish, moliya va boshqaruv.', 'Jamiyat, huquq va ijtimoiy jarayonlar.', 'Pedagogika, tilshunoslik, tarix va madaniyat.', 'Fanlararo va yangi ilmiy sohalardagi tadqiqotlar.'] },
+  en: { eyebrow: 'AGM JOURNAL · RESEARCH PUBLICATIONS', title: 'Research publications', intro: 'Articles, subject collections and journal issues in one catalog.', browse: 'Browse by discipline', collections: 'Subject collections within AGM Journal', section: 'Subject collection', explore: 'Explore articles', latest: 'Latest research', all: 'All articles', current: 'Current issue', archive: 'Issue archive', empty: 'No published articles are available yet.', author: 'For authors', guidelines: 'Submission guidelines', review: 'Peer review process', policies: 'Publishing policies', noIssue: 'The current issue has not been announced yet.', scope: 'Multidisciplinary research journal', labels: ['Natural sciences', 'Engineering & technology', 'Medicine & life sciences', 'Economics & business', 'Social sciences', 'Education & humanities', 'Multidisciplinary research'], descriptions: ['Physics, chemistry, mathematics and environmental research.', 'Computing, engineering and applied innovation.', 'Biology, health and medical research.', 'Economic de};
+
+const verifiedIntegrations = {
+  uz: {
+    eyebrow: 'XALQARO ILMIY INFRATUZILMA',
+    title: 'Ilmiy qidiruv va xalqaro identifikatsiya',
+    subtitle: 'AGM Journal nashrlari xalqaro akademik standartlar bo‘yicha indekslanadi, doimiy DOI orqali saqlanadi va iqtibos olinadi.',
+    more: 'Barcha integratsiyalar',
+    items: [
+      { name: 'Google Scholar', category: 'Ilmiy qidiruv va iqtiboslar', logo: '/brands/google-scholar.svg', width: 160, height: 38 },
+      { name: 'Crossref', category: 'Doimiy DOI identifikatori', logo: '/brands/crossref.svg', width: 130, height: 42 },
+      { name: 'ORCID', category: 'Xalqaro tadqiqotchi profili', logo: '/brands/orcid.png', width: 34, height: 34, isIcon: true },
+      { name: 'Zenodo', category: 'Ochiq tadqiqotlar repozitoriysi', logo: '/brands/zenodo.png', width: 125, height: 38 },
+    ],
+  },
+  en: {
+    eyebrow: 'RESEARCH INFRASTRUCTURE',
+    title: 'Scholarly discovery & persistent identifiers',
+    subtitle: 'Articles published in AGM Journal are indexed, uniquely identified by DOI, and preserved according to international standards.',
+    more: 'View all integrations',
+    items: [
+      { name: 'Google Scholar', category: 'Discovery & citations', logo: '/brands/google-scholar.svg', width: 160, height: 38 },
+      { name: 'Crossref', category: 'Persistent DOI identification', logo: '/brands/crossref.svg', width: 130, height: 42 },
+      { name: 'ORCID', category: 'Researcher identification', logo: '/brands/orcid.png', width: 34, height: 34, isIcon: true },
+      { name: 'Zenodo', category: 'Open research repository', logo: '/brands/zenodo.png', width: 125, height: 38 },
+    ],
+  },
+  ru: {
+    eyebrow: 'НАУЧНАЯ ИНФРАСТРУКТУРА',
+    title: 'Научный поиск и постоянные идентификаторы',
+    subtitle: 'Статьи AGM Journal индексируются, идентифицируются через DOI и архивируются по международным стандартам.',
+    more: 'Все интеграции',
+    items: [
+      { name: 'Google Scholar', category: 'Научный поиск и цитирование', logo: '/brands/google-scholar.svg', width: 160, height: 38 },
+      { name: 'Crossref', category: 'Постоянные идентификаторы DOI', logo: '/brands/crossref.svg', width: 130, height: 42 },
+      { name: 'ORCID', category: 'Международный профиль автора', logo: '/brands/orcid.png', width: 34, height: 34, isIcon: true },
+      { name: 'Zenodo', category: 'Открытый научный репозиторий', logo: '/brands/zenodo.png', width: 125, height: 38 },
+    ],
+  },
+};�стественные науки', 'Инженерия и технологии', 'Медицина и биология', 'Экономика и бизнес', 'Социальные науки', 'Образование и гуманитарные науки', 'Междисциплинарные исследования'], descriptions: ['Физика, химия, математика и исследования окружающей среды.', 'Вычислительная техника, инженерия и прикладные инновации.', 'Биология, здоровье и медицинские исследования.', 'Экономическое развитие, финансы и управление.', 'Общество, право и социальные процессы.', 'Образование, языкознание, история и культура.', 'Исследования на стыке научных дисциплин.'] },
 };
 export default async function HomePage({ params }: { params: Promise<{ lang: string }> }) {
   const { lang } = await params;

@@ -17,6 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   applicationName: 'AGM Journal',
+  alternates: { types: { 'application/rss+xml': '/feed.xml?lang=en' } },
   verification: process.env.GOOGLE_SITE_VERIFICATION ? { google: process.env.GOOGLE_SITE_VERIFICATION } : undefined,
   robots: { index: true, follow: true },
   title: "AGM Journal — International Scientific Journal",

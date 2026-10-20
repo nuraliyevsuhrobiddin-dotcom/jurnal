@@ -104,4 +104,19 @@ describe('Google Scholar Metadata & SEO Tests', () => {
     expect(jsonLd.author[0].name).toBe('Alisher Qodirov');
     expect(jsonLd.isPartOf.name).toBe('AGM Journal');
   });
+
+  it('should generate localized metadata for verify-certificate page across languages', async () => {
+    const { generateMetadata } = await import('@/app/[lang]/verify-certificate/page');
+    const metaUz = await generateMetadata({ params: Promise.resolve({ lang: 'uz' }) });
+    expect(metaUz.title).toContain('Mualliflik sertifikatini tekshirish');
+    expect(metaUz.alternates?.canonical).toContain('/uz/verify-certificate');
+
+    const metaEn = await generateMetadata({ params: Promise.resolve({ lang: 'en' }) });
+    expect(metaEn.title).toContain('Verify Author Certificate');
+    expect(metaEn.alternates?.canonical).toContain('/en/verify-certificate');
+
+    const metaRu = await generateMetadata({ params: Promise.resolve({ lang: 'ru' }) });
+    expect(metaRu.title).toContain('Проверка сертификата автора');
+    expect(metaRu.alternates?.canonical).toContain('/ru/verify-certificate');
+  });
 });

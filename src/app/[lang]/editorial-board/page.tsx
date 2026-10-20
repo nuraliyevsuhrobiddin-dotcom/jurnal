@@ -34,7 +34,7 @@ export default async function EditorialBoardPage({
           <span>{dict.nav.editorial}</span>
         </h1>
         <p className="text-sm text-slate-500">
-          {currentLang === 'en' ? 'The editorial board and scientific advisors of AGM Journal.' : currentLang === 'ru' ? 'Редакционная коллегия и научные консультанты AGM Journal.' : 'AGM Journal tahririyat hayati va ilmiy maslahatchilari.'}
+          {currentLang === 'en' ? 'The editorial board and scientific advisors of AGM Journal.' : currentLang === 'ru' ? 'Редакционная коллегия и научные консультанты AGM Journal.' : 'AGM Journal tahririyat hay’ati va ilmiy maslahatchilari.'}
         </p>
       </div>
 
@@ -98,6 +98,13 @@ export default async function EditorialBoardPage({
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }) {
- const { lang } = await params;
- return publicPageMetadata((['en', 'uz', 'ru'].includes(lang) ? lang : 'en') as Language, "/editorial-board", "Editorial board", "Meet the editors and researchers responsible for the editorial work of AGM Journal.");
+  const { lang } = await params;
+  const language = (['uz', 'en', 'ru'].includes(lang) ? lang : 'uz') as Language;
+  const titles = { uz: 'Tahririyat hay’ati', en: 'Editorial board', ru: 'Редакционная коллегия' };
+  const descriptions = {
+    uz: 'AGM Journal xalqaro ilmiy jurnalining tahririyat hay’ati a’zolari va ilmiy maslahatchilari bilan tanishing.',
+    en: 'Meet the editors and researchers responsible for the editorial work of AGM Journal.',
+    ru: 'Познакомьтесь с членами редакционной коллегии и научными консультантами международного журнала AGM Journal.',
+  };
+  return publicPageMetadata(language, '/editorial-board', titles[language], descriptions[language]);
 }

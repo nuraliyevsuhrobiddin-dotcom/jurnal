@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import sharp from 'sharp';
 import { findSubject } from '@/lib/subjects';
 import { getIssueById, getJournalSettings } from '@/lib/db';
 import { subjectCoverSvg } from '@/lib/issues/subject-cover-art';
@@ -13,6 +12,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const issue = issueId ? await getIssueById(issueId) : undefined;
   if (issueId && !issue) return new NextResponse(null, { status: 404 });
   const settings = await getJournalSettings();
-  const png = await sharp(Buffer.from(subjectCoverSvg(subject, issue || undefined, settings))).resize(600, 849).png().toBuffer();
-  return new NextResponse(new Uint8Array(png), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=3600', 'X-Content-Type-Options': 'nosniff' } });
+  // Keep text as SVG so the browser supplies fonts even on fontless hosts.
+  const svg = subjectCoverSvg(subject, issue || undefined, settings);
+  return new NextResponse(svg, { headers: { 'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': 'public, max-age=3600', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox" } });
 }

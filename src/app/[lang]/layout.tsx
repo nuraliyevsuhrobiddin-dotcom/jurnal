@@ -22,10 +22,10 @@ export default async function LangLayout({
 
   return (
     <div className="public-site min-h-screen flex flex-col bg-paper text-slate-900 selection:bg-teal-100 selection:text-navy-900">
+      <a href="#main-content" className="skip-link">{currentLang === 'en' ? 'Skip to content' : currentLang === 'ru' ? 'Перейти к содержанию' : 'Asosiy kontentga o‘tish'}</a>
       <Suspense fallback={<header className="bg-white h-20 border-b border-slate-200" />}>
         <Navbar lang={currentLang} settings={settings} />
       </Suspense>
-      <a href="#main-content" className="skip-link">{currentLang === 'en' ? 'Skip to content' : currentLang === 'ru' ? 'Перейти к содержанию' : 'Asosiy kontentga o‘tish'}</a>
       <main id="main-content" className="flex-1" lang={currentLang}>
         {children}
       </main>

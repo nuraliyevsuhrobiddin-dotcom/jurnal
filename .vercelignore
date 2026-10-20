@@ -1,0 +1,11 @@
+.git
+.data
+artifacts
+.env*
+.agents
+.codex
+.aws
+*.pem
+node_modules
+.next
+coverage

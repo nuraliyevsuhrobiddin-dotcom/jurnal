@@ -32,7 +32,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   for (const id of policyIds) if (!staticRoutes.includes(`/${id}`)) staticRoutes.push(`/${id}`);
-  staticRoutes.push('/policies', '/submit', '/announcements', '/integrations');
+  staticRoutes.push('/policies', '/submit', '/announcements', '/integrations', '/verify-certificate');
   staticRoutes.push(...subjectCollections.map(subject => `/subjects/${subject.id}`));
   const sitemapEntries: MetadataRoute.Sitemap = [];
 

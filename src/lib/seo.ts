@@ -82,6 +82,7 @@ export function getArticleMetadata(
     keywords: keywords.join(', '),
     authors: authorNames.map(name => ({ name })),
     alternates: {
+      types: { 'application/rss+xml': `${BASE_URL}/feed.xml?lang=${lang}` },
       canonical: canonicalUrl,
       languages: {
         'uz': `${BASE_URL}/uz/article/${article.slug}`,

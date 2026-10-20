@@ -10,6 +10,7 @@ import { manuscriptSubmissionSchema } from '@/lib/submission-validation';
 import { removeManuscript, saveManuscript } from '@/lib/manuscript-storage';
 import { POLICY_VERSION } from '@/types/policies';
 import { isDocxArchive } from '@/lib/docx-validation';
+import { orcidProofCookie, readOrcidProof } from '@/lib/orcid-auth';
 
 export async function POST(request: NextRequest) {
   const origin = request.headers.get('origin');
@@ -38,15 +39,17 @@ export async function POST(request: NextRequest) {
     try {
       const data = result.data;
       const uuid = stored.id;
+      const orcid = readOrcidProof(request.cookies.get(orcidProofCookie)?.value);
       const article = await createArticle({
         slug: `submitted-${uuid}`,
         title_uz: data.title, title_en: data.lang === 'en' ? data.title : undefined, title_ru: data.lang === 'ru' ? data.title : undefined,
         abstract_uz: data.abstract, abstract_en: data.lang === 'en' ? data.abstract : undefined, abstract_ru: data.lang === 'ru' ? data.abstract : undefined,
         keywords_uz: data.keywords.split(/[,;]/).map(word => word.trim()).filter(Boolean),
+        keywords_en: data.lang === 'en' ? data.keywords.split(/[,;]/).map(word => word.trim()).filter(Boolean) : undefined,
         original_language: data.lang, article_type: 'original_research', status: 'draft', license: 'CC BY 4.0', references_list: [],
         manuscript_file_url: `/api/admin/manuscripts/${uuid}`,
         submission_notes: `Public author submission; policy version ${POLICY_VERSION}; author confirms originality, all-author consent and no simultaneous submission. Received ${new Date(now).toISOString()}.`,
-        authors: [{ id: uuid, article_id: '', full_name: data.author_name, email: data.email, affiliation: data.affiliation, country: data.country, is_corresponding: true, order_index: 1 }],
+        authors: [{ id: uuid, article_id: '', full_name: data.author_name, email: data.email, affiliation: data.affiliation, country: data.country, ...(orcid?.environment === 'production' ? { orcid: orcid.id } : {}), is_corresponding: true, order_index: 1 }],
       });
       const reference = `AGM-SUB-${uuid.slice(0, 8).toUpperCase()}`;
       try {

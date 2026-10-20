@@ -131,5 +131,8 @@ export default async function ArticlesCatalogPage({
 
 export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }) {
   const { lang } = await params;
-  return publicPageMetadata((['en','uz','ru'].includes(lang) ? lang : 'en') as Language, '/articles', 'Research articles', 'Search open-access AGM Journal research by title, author, subject and journal issue.');
+  const language = (['uz', 'en', 'ru'].includes(lang) ? lang : 'uz') as Language;
+  const titles = { uz: 'Barcha ilmiy maqolalar', en: 'Research articles', ru: 'Все научные статьи' };
+  const descriptions = { uz: 'AGM Journal ochiq kirishdagi ilmiy tadqiqotlarini maqola nomi, muallif, fan sohasi va jurnal soni bo‘yicha qidirish.', en: 'Search open-access AGM Journal research by title, author, subject and journal issue.', ru: 'Поиск открытых научных статей AGM Journal по названию, автору, научному направлению и выпуску журнала.' };
+  return publicPageMetadata(language, '/articles', titles[language], descriptions[language]);
 }

@@ -15,7 +15,7 @@ export function publicPageMetadata(lang: Language, path: string, title: string, 
   const url = siteUrl(`/${lang}${path}`);
   return {
     title: `${title} | AGM Journal`, description,
-    alternates: { canonical: url, languages: Object.fromEntries([...(['en', 'uz', 'ru'] as const).map(code => [code, siteUrl(`/${code}${path}`)]), ['x-default', siteUrl(`/en${path}`)]]) },
+    alternates: { canonical: url, types: { 'application/rss+xml': siteUrl(`/feed.xml?lang=${lang}`) }, languages: Object.fromEntries([...(['en', 'uz', 'ru'] as const).map(code => [code, siteUrl(`/${code}${path}`)]), ['x-default', siteUrl(`/en${path}`)]]) },
     openGraph: { title, description, url, siteName: 'AGM Journal', type: 'website', locale: lang === 'en' ? 'en_US' : lang === 'ru' ? 'ru_RU' : 'uz_UZ' },
     twitter: { card: 'summary', title, description },
   };

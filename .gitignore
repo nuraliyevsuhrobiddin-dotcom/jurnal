@@ -44,3 +44,6 @@ next-env.d.ts
 # Local journal data contains editorial and contact information
 /.data/
 /artifacts/
+
+.vercel
+.env*

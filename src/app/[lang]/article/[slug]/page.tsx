@@ -85,7 +85,7 @@ export default async function ArticleDetailPage({ params }: { params: Promise<{ 
             </dl></section>
             <div className={styles.metrics}><div><strong>{article.views_count}</strong><span>{text.views}</span></div><div><strong>{article.downloads_count}</strong><span>{text.downloads}</span></div></div>
             <nav className={styles.sideSection} aria-label={text.contents}><h2>{text.contents}</h2><a href="#abstract">{dict.article.abstract}<ArrowUpRight size={13} /></a><a href="#citation">APA / MLA / Chicago / BibTeX<ArrowUpRight size={13} /></a>{article.references_list?.length > 0 && <a href="#references">{dict.article.references}<ArrowUpRight size={13} /></a>}</nav>
-            <section className={styles.certificate}><ShieldCheck size={20} /><p>{text.certificateText}</p><Link href="/verify-certificate">{text.certificate}<ArrowUpRight size={13} /></Link></section>
+            <section className={styles.certificate}><ShieldCheck size={20} /><p>{text.certificateText}</p><Link href={`/${currentLang}/verify-certificate`}>{text.certificate}<ArrowUpRight size={13} /></Link></section>
           </div>
         </aside>
       </div>

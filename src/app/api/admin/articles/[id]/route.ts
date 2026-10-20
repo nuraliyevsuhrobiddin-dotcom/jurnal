@@ -1,9 +1,22 @@
 import { adminAccess } from '@/lib/admin-access';
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 import { updateArticle, updateArticleStatus, getArticleById, deleteArticle } from '@/lib/db';
 import { Article, ArticleStatus } from '@/types/journal';
 import { articleSchema, articleUpdateSchema, articleClearFields } from '@/lib/article-validation';
 import { PublicationError } from '@/lib/publication-ready';
+import { queueArticleStatusNotification } from '@/lib/article-status-notifications';
+import { deliverNotification } from '@/lib/notifications';
+
+async function savedArticleResponse(previous: Article, updated: Article) {
+  try {
+    const notification = await queueArticleStatusNotification(previous, updated);
+    if (notification) after(async () => { await deliverNotification(notification); });
+    return NextResponse.json(updated);
+  } catch {
+    // The article is already saved: do not report a false save failure or repeat its transition.
+    return NextResponse.json({ ...updated, notification_warning: 'Maqola saqlandi, lekin holat emailini navbatga qo‘shib bo‘lmadi. Muallifga alohida xabar bering.' });
+  }
+}
 
 export async function GET(
   request: NextRequest,
@@ -37,9 +50,11 @@ export async function PATCH(
       }
 
       if (body.retraction_reason !== undefined && typeof body.retraction_reason !== 'string') return NextResponse.json({ error: 'Invalid reason' }, { status: 400 });
+      const previous = await getArticleById(id);
+      if (!previous) return NextResponse.json({ error: 'Article not found' }, { status: 404 });
       const updated = await updateArticleStatus(id, body.status, body.retraction_reason);
       if (!updated) return NextResponse.json({ error: 'Article not found' }, { status: 404 });
-      return NextResponse.json(updated);
+      return savedArticleResponse(previous, updated);
     }
 
     const current = await getArticleById(id);
@@ -59,7 +74,7 @@ export async function PATCH(
     if (!complete.success) return NextResponse.json({ error: 'Invalid article data', fields: complete.error.flatten() }, { status: 400 });
     const updated = await updateArticle(id, updates);
     if (!updated) return NextResponse.json({ error: 'Article not found' }, { status: 404 });
-    return NextResponse.json(updated);
+    return savedArticleResponse(current, updated);
   } catch (error: unknown) {
     if (error instanceof PublicationError) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ error: (error instanceof Error ? error.message : null) || 'Server error' }, { status: 500 });

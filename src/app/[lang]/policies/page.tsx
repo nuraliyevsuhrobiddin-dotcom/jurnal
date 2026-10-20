@@ -18,6 +18,13 @@ export default async function PolicyHub({ params }: { params: Promise<{ lang: st
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }) {
- const { lang } = await params;
- return publicPageMetadata((['en', 'uz', 'ru'].includes(lang) ? lang : 'en') as Language, "/policies", "Editorial policies", "Read the publication ethics, peer review, open access and author policies of AGM Journal.");
+  const { lang } = await params;
+  const language = (['uz', 'en', 'ru'].includes(lang) ? lang : 'uz') as Language;
+  const titles = { uz: 'Nashr siyosatlari', en: 'Editorial policies', ru: 'Издательская политика' };
+  const descriptions = {
+    uz: 'AGM Journal nashr etikasi, taqriz siyosati, ochiq kirish va mualliflik talablari bilan tanishing.',
+    en: 'Read the publication ethics, peer review, open access and author policies of AGM Journal.',
+    ru: 'Ознакомьтесь с публикационной этикой, политикой рецензирования, открытым доступом и требованиями AGM Journal.',
+  };
+  return publicPageMetadata(language, '/policies', titles[language], descriptions[language]);
 }

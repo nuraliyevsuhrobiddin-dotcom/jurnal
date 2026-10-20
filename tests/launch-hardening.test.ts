@@ -56,6 +56,12 @@ describe('Abuse protection', () => {
 
 describe('Publication readiness', () => {
   const article = { ...journalStore.articles[0], pdf_url: '/api/articles/test/pdf', pdf_file_size: 1000, issue: journalStore.issues[0] };
+  it('blocks publication when English discovery metadata is absent or whitespace-only', async () => {
+    await expect(assertPublicationReady({ ...article, title_en: '  ' })).rejects.toThrow('Inglizcha sarlavha');
+    await expect(assertPublicationReady({ ...article, abstract_en: undefined })).rejects.toThrow('Inglizcha annotatsiya');
+    await expect(assertPublicationReady({ ...article, keywords_en: [] })).rejects.toThrow('Inglizcha kalit');
+    await expect(assertPublicationReady({ ...article, keywords_en: ['  '] })).rejects.toThrow();
+  });
   it('rejects missing issue, author metadata, and stored manuscript', async () => {
     await expect(assertPublicationReady({ ...article, issue_id: undefined })).rejects.toThrow();
     await expect(assertPublicationReady({ ...article, authors: [] })).rejects.toThrow();

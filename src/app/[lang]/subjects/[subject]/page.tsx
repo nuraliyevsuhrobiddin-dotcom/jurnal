@@ -14,7 +14,13 @@ type Props = { params: Promise<{ lang: string; subject: string }>; searchParams:
 export async function generateMetadata({ params }: Props) {
   const { lang, subject: id } = await params;
   if (!['en', 'uz', 'ru'].includes(lang) || !findSubject(id)) notFound();
-  return publicPageMetadata(lang as Language, `/subjects/${id}`, subjectLabel(id, lang as Language)!, 'Peer-reviewed, open-access research in this subject collection within AGM Journal.');
+  const language = lang as Language;
+  const descriptions = {
+    uz: 'AGM Journal to‘plamidagi ushbu fan yo‘nalishi bo‘yicha taqrizdan o‘tgan, ochiq kirishdagi ilmiy tadqiqotlar.',
+    en: 'Peer-reviewed, open-access research in this subject collection within AGM Journal.',
+    ru: 'Рецензируемые научные исследования открытого доступа по данному направлению в AGM Journal.',
+  };
+  return publicPageMetadata(language, `/subjects/${id}`, subjectLabel(id, language)!, descriptions[language]);
 }
 const copy = {
   en: { home: 'Research catalog', section: 'AGM JOURNAL / SUBJECT COLLECTION', intro: 'Explore peer-reviewed research in this discipline. This collection brings together articles published within AGM Journal and its regular issues.', all: 'All editions', editions: 'Browse editions', papers: 'Research articles', count: 'articles', download: 'Download collection PDF', issue: 'View complete issue', empty: 'This collection is accepting research', emptyText: 'Articles will appear here after editorial review and publication. Browse another edition or submit a manuscript for consideration.', submit: 'Submit a manuscript' },

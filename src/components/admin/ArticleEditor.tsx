@@ -246,6 +246,7 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
         throw new Error(data.error || 'Maqolani saqlashda xatolik yuz berdi');
       }
       setSavedArticleId(data.id);
+      let notificationWarning = data.notification_warning;
       let ready = pdfReady;
       if (publicationFile || (!pdfReady && initialArticle?.manuscript_file_url)) {
         const form = new FormData();
@@ -261,9 +262,11 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
         const publish = await fetch(`/api/admin/articles/${data.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'change_status', status: 'published' }) });
         const published = await publish.json();
         if (!publish.ok) throw new Error(published.error || 'Nashr qilib bo‘lmadi.');
+        notificationWarning = published.notification_warning || notificationWarning;
       }
       setSuccessMsg(ready ? 'Maqola va to‘liq fayl saqlandi. PDF’ni quyidagi havoladan tekshiring.' : 'Qoralama saqlandi. To‘liq maqola faylini shu oynada tanlashingiz mumkin.');
       router.refresh();
+      if (notificationWarning) setErrorMsg(notificationWarning);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: unknown) {
       setErrorMsg((err instanceof Error ? err.message : null) || 'Xatolik yuz berdi');

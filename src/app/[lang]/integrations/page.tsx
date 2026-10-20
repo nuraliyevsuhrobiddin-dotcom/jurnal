@@ -21,8 +21,8 @@ const copy = {
     steps: [
       'Google decides inclusion and crawl timing. Metadata readiness does not confirm that an article is indexed.',
       'Publisher registration credentials and a DOI prefix are required before deposits can be made.',
-      'A repository account and authorized access token are required. No automatic deposits are currently enabled.',
-      'Profile links are not authenticated through ORCID OAuth and do not confirm author identity.',
+      'A repository account and authorized access token enable draft PDF uploads from the editorial dashboard. Editors review and publish the draft in Zenodo.',
+      'An optional OAuth flow is available after application setup. Manually entered profile links do not confirm author identity; sandbox identities are test data.',
     ],
     footer: 'Read our indexing policy',
   },
@@ -41,8 +41,8 @@ const copy = {
     steps: [
       'Indekslash va tekshirish muddatini Google belgilaydi. Metama’lumot tayyorligi indekslanganlik tasdig‘i emas.',
       'Maqolalarni ro‘yxatdan o‘tkazishdan oldin nashriyot hisobi va DOI prefiksi kerak.',
-      'Repozitoriy hisobi va ruxsat berilgan token kerak. Avtomatik yuborish hozir yoqilmagan.',
-      'Profil havolalari ORCID OAuth orqali tasdiqlanmagan va muallif shaxsini tasdiqlamaydi.',
+      'Repozitoriy hisobi va token sozlangach, admin paneldan PDF qoralamasini yuklash mumkin. Qoralama Zenodo hisobida tekshirilib nashr qilinadi.',
+      'Ilova sozlangach OAuth orqali tasdiqlash mavjud. Qo‘lda kiritilgan profil havolalari shaxsni tasdiqlamaydi; sandbox identifikatorlari faqat sinov uchun.',
     ],
     footer: 'Indekslash siyosatini o‘qish',
   },
@@ -61,15 +61,15 @@ const copy = {
     steps: [
       'Решение об индексации и сроках обхода принимает Google. Готовность метаданных не подтверждает индексацию.',
       'Для регистрации публикаций нужны учётные данные издателя и префикс DOI.',
-      'Нужны учётная запись репозитория и авторизованный токен. Автоматическая отправка пока не включена.',
-      'Ссылки не аутентифицированы через ORCID OAuth и не подтверждают личность автора.',
+      'После настройки аккаунта и токена редакция может загрузить PDF в черновик. Проверка и публикация выполняются в аккаунте Zenodo.',
+      'После настройки приложения доступен OAuth. Введённые вручную ссылки не подтверждают личность; идентификаторы sandbox используются только для тестов.',
     ],
     footer: 'Политика индексации',
   },
 };
 
 const providers = [
-  { name: 'Google Scholar', category: 'Discovery', url: 'https://scholar.google.com/', docs: 'https://scholar.google.com/intl/en/scholar/inclusion.html' },
+  { name: 'Google Scholar', category: 'Discovery', logo: '/brands/google-scholar.svg', width: 170, height: 40, url: 'https://scholar.google.com/', docs: 'https://scholar.google.com/intl/en/scholar/inclusion.html' },
   { name: 'Crossref', category: 'Persistent identifiers', logo: '/brands/crossref.svg', width: 152, height: 52, url: 'https://www.crossref.org/membership/', docs: 'https://www.crossref.org/documentation/register-maintain-records/' },
   { name: 'Zenodo', category: 'Research repository', logo: '/brands/zenodo.png', width: 145, height: 44, url: 'https://zenodo.org/signup/', docs: 'https://about.zenodo.org/' },
   { name: 'ORCID', category: 'Researcher identity', logo: '/brands/orcid.png', width: 48, height: 48, url: 'https://orcid.org/register', docs: 'https://info.orcid.org/documentation/integration-guide/' },
@@ -85,6 +85,11 @@ export async function generateMetadata({ params }: { params: Promise<{ lang: str
 export default async function IntegrationsPage({ params }: { params: Promise<{ lang: string }> }) {
   const lang = language((await params).lang);
   const text = copy[lang];
+  const feeds = {
+    uz: { title: 'Ochiq metama’lumot xizmatlari', description: 'Nashr qilingan maqolalarni kutubxona kataloglari va RSS o‘quvchilariga ulash uchun ishlaydigan manzillar.', oai: 'OAI-PMH repozitoriy ma’lumoti', records: 'Dublin Core maqola yozuvlari', rss: 'Yangi maqolalar RSS tasmasi' },
+    en: { title: 'Open metadata services', description: 'Live endpoints for harvesting published article metadata into library catalogues and RSS readers.', oai: 'OAI-PMH repository information', records: 'Dublin Core article records', rss: 'Latest articles RSS feed' },
+    ru: { title: 'Открытые сервисы метаданных', description: 'Работающие адреса для сбора метаданных опубликованных статей библиотечными каталогами и RSS-агрегаторами.', oai: 'Информация о репозитории OAI-PMH', records: 'Записи статей Dublin Core', rss: 'RSS новых статей' },
+  }[lang];
   return <div className={styles.page}>
     <header className={styles.hero}><div className="journal-container">
       <p className={styles.eyebrow}>{text.eyebrow}</p>
@@ -92,6 +97,14 @@ export default async function IntegrationsPage({ params }: { params: Promise<{ l
     </div></header>
     <div className={`journal-container ${styles.content}`}>
       <p className={styles.note}>{text.note}</p>
+      <section className={styles.provider} aria-labelledby="open-metadata-title">
+        <div className={styles.identity}><h2 id="open-metadata-title">{feeds.title}</h2></div>
+        <div className={styles.detail}><p>{feeds.description}</p><div className={styles.links}>
+          <a href="/api/oai?verb=Identify" target="_blank" rel="noopener noreferrer">{feeds.oai}<ArrowUpRight size={14} aria-hidden="true" /></a>
+          <a href="/api/oai?verb=ListRecords&amp;metadataPrefix=oai_dc" target="_blank" rel="noopener noreferrer">{feeds.records}<ArrowUpRight size={14} aria-hidden="true" /></a>
+          <a href={`/feed.xml?lang=${lang}`}>{feeds.rss}<ArrowUpRight size={14} aria-hidden="true" /></a>
+        </div></div>
+      </section>
       <div className={styles.providers}>{providers.map((provider, index) => <section key={provider.name} className={styles.provider} aria-labelledby={`provider-${index}`}>
         <div className={styles.identity}><span className={styles.number}>0{index + 1}</span>
           <h2 id={`provider-${index}`} className={styles.brand}>{provider.logo ? <><Image unoptimized src={provider.logo} alt={provider.name} width={provider.width} height={provider.height} style={{ width: provider.width, height: provider.height, flex: 'none' }} />{provider.name === 'ORCID' && <span>ORCID</span>}</> : provider.name}</h2>

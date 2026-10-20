@@ -128,5 +128,8 @@ export default async function ArchivePage({
 
 export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }) {
   const { lang } = await params;
-  return publicPageMetadata((['en','uz','ru'].includes(lang) ? lang : 'en') as Language, '/archive', 'Journal archive', 'Browse AGM Journal volumes and issues and read published research.');
+  const language = (['uz', 'en', 'ru'].includes(lang) ? lang : 'uz') as Language;
+  const titles = { uz: 'Jurnal arxivi', en: 'Journal archive', ru: 'Архив журнала' };
+  const descriptions = { uz: 'AGM Journal jild va sonlarini ko‘rib chiqing va nashr etilgan tadqiqotlarni o‘qing.', en: 'Browse AGM Journal volumes and issues and read published research.', ru: 'Просматривайте тома и выпуски AGM Journal и читайте опубликованные исследования.' };
+  return publicPageMetadata(language, '/archive', titles[language], descriptions[language]);
 }

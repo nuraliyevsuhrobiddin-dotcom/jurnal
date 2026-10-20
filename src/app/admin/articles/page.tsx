@@ -12,6 +12,7 @@ export default function AdminArticlesPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [warning, setWarning] = useState('');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const requestSequence = useRef(0);
@@ -53,6 +54,7 @@ export default function AdminArticlesPage() {
 
   const handleStatusChange = async (articleId: string, newStatus: ArticleStatus) => {
     setActionLoading(articleId);
+    setWarning('');
     try {
       const res = await fetch(`/api/admin/articles/${articleId}`, {
         method: 'PATCH',
@@ -60,6 +62,8 @@ export default function AdminArticlesPage() {
         body: JSON.stringify({ action: 'change_status', status: newStatus }),
       });
       if (res.ok) {
+        const result = await res.json();
+        setWarning(result.notification_warning || '');
         await loadArticles();
       } else { const body = await res.json(); throw new Error(body.error || 'Holatni saqlab bo‘lmadi.'); }
     } catch (err) {
@@ -104,6 +108,7 @@ export default function AdminArticlesPage() {
   return (
     <div className="space-y-6">
       {error && <p role="alert" className="p-4 rounded-lg bg-red-50 text-red-800">{error}</p>}
+      {warning && <p role="status" className="p-4 rounded-lg bg-amber-50 text-amber-900">{warning}</p>}
       {/* Top Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-6 rounded-2xl academic-border academic-shadow">
         <div>
