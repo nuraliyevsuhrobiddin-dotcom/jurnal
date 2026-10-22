@@ -220,7 +220,7 @@ export async function generatePublicationCoverPdf(article: Article, settings: Jo
   const issue = article.issue ? `VOL. ${article.issue.volume}  /  ISSUE ${article.issue.issue_number}  /  ${article.issue.year}` : 'RESEARCH ARTICLE';
   const pageRange = article.page_first == null ? '—' : `${article.page_first}${article.page_last != null && article.page_last !== article.page_first ? `–${article.page_last}` : ''}`;
   let page = doc.addPage([W, H]);
-  let y = H - 230;
+  let y = H - 252;
   function header() {
     page.drawRectangle({ x: 0, y: H - 188, width: W, height: 188, color: navy });
     page.drawRectangle({ x: 0, y: H - 188, width: 8, height: 188, color: teal });
@@ -243,12 +243,17 @@ export async function generatePublicationCoverPdf(article: Article, settings: Jo
     return value.split(/\r?\n/).flatMap(paragraph => wrapText(paragraph, maxWidth, size, font));
   }
   header();
-  page.drawText(article.article_type.replace(/_/g, ' ').toUpperCase(), { x: M, y: H - 219, size: 7, font: fontBold, color: teal });
+  const articleTypeLabel = article.article_type.replace(/_/g, ' ').toUpperCase();
+  const articleTypeWidth = fontBold.widthOfTextAtSize(articleTypeLabel, 7);
+  page.drawRectangle({ x: M, y: H - 226, width: articleTypeWidth + 16, height: 16, color: pale });
+  page.drawRectangle({ x: M, y: H - 226, width: 2, height: 16, color: teal });
+  page.drawText(articleTypeLabel, { x: M + 8, y: H - 220, size: 7, font: fontBold, color: teal });
   const titleSize = fitFont(title, fontBold, 25, W - M * 2);
   const titleLines = wrapped(title, Math.min(25, Math.max(18, titleSize)), fontBold);
   for (const line of titleLines) {
     if (y < 90) newPage();
-    page.drawText(line, { x: M, y, size: Math.min(25, Math.max(18, titleSize)), font: fontBold, color: navy }); y -= 30;
+    page.drawText(line, { x: M, y, size: Math.min(25, Math.max(18, titleSize)), font: fontBold, color: navy });
+    y -= 32;
   }
   y -= 7;
   page.drawLine({ start: { x: M, y }, end: { x: M + 54, y }, thickness: 2.5, color: teal }); y -= 20;
