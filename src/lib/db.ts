@@ -1,5 +1,6 @@
 import { journalStore } from './data-store';
 import { randomUUID } from 'node:crypto';
+import { isValidIssn } from './identifiers';
 import { assertPublicationReady, PublicationError } from './publication-ready';
 import { distinctEditorialMembers } from './editorial-members';
 import { isServerSupabaseConfigured, createServerClient } from './supabase/server';
@@ -458,6 +459,7 @@ export async function getAllCertificatesAdmin(): Promise<Certificate[]> {
 }
 
 export async function createCertificate(data: {
+  issuance_id?: string;
   article_id: string;
   author_name: string;
   author_affiliation?: string;
@@ -472,11 +474,11 @@ export async function createCertificate(data: {
   journalStore.refresh();
   const count = (await getAllCertificatesAdmin()).length + 1;
   const numFormatted = String(count).padStart(6, '0');
-  const certNumber = `AGM-CERT-${data.issue_year || new Date().getFullYear()}-${isServerSupabaseConfigured ? randomUUID().slice(0, 8).toUpperCase() : numFormatted}`;
+  const certNumber = `AGM-CERT-${data.issue_year || new Date().getFullYear()}-${data.issuance_id ? data.issuance_id.replace(/-/g, '').toUpperCase() : isServerSupabaseConfigured ? randomUUID().slice(0, 8).toUpperCase() : numFormatted}`;
   const verCode = data.verification_code || `AGM-VER-${randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`;
 
   const cert: Certificate = {
-    id: randomUUID(),
+    id: data.issuance_id || randomUUID(),
     certificate_number: certNumber,
     article_id: data.article_id,
     author_name: data.author_name,
@@ -575,7 +577,8 @@ export async function getJournalStats() {
 
 export async function getJournalSettings(): Promise<JournalSettings> {
   journalStore.refresh();
-  return await remoteSettings() || journalStore.settings;
+  const settings = await remoteSettings() || journalStore.settings;
+  return { ...settings, issn_online: isValidIssn(settings.issn_online) ? settings.issn_online : undefined, issn_print: isValidIssn(settings.issn_print) ? settings.issn_print : undefined };
 }
 
 export async function updateJournalSettings(newSettings: Partial<JournalSettings>): Promise<JournalSettings> {

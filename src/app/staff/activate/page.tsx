@@ -1,0 +1,12 @@
+'use client';
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { api, button, field, Heading, Notice, panel, StaffShell } from '@/components/staff/ui';
+export default function ActivatePage() {
+  const router = useRouter();
+  const capturedToken = useRef<{ token: string; type: 'invite' | 'recovery' } | null>(null);
+  const [token, setToken] = useState<string | null>(null); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
+  useEffect(() => { if (capturedToken.current === null) { const fragment = new URLSearchParams(window.location.hash.slice(1)); capturedToken.current = { token: fragment.get('token') || '', type: fragment.get('type') === 'recovery' ? 'recovery' : 'invite' }; } window.history.replaceState(null, '', window.location.pathname); const timer = setTimeout(() => { setToken(capturedToken.current?.token || ''); if (!capturedToken.current?.token) setError('Faollashtirish havolasi to‘liq emas. Tahririyatdan yangi taklif so‘rang.'); }, 0); return () => clearTimeout(timer); }, []);
+  async function activate(e: React.FormEvent<HTMLFormElement>) { e.preventDefault(); const form = new FormData(e.currentTarget); const password = String(form.get('password')); if (password !== form.get('confirm')) { setError('Parollar bir xil bo‘lishi kerak.'); return; } setBusy(true); setError(''); try { await api('/api/staff/activate', { token_hash: token, password, type: capturedToken.current?.type || 'invite' }); router.replace('/staff/security'); router.refresh(); } catch (e) { setError(e instanceof Error ? e.message : 'Faollashtirish bajarilmadi.'); } finally { setBusy(false); } }
+  return <StaffShell><Heading title="Hisobni faollashtirish">Yangi parol belgilang. Keyingi bosqichda autentifikator ulanadi.</Heading><form onSubmit={activate} className={`${panel} max-w-xl space-y-5`}><Notice error={error} /><label className="block text-sm font-semibold">Yangi parol<input className={`${field} mt-2`} type="password" name="password" required minLength={12} autoComplete="new-password" /></label><p className="text-sm text-slate-600">Kamida 12 ta belgi ishlating.</p><label className="block text-sm font-semibold">Parolni takrorlang<input className={`${field} mt-2`} type="password" name="confirm" required minLength={12} autoComplete="new-password" /></label><button disabled={busy || !token} className={button}>{busy ? 'Faollashtirilmoqda…' : 'Parolni saqlash'}</button></form></StaffShell>;
+}

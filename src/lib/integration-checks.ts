@@ -1,6 +1,7 @@
 import { createServerClient } from './supabase/server';
 import { configured, crossrefConfig, zenodoConfig, orcidConfig } from './integration-config';
-import { mailConfigured } from './notifications';
+import { mailConfigured, mailProvider } from './notifications';
+import { gmailAccessToken } from './gmail';
 
 export interface IntegrationCheck { service: string; status: 'ok' | 'missing' | 'error' | 'ready'; detail: string }
 
@@ -22,6 +23,13 @@ export async function checkIntegrations(): Promise<IntegrationCheck[]> {
       } catch { return { service: 'Supabase', status: 'error', detail: 'Baza yoki fayl omborini tekshirib bo‘lmadi.' } as IntegrationCheck; }
     })(),
     (async () => {
+      if (mailProvider() === 'gmail') {
+        if (!mailConfigured()) return { service: 'Gmail', status: 'missing', detail: 'GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN va GMAIL_SENDER kerak.' } as IntegrationCheck;
+        try {
+          await gmailAccessToken();
+          return { service: 'Gmail', status: 'ready', detail: 'OAuth token olindi. Jo‘natuvchi va yuborish huquqini sinov xati bilan tekshiring.' } as IntegrationCheck;
+        } catch { return { service: 'Gmail', status: 'error', detail: 'Google OAuth ulanishini tekshiring.' } as IntegrationCheck; }
+      }
       if (!mailConfigured()) return { service: 'Resend', status: 'missing', detail: 'RESEND_API_KEY va MAIL_FROM kerak.' } as IntegrationCheck;
       try {
         const response = await fetch('https://api.resend.com/domains', { headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` }, signal: AbortSignal.timeout(10000), redirect: 'error' });

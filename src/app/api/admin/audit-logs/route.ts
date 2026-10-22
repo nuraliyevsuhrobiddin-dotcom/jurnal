@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { getAuditLogs } from '@/lib/db';
 
 export async function GET() {
-  const denied = await adminAccess();
+  const denied = await adminAccess(['owner']);
   if (denied) return denied;
   try {
     const logs = await getAuditLogs();

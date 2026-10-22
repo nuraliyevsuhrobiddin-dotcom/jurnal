@@ -1,5 +1,12 @@
 import { z } from 'zod';
 
+export const coauthorSchema = z.object({
+  full_name: z.string().trim().min(2).max(150),
+  email: z.string().trim().email().max(254).or(z.literal('')).optional(),
+  affiliation: z.string().trim().min(2).max(500),
+  country: z.string().trim().min(2).max(100),
+});
+
 export const manuscriptSubmissionSchema = z.object({
   title: z.string().trim().min(5).max(500),
   abstract: z.string().trim().min(50).max(10000),
@@ -8,7 +15,9 @@ export const manuscriptSubmissionSchema = z.object({
   email: z.string().trim().email().max(254),
   affiliation: z.string().trim().min(2).max(500),
   country: z.string().trim().min(2).max(100),
-  lang: z.enum(['uz', 'en', 'ru']),
+  lang: z.literal('en', { error: 'Only English manuscripts are accepted.' }),
   consent: z.literal('true'),
   original: z.literal('true'),
+  reviewed: z.literal('true', { error: 'Review the submission and confirm that it is in English.' }),
+  coauthors: z.array(coauthorSchema).max(30).default([]),
 });

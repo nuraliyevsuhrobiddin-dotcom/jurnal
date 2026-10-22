@@ -112,10 +112,10 @@ describe('Durable email receipts', () => {
       vi.stubEnv('RESEND_API_KEY', 'test-key'); vi.stubEnv('MAIL_FROM', 'journal@example.org');
       fetcher.mockResolvedValueOnce(new Response('{}', { status: 503 }));
       expect(await deliverNotification(notification)).toBe(false);
-      const pending = (await listNotifications())[0]; expect(pending.attempts).toBe(1);
+      const pending = (await listNotifications()).find(item => item.id === notification.id)!; expect(pending.attempts).toBe(1);
       fetcher.mockResolvedValueOnce(new Response('{"id":"mail-id"}', { status: 200 }));
       expect(await deliverNotification(pending)).toBe(true);
-      expect((await listNotifications())[0].status).toBe('sent');
+      expect((await listNotifications()).find(item => item.id === notification.id)!.status).toBe('sent');
       expect(fetcher.mock.calls[0][1].headers['Idempotency-Key']).toBe(notification.id);
     } finally { await rm(directory, { recursive: true, force: true }); }
   });

@@ -15,7 +15,7 @@ export async function GET(
     }
     if (cert.status === 'revoked') return new NextResponse('Certificate revoked', { status: 410 });
 
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin;
+    const baseUrl = new URL(process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin).origin;
     const verificationUrl = `${baseUrl}/certificate/${cert.certificate_number}`;
 
     const pdfBytes = await generateCertificatePdf(cert, verificationUrl, await getJournalSettings());

@@ -312,7 +312,7 @@ export class JournalStore {
     issn_print: '',
     issn_online: '',
     established_year: 2026,
-    contact_email: 'editorial@agmjoural.uz',
+    contact_email: 'agmjoural.editorial@gmail.com',
     contact_phone: '+998 99 777 70 31',
     address: 'Toshkent shahri, Mirobod tumani, Nukus ko‘chasi 45-uy',
     doi_prefix: '',

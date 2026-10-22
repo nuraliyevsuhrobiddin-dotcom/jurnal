@@ -2,6 +2,9 @@ import { adminAccess } from '@/lib/admin-access';
 import { NextRequest, NextResponse } from 'next/server';
 import { getJournalSettings, updateJournalSettings } from '@/lib/db';
 import { z } from 'zod';
+import { isValidIssn } from '@/lib/identifiers';
+
+const issn = z.string().trim().max(20).refine(value => !value || isValidIssn(value), 'ISSN tekshiruv raqami noto‘g‘ri. Faqat rasmiy berilgan ISSNni kiriting.').optional();
 
 const settingsSchema = z.object({
   journal_name: z.string().trim().min(2).max(150),
@@ -11,13 +14,13 @@ const settingsSchema = z.object({
   contact_email: z.string().email(),
   contact_phone: z.string().max(50).optional(),
   address: z.string().max(500).optional(),
-  issn_print: z.string().max(20).optional(),
-  issn_online: z.string().max(20).optional(),
+  issn_print: issn,
+  issn_online: issn,
   doi_prefix: z.string().trim().refine(value => !value || /^10\.\d{4,9}$/.test(value), 'Faqat xizmat tomonidan berilgan DOI prefiksini kiriting: 10.xxxx').optional(),
 });
 
 export async function GET() {
-  const denied = await adminAccess();
+  const denied = await adminAccess(['owner']);
   if (denied) return denied;
   try {
     const settings = await getJournalSettings();
@@ -28,7 +31,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const denied = await adminAccess();
+  const denied = await adminAccess(['owner']);
   if (denied) return denied;
   try {
     const body = await request.json();

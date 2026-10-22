@@ -202,6 +202,113 @@ export async function generateArticleTitlePagePdf(
   return doc.save();
 }
 
+/** Branded first page used for the published version of a Word manuscript. */
+export async function generatePublicationCoverPdf(article: Article, settings: JournalSettings): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  const { fontBold, fontRegular } = await embedJournalFonts(doc);
+  const W = 595.28, H = 841.89, M = 48;
+  const navy = rgb(0.063, 0.169, 0.247), teal = rgb(0.05, 0.38, 0.39);
+  const ink = rgb(0.13, 0.17, 0.2), muted = rgb(0.38, 0.43, 0.47), pale = rgb(0.94, 0.97, 0.96);
+  const language = article.original_language;
+  const title = (language === 'ru' ? article.title_ru : language === 'en' ? article.title_en : article.title_uz)
+    || article.title_en || article.title_uz || article.title_ru || 'Research article';
+  const abstract = (language === 'ru' ? article.abstract_ru : language === 'en' ? article.abstract_en : article.abstract_uz)
+    || article.abstract_en || article.abstract_uz || article.abstract_ru || '';
+  const keywords = (language === 'ru' ? article.keywords_ru : language === 'en' ? article.keywords_en : article.keywords_uz)
+    || article.keywords_en || article.keywords_uz || article.keywords_ru || [];
+  const articleId = `AGM-${article.id.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+  const issue = article.issue ? `VOL. ${article.issue.volume}  /  ISSUE ${article.issue.issue_number}  /  ${article.issue.year}` : 'RESEARCH ARTICLE';
+  const pageRange = article.page_first == null ? '—' : `${article.page_first}${article.page_last != null && article.page_last !== article.page_first ? `–${article.page_last}` : ''}`;
+  let page = doc.addPage([W, H]);
+  let y = H - 230;
+  function header() {
+    page.drawRectangle({ x: 0, y: H - 188, width: W, height: 188, color: navy });
+    page.drawRectangle({ x: 0, y: H - 188, width: 8, height: 188, color: teal });
+    page.drawText(settings.journal_name.toUpperCase(), { x: M, y: H - 49, size: fitFont(settings.journal_name.toUpperCase(), fontBold, 18, W - M * 2 - 110), font: fontBold, color: rgb(1, 1, 1) });
+    page.drawText(articleId, { x: W - M - 82, y: H - 49, size: 7.5, font: fontBold, color: rgb(0.76, 0.86, 0.85) });
+    page.drawText('OPEN ACCESS  ·  JOURNAL ARTICLE', { x: M, y: H - 68, size: 7, font: fontRegular, color: rgb(0.72, 0.86, 0.83) });
+    page.drawLine({ start: { x: M, y: H - 83 }, end: { x: W - M, y: H - 83 }, thickness: 0.7, color: rgb(0.35, 0.57, 0.56) });
+    page.drawText(issue, { x: M, y: H - 105, size: 8, font: fontBold, color: rgb(1, 1, 1) });
+    const published = article.publication_date || article.issue?.publication_date || '';
+    page.drawText(`PUBLISHED ${published}  ·  JOURNAL PAGES ${pageRange}`, { x: M, y: H - 123, size: 7, font: fontRegular, color: rgb(0.78, 0.86, 0.86) });
+  }
+  function newPage() {
+    page = doc.addPage([W, H]);
+    page.drawText(settings.journal_name.toUpperCase(), { x: M, y: H - 42, size: 10, font: fontBold, color: navy });
+    page.drawText(articleId, { x: W - M - 82, y: H - 42, size: 7, font: fontRegular, color: muted });
+    page.drawLine({ start: { x: M, y: H - 54 }, end: { x: W - M, y: H - 54 }, thickness: 0.8, color: teal });
+    y = H - 88;
+  }
+  function wrapped(value: string, size: number, font: PDFFont, maxWidth = W - M * 2) {
+    return value.split(/\r?\n/).flatMap(paragraph => wrapText(paragraph, maxWidth, size, font));
+  }
+  header();
+  page.drawText(article.article_type.replace(/_/g, ' ').toUpperCase(), { x: M, y: H - 219, size: 7, font: fontBold, color: teal });
+  const titleSize = fitFont(title, fontBold, 25, W - M * 2);
+  const titleLines = wrapped(title, Math.min(25, Math.max(18, titleSize)), fontBold);
+  for (const line of titleLines) {
+    if (y < 90) newPage();
+    page.drawText(line, { x: M, y, size: Math.min(25, Math.max(18, titleSize)), font: fontBold, color: navy }); y -= 30;
+  }
+  y -= 7;
+  page.drawLine({ start: { x: M, y }, end: { x: M + 54, y }, thickness: 2.5, color: teal }); y -= 20;
+  page.drawText('AUTHORS & AFFILIATIONS', { x: M, y, size: 7, font: fontBold, color: teal }); y -= 17;
+  const authors = [...(article.authors || [])].sort((a, b) => a.order_index - b.order_index);
+  for (const [index, author] of authors.entries()) {
+    const lines = wrapped(`${String(index + 1).padStart(2, '0')}  ${author.full_name}${author.is_corresponding ? '  *' : ''}`, 10, fontBold);
+    for (const line of lines) { if (y < 80) newPage(); page.drawText(line, { x: M, y, size: 10, font: fontBold, color: navy }); y -= 14; }
+    const detail = [author.affiliation, author.country].filter(Boolean).join(', ');
+    for (const line of wrapped(detail, 8, fontRegular, W - M * 2 - 22)) { if (y < 80) newPage(); page.drawText(line, { x: M + 22, y, size: 8, font: fontRegular, color: muted }); y -= 12; }
+    if (author.orcid) { for (const line of wrapped(`ORCID  ${author.orcid}`, 7, fontRegular, W - M * 2 - 22)) { if (y < 80) newPage(); page.drawText(line, { x: M + 22, y, size: 7, font: fontRegular, color: teal }); y -= 11; } }
+  }
+  const corresponding = authors.find(author => author.is_corresponding && author.email);
+  if (corresponding) { for (const line of wrapped(`* Corresponding author: ${corresponding.email}`, 7, fontRegular, W - M * 2 - 22)) { if (y < 80) newPage(); page.drawText(line, { x: M + 22, y, size: 7, font: fontRegular, color: muted }); y -= 11; } y -= 6; }
+  if (y < 180) newPage();
+  const abstractLines = wrapped(abstract, 9, fontRegular, W - M * 2 - 30);
+  let abstractOffset = 0;
+  while (abstractOffset < abstractLines.length) {
+    let capacity = Math.floor((y - 105) / 13);
+    if (capacity < 4) { newPage(); capacity = Math.floor((y - 105) / 13); }
+    const lines = abstractLines.slice(abstractOffset, abstractOffset + capacity);
+    const cardHeight = lines.length * 13 + 30;
+    page.drawRectangle({ x: M, y: y - cardHeight + 4, width: W - M * 2, height: cardHeight, color: pale });
+    page.drawRectangle({ x: M, y: y - cardHeight + 4, width: 3, height: cardHeight, color: teal });
+    page.drawText(abstractOffset ? 'ABSTRACT  ·  CONTINUED' : 'ABSTRACT', { x: M + 15, y: y - 13, size: 7, font: fontBold, color: teal });
+    let abstractY = y - 29;
+    for (const line of lines) { page.drawText(line, { x: M + 15, y: abstractY, size: 9, font: fontRegular, color: ink }); abstractY -= 13; }
+    y -= cardHeight + 17;
+    abstractOffset += lines.length;
+    if (abstractOffset < abstractLines.length) newPage();
+  }
+  if (keywords.length) {
+    if (y < 90) newPage();
+    page.drawText('KEYWORDS', { x: M, y, size: 7, font: fontBold, color: teal }); y -= 14;
+    for (const line of wrapped(keywords.join('  ·  '), 8.5, fontRegular)) { if (y < 75) newPage(); page.drawText(line, { x: M, y, size: 8.5, font: fontRegular, color: ink }); y -= 13; }
+  }
+  const authorsText = authors.map(author => author.full_name).join(', ');
+  const year = article.issue?.year || article.publication_date?.slice(0, 4) || '';
+  const cite = `${authorsText}${year ? ` (${year})` : ''}. ${title}. ${settings.journal_name}${article.issue ? `, ${article.issue.volume}(${article.issue.issue_number})` : ''}${article.page_first != null ? `, pp. ${article.page_first}${article.page_last && article.page_last !== article.page_first ? `–${article.page_last}` : ''}` : ''}.`;
+  if (y < 110) newPage();
+  y -= 7; page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.5, color: muted }); y -= 15;
+  page.drawText('HOW TO CITE', { x: M, y, size: 7, font: fontBold, color: teal }); y -= 13;
+  for (const line of wrapped(cite, 7.5, fontRegular)) { if (y < 67) newPage(); page.drawText(line, { x: M, y, size: 7.5, font: fontRegular, color: ink }); y -= 11; }
+  if (article.doi) { if (y < 67) newPage(); page.drawText(`DOI  https://doi.org/${article.doi}`, { x: M, y, size: 7.5, font: fontRegular, color: teal }); y -= 11; }
+  if (isValidIssn(settings.issn_online)) { if (y < 67) newPage(); page.drawText(`ISSN  ${settings.issn_online}`, { x: M, y, size: 7, font: fontRegular, color: muted }); }
+  doc.getPages().forEach((sheet, index) => {
+    sheet.drawLine({ start: { x: M, y: 43 }, end: { x: W - M, y: 43 }, thickness: 0.45, color: muted });
+    const footer = `${article.license}  ·  ${siteUrlForPdf(article)}`;
+    sheet.drawText(footer, { x: M, y: 28, size: fitFont(footer, fontRegular, 6.5, W - M * 2 - 40), font: fontRegular, color: muted });
+    sheet.drawText(`${index + 1} / ${doc.getPageCount()}`, { x: W - M - 30, y: 28, size: 6.5, font: fontRegular, color: muted });
+  });
+  doc.setTitle(title); doc.setAuthor(authorsText); doc.setSubject(issue); doc.setCreator(settings.journal_name); doc.setLanguage(language); doc.setKeywords(['AGM_METADATA_ONLY']);
+  return doc.save();
+}
+
+function siteUrlForPdf(article: Article) {
+  const base = (process.env.NEXT_PUBLIC_SITE_URL || 'https://agmjoural.uz').replace(/\/$/, '');
+  return `${base}/${article.original_language}/article/${article.slug}`;
+}
+
 // 3. MERGE MULTIPLE PDFS
 export async function mergePdfs(pdfBuffers: Uint8Array[]): Promise<Uint8Array> {
   const mergedPdf = await PDFDocument.create();

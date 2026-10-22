@@ -2,9 +2,8 @@ import { MAX_UPLOAD_BYTES } from '@/lib/upload-limits';
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAccess } from '@/lib/admin-access';
 import { getArticleById, getJournalSettings, updateArticle } from '@/lib/db';
-import { assemblePublicationPdf } from '@/lib/pdf/generator';
 import { PDFDocument } from 'pdf-lib';
-import { manuscriptToPdf, ManuscriptFileError } from '@/lib/pdf/manuscript-conversion';
+import { manuscriptToPdf, ManuscriptFileError, publicationBodyPageCount } from '@/lib/pdf/manuscript-conversion';
 import { readManuscript, saveManuscript } from '@/lib/manuscript-storage';
 import { readArticlePdf, saveArticlePdf } from '@/lib/pdf/storage';
 import { streamPdf } from '@/lib/pdf/stream';
@@ -43,13 +42,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (extension !== 'pdf' && extension !== 'docx') return NextResponse.json({ error: 'PDF yoki DOCX faylini tanlang.' }, { status: 400 });
     const sourceBytes = new Uint8Array(await file.arrayBuffer());
     const settings = await getJournalSettings();
-    const original = await manuscriptToPdf(sourceBytes, extension, settings);
-    const pageCount = (await PDFDocument.load(original)).getPageCount();
+    const original = await manuscriptToPdf(sourceBytes, extension, settings, article);
+    const pageCount = publicationBodyPageCount(await PDFDocument.load(original));
     const first = article.page_first || 1;
     const prepared = { ...article, page_first: first, page_last: first + pageCount - 1 };
-    let merged: Uint8Array;
-    try { merged = await assemblePublicationPdf(prepared, settings, original); }
-    catch { return NextResponse.json({ error: 'PDF o‘qilmadi. Fayl buzilgan yoki parol bilan himoyalangan.' }, { status: 400 }); }
+    // Uploaded PDFs are already laid out by the author. Keep their page geometry,
+    // typography, and pagination intact; Word files receive journal typesetting above.
+    const merged = original;
     const stored = reusedManuscript ? null : await saveManuscript(file, sourceBytes, extension);
     await saveArticlePdf(id, merged);
     await updateArticle(id, { pdf_url: `/api/articles/${id}/pdf`, pdf_file_size: merged.length, page_first: first, page_last: prepared.page_last,

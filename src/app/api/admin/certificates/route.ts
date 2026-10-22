@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAllCertificatesAdmin, createCertificate, revokeCertificate, getArticleById, deleteCertificate } from '@/lib/db';
 import { generateQrDataUrl } from '@/lib/pdf/qr';
 import { randomUUID } from 'node:crypto';
+import { articleText } from '@/lib/scholarly-feeds';
 
 export async function GET() {
   const denied = await adminAccess();
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
     const yr = article.issue.year;
 
     // Verification URL preview for QR code
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin;
+    const baseUrl = new URL(process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin).origin;
     const tempVerCode = `AGM-VER-${randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`;
     const qrDataUrl = await generateQrDataUrl(`${baseUrl}/certificate/${tempVerCode}`);
 
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
       article_id: article.id,
       author_name: name,
       author_affiliation: author.affiliation || '',
-      article_title: article.title_uz,
+      article_title: articleText(article, article.original_language).title,
       issue_volume: vol,
       issue_number: iss,
       issue_year: yr,

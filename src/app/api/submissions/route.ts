@@ -11,6 +11,9 @@ import { removeManuscript, saveManuscript } from '@/lib/manuscript-storage';
 import { POLICY_VERSION } from '@/types/policies';
 import { isDocxArchive } from '@/lib/docx-validation';
 import { orcidProofCookie, readOrcidProof } from '@/lib/orcid-auth';
+import mammoth from 'mammoth';
+import { checkManuscriptLanguage } from '@/lib/manuscript-language';
+import { trackingUrl } from '@/lib/submission-tracking';
 
 export async function POST(request: NextRequest) {
   const origin = request.headers.get('origin');
@@ -21,7 +24,11 @@ export async function POST(request: NextRequest) {
   if (size > MAX_UPLOAD_BODY_BYTES) return NextResponse.json({ error: 'File exceeds 4 MB limit' }, { status: 413 });
   try {
     const form = await readUploadForm(request);
-    const result = manuscriptSubmissionSchema.safeParse(Object.fromEntries(form.entries()));
+    if (form.get('lang') !== 'en') return NextResponse.json({ error: 'Only English manuscripts are accepted.' }, { status: 400 });
+    let coauthors: unknown = [];
+    try { coauthors = JSON.parse(String(form.get('coauthors') || '[]')); }
+    catch { return NextResponse.json({ error: 'Invalid coauthor details.' }, { status: 400 }); }
+    const result = manuscriptSubmissionSchema.safeParse({ ...Object.fromEntries(form.entries()), coauthors });
     if (!result.success) return NextResponse.json({ error: 'Please complete the required metadata and declarations.', details: result.error.flatten() }, { status: 400 });
     const file = form.get('file');
     if (!(file instanceof File) || file.size === 0 || file.size > MAX_UPLOAD_BYTES) return NextResponse.json({ error: 'Upload a PDF or DOCX manuscript up to 4 MB.' }, { status: 400 });
@@ -32,6 +39,16 @@ export async function POST(request: NextRequest) {
       if (Buffer.from(bytes.slice(0, 5)).toString() !== '%PDF-') return NextResponse.json({ error: 'The file is not a PDF.' }, { status: 400 });
       try { await PDFDocument.load(bytes); } catch { return NextResponse.json({ error: 'Upload a readable PDF without password protection.' }, { status: 400 }); }
     } else if (!isDocxArchive(bytes)) return NextResponse.json({ error: 'The DOCX file is not a valid unencrypted Word document within the size limits.' }, { status: 400 });
+    const metadataLanguage = checkManuscriptLanguage(`${result.data.title}\n${result.data.abstract}\n${result.data.keywords}`);
+    if (metadataLanguage.status === 'non_english') return NextResponse.json({ error: metadataLanguage.message }, { status: 400 });
+    let documentLanguage = checkManuscriptLanguage('');
+    if (extension === 'docx') {
+      let text: string;
+      try { text = (await mammoth.extractRawText({ buffer: Buffer.from(bytes) })).value; }
+      catch { return NextResponse.json({ error: 'The Word document could not be read. Upload a readable DOCX or PDF.' }, { status: 400 }); }
+      documentLanguage = checkManuscriptLanguage(text);
+      if (documentLanguage.status === 'non_english') return NextResponse.json({ error: documentLanguage.message }, { status: 400 });
+    }
     const now = Date.now();
     const emailLimit = await protectRequest(request, 'submission-email', 5, 900, result.data.email.toLowerCase());
     if (emailLimit) return emailLimit;
@@ -42,18 +59,21 @@ export async function POST(request: NextRequest) {
       const orcid = readOrcidProof(request.cookies.get(orcidProofCookie)?.value);
       const article = await createArticle({
         slug: `submitted-${uuid}`,
-        title_uz: data.title, title_en: data.lang === 'en' ? data.title : undefined, title_ru: data.lang === 'ru' ? data.title : undefined,
-        abstract_uz: data.abstract, abstract_en: data.lang === 'en' ? data.abstract : undefined, abstract_ru: data.lang === 'ru' ? data.abstract : undefined,
+        title_uz: data.title, title_en: data.title,
+        abstract_uz: data.abstract, abstract_en: data.abstract,
         keywords_uz: data.keywords.split(/[,;]/).map(word => word.trim()).filter(Boolean),
-        keywords_en: data.lang === 'en' ? data.keywords.split(/[,;]/).map(word => word.trim()).filter(Boolean) : undefined,
+        keywords_en: data.keywords.split(/[,;]/).map(word => word.trim()).filter(Boolean),
         original_language: data.lang, article_type: 'original_research', status: 'draft', license: 'CC BY 4.0', references_list: [],
         manuscript_file_url: `/api/admin/manuscripts/${uuid}`,
-        submission_notes: `Public author submission; policy version ${POLICY_VERSION}; author confirms originality, all-author consent and no simultaneous submission. Received ${new Date(now).toISOString()}.`,
-        authors: [{ id: uuid, article_id: '', full_name: data.author_name, email: data.email, affiliation: data.affiliation, country: data.country, ...(orcid?.environment === 'production' ? { orcid: orcid.id } : {}), is_corresponding: true, order_index: 1 }],
+        submission_notes: `Public author submission; policy version ${POLICY_VERSION}; author confirms originality, all-author consent, no simultaneous submission, reviewed metadata and English manuscript. Metadata language: ${metadataLanguage.status}. Manuscript language: ${extension === 'pdf' ? 'PDF requires manual editorial language review' : documentLanguage.status}. Received ${new Date(now).toISOString()}.`,
+        authors: [
+          { id: uuid, article_id: '', full_name: data.author_name, email: data.email, affiliation: data.affiliation, country: data.country, ...(orcid?.environment === 'production' ? { orcid: orcid.id } : {}), is_corresponding: true, order_index: 1 },
+          ...data.coauthors.map((author, index) => ({ ...author, email: author.email || undefined, id: crypto.randomUUID(), article_id: '', is_corresponding: false, order_index: index + 2 })),
+        ],
       });
       const reference = `AGM-SUB-${uuid.slice(0, 8).toUpperCase()}`;
       try {
-        const notification = await queueNotification({ recipient: data.email, subject: `AGM Journal — ${reference}`, body: `Your manuscript has been received. Receipt does not constitute acceptance for publication.\n\nReference: ${reference}\nTitle: ${data.title}\n\nThe editorial office will contact you after review.` });
+        const notification = await queueNotification({ recipient: data.email, subject: `AGM Journal — ${reference}`, body: `Your manuscript has been received. Receipt does not constitute acceptance for publication.\n\nReference: ${reference}\nTitle: ${data.title}\n\nTrack your manuscript using this private link:\n${trackingUrl(article.id)}\n\nThe editorial office will contact you after review.` });
         after(async () => { await deliverNotification(notification); });
       } catch (error) { console.error('Submission receipt queue failed:', error); }
       return NextResponse.json({ success: true, submission_id: article.id, reference }, { status: 201 });

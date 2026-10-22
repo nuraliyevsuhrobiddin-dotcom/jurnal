@@ -1,6 +1,7 @@
 import { PDFDocument } from 'pdf-lib';
 import type { Article } from '@/types/journal';
 import { readArticlePdf } from './pdf/storage';
+import { publicationBodyPageCount } from './pdf/manuscript-conversion';
 import { articleSchema } from './article-validation';
 import { internationalMetadataGaps } from './international-metadata';
 
@@ -20,7 +21,7 @@ export async function assertPublicationReady(article: Article) {
   try {
     const pdf = await PDFDocument.load(bytes);
     if (pdf.getPageCount() < 1 || pdf.getKeywords()?.includes('AGM_METADATA_ONLY')) throw new Error('Missing manuscript');
-    if (pdf.getKeywords()?.includes('AGM_FULL_ARTICLE_V2') && article.page_last - article.page_first + 1 !== pdf.getPageCount()) {
+    if (pdf.getKeywords()?.includes('AGM_FULL_ARTICLE_V2') && article.page_last - article.page_first + 1 !== publicationBodyPageCount(pdf)) {
       throw new PublicationError('Maqola sahifalari PDF betlari soniga mos emas. To‘liq faylni qayta saqlang yoki sahifalarni to‘g‘rilang.');
     }
   } catch (error) {

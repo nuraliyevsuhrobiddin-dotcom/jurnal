@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { Article, ArticleStatus } from '@/types/journal';
 import { queueNotificationOnce } from './notifications';
 import { articleText, articleUrl } from './scholarly-feeds';
+import { trackingUrl } from './submission-tracking';
 
 const labels: Record<'uz' | 'en' | 'ru', Record<ArticleStatus, string>> = {
   uz: { draft: 'Qoralama', under_review: 'Taqrizda', approved: 'Nashrga tasdiqlandi', published: 'Nashr qilindi', rejected: 'Rad etildi', withdrawn: 'Qaytarib olindi', archived: 'Arxivlandi' },
@@ -20,6 +21,6 @@ export async function queueArticleStatusNotification(previous: Article, updated:
   const description = lang === 'uz' ? 'Maqolangizning tahririyatdagi holati yangilandi.' : lang === 'ru' ? 'Редакционный статус вашей статьи изменён.' : 'The editorial status of your manuscript has changed.';
   return queueNotificationOnce(`article-status:${updated.id}:${previous.status}:${updated.status}:${updated.updated_at}`, {
     recipient: author.email, subject: `AGM Journal — ${status}: ${title}`.slice(0, 250),
-    body: `${description}\n\n${title}\n${status}\nID: ${updated.id}${updated.status === 'published' ? `\n${articleUrl(updated)}` : ''}`,
+    body: `${description}\n\n${title}\n${status}\nID: ${updated.id}${updated.status === 'published' ? `\n${articleUrl(updated)}` : ''}\n\nMaqola holati / Track manuscript:\n${trackingUrl(updated.id)}`,
   });
 }

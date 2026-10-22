@@ -608,6 +608,13 @@ button:disabled { cursor: not-allowed; }
 .submission-form a { color: #28665f; text-decoration: underline; }
 .submission-form fieldset { margin-bottom: 24px; }
 .submission-form legend { font-family: Georgia, serif; font-size: 22px; margin-bottom: 18px; font-weight: 600; }
+.submission-review h2 { font-family: Georgia, serif; font-size: 26px; margin-bottom: 14px; }
+.submission-review h3 { font-size: 17px; font-weight: 600; margin: 22px 0 12px; }
+.submission-review p, .submission-review dd, .submission-review li { font-size: 14px; line-height: 1.8; overflow-wrap: anywhere; }
+.submission-review dt { font-weight: 600; font-size: 13px; margin-top: 18px; }
+.submission-review dd { margin: 5px 0 0; }
+.submission-review ol { padding-left: 22px; list-style: decimal; margin-bottom: 20px; }
+.submission-review .submission-declarations { margin-top: 20px; }
 .submission-form label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 15px; }
 .submission-form input:not([type=checkbox]), .submission-form textarea, .submission-form select { display: block; width: 100%; border: 1px solid #bfcbd0; border-radius: 4px; background: #fbfcfb; padding: 10px 12px; margin-top: 7px; font-size: 14px; font-weight: 400; color: #173448; }
 .submission-form input:focus, .submission-form textarea:focus, .submission-form select:focus { outline: 2px solid #34776c; outline-offset: 2px; }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   PlusCircle,
@@ -12,7 +12,8 @@ import {
   Sparkles,
   ArrowLeft
 } from 'lucide-react';
-import { Article, Issue, Language } from '@/types/journal';
+import { Article, Issue } from '@/types/journal';
+import { applyManuscriptSuggestions, clearAutomaticFields, editManuscriptField, emptyManuscriptFields, type TrackedFields } from '@/lib/manuscript-fields';
 import { MAX_UPLOAD_BYTES } from '@/lib/upload-limits';
 import { subjectCollections, resolveSubjectId, subjectLabel } from '@/lib/subjects';
 
@@ -37,21 +38,18 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
   const [docxParsing, setDocxParsing] = useState(false);
   const [savedArticleId, setSavedArticleId] = useState(initialArticle?.id || '');
   const [publicationFile, setPublicationFile] = useState<File | null>(null);
+  const [regenerateFromManuscript, setRegenerateFromManuscript] = useState(false);
   const [pdfReady, setPdfReady] = useState(Boolean(initialArticle?.pdf_url));
   const [subjectId, setSubjectId] = useState(initialArticle?.subject_id || 'auto');
   const [preparedPdfUrl, setPreparedPdfUrl] = useState(initialArticle?.pdf_url ? `/api/admin/articles/${initialArticle.id}/pdf` : '');
 
   // Form states
-  const [titleUz, setTitleUz] = useState(initialArticle?.title_uz || '');
-  const [titleEn, setTitleEn] = useState(initialArticle?.title_en || '');
-  const [titleRu, setTitleRu] = useState(initialArticle?.title_ru || '');
-  const [abstractUz, setAbstractUz] = useState(initialArticle?.abstract_uz || '');
-  const [abstractEn, setAbstractEn] = useState(initialArticle?.abstract_en || '');
-  const [abstractRu, setAbstractRu] = useState(initialArticle?.abstract_ru || '');
-  const [keywordsUz, setKeywordsUz] = useState((initialArticle?.keywords_uz || []).join(', '));
-  const [keywordsEn, setKeywordsEn] = useState((initialArticle?.keywords_en || []).join(', '));
-  const [keywordsRu, setKeywordsRu] = useState((initialArticle?.keywords_ru || []).join(', '));
-  const [originalLanguage, setOriginalLanguage] = useState<Language>(initialArticle?.original_language || 'uz');
+  const [tracked, setTracked] = useState<TrackedFields>({ values: { ...emptyManuscriptFields, title: initialArticle?.title_en || '', abstract: initialArticle?.abstract_en || '', keywords: (initialArticle?.keywords_en || []).join(', ') }, automatic: {}, edited: {} });
+  const titleEn = tracked.values.title, abstractEn = tracked.values.abstract, keywordsEn = tracked.values.keywords;
+  const automaticAuthor = useRef<Partial<AuthorInput>>({});
+  const authorEdited = useRef(new Set<string>());
+  const automaticReferences = useRef<string | null>(null);
+  const referencesEdited = useRef(false);
   const [articleType, setArticleType] = useState(initialArticle?.article_type || 'original_research');
   const [status, setStatus] = useState(initialArticle?.status || 'draft');
   const [issueId, setIssueId] = useState(initialArticle?.issue_id || '');
@@ -82,7 +80,7 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
       full_name: '',
       email: '',
       affiliation: '',
-      country: 'O‘zbekiston',
+      country: '',
       orcid: '',
       is_corresponding: true,
       order_index: 1,
@@ -110,7 +108,7 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
         full_name: '',
         email: '',
         affiliation: '',
-        country: 'O‘zbekiston',
+        country: '',
         orcid: '',
         is_corresponding: false,
         order_index: authors.length + 1,
@@ -124,6 +122,7 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
   };
 
   const updateAuthor = <K extends keyof AuthorInput>(index: number, field: K, value: AuthorInput[K]) => {
+    if (index === 0) { delete automaticAuthor.current[field]; authorEdited.current.add(field); }
     const updated = [...authors];
     updated[index] = { ...updated[index], [field]: value };
     setAuthors(updated);
@@ -134,9 +133,20 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
+    setTracked(clearAutomaticFields);
+    const previousAuthor = automaticAuthor.current;
+    setAuthors(current => current.map((author, index) => index ? author : {
+      ...author,
+      ...Object.fromEntries(Object.entries(previousAuthor).filter(([key, value]) => author[key as keyof AuthorInput] === value).map(([key]) => [key, ''])),
+    }));
+    automaticAuthor.current = {};
+    const previousReferences = automaticReferences.current;
+    setReferences(current => current === previousReferences ? '' : current);
+    automaticReferences.current = null;
     setErrorMsg(null);
     setSuccessMsg(null);
     setPublicationFile(null);
+    setRegenerateFromManuscript(false);
     if (file.size === 0 || file.size > MAX_UPLOAD_BYTES || !/\.(pdf|docx)$/i.test(file.name)) { setErrorMsg('4 MB gacha to‘liq maqola PDF yoki DOCX faylini tanlang.'); return; }
     setPublicationFile(file);
     if (/\.pdf$/i.test(file.name)) { setSuccessMsg('To‘liq maqola PDF’i tanlandi. Maydonlarni to‘ldirib saqlang.'); return; }
@@ -157,22 +167,32 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
       if (!res.ok) {
         throw new Error(data.error || 'DOCX tahlil qilishda xatolik');
       }
+      if (data.language?.status === 'non_english') throw new Error(data.language.message);
 
-      // Auto-populate extracted data
-      if (data.extractedTitle && !titleUz) {
-        setTitleUz(data.extractedTitle);
+      if (data.metadata) {
+        const suggestions = { full_name: data.metadata.author_name, email: data.metadata.email, affiliation: data.metadata.affiliation, country: data.metadata.country };
+        setAuthors(current => current.map((author, index) => {
+          if (index) return author;
+          const updated = { ...author };
+          for (const key of ['full_name', 'email', 'affiliation', 'country'] as const) {
+            if (!author[key] && !authorEdited.current.has(key) && suggestions[key]) {
+              updated[key] = suggestions[key]; automaticAuthor.current[key] = suggestions[key];
+            }
+          }
+          return updated;
+        }));
+        setTracked(current => applyManuscriptSuggestions(current, data.metadata));
       }
-      if (data.extractedAbstract && !abstractUz) {
-        setAbstractUz(data.extractedAbstract);
+      if (data.extractedReferences?.length) {
+        setReferences(current => {
+          if (current || referencesEdited.current) return current;
+          automaticReferences.current = data.extractedReferences.join('\n');
+          return automaticReferences.current!;
+        });
       }
-      if (data.extractedKeywords && data.extractedKeywords.length > 0 && !keywordsUz) {
-        setKeywordsUz(data.extractedKeywords.join(', '));
-      }
-      if (data.extractedReferences && data.extractedReferences.length > 0 && !references) {
-        setReferences(data.extractedReferences.join('\n'));
-      }
-
-      setSuccessMsg(`DOCX tanlandi va maydonlar to‘ldirildi (${data.wordCount} so‘z). Saqlashda to‘liq matn PDF’ga tayyorlanadi.`);
+      const found = data.report?.found?.join(', ') || 'none';
+      const missing = data.report?.missing?.join(', ') || 'none';
+      setSuccessMsg(`Word file read. Detected: ${found}. Not detected: ${missing}. Review all values and complete missing fields. ${data.language?.message || ''}`);
     } catch (err: unknown) {
       setPublicationFile(null);
       setErrorMsg((err instanceof Error ? err.message : null) || 'DOCX faylni o‘qib bo‘lmadi');
@@ -188,14 +208,14 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
     setSuccessMsg(null);
 
     // Validation checks
-    if (!titleUz.trim()) {
-      setErrorMsg('O‘zbekcha sarlavha kiritilishi shart');
+    if (!titleEn.trim()) {
+      setErrorMsg('Inglizcha sarlavha kiritilishi shart');
       setLoading(false);
       return;
     }
 
-    if (!abstractUz.trim()) {
-      setErrorMsg('O‘zbekcha annotatsiya kiritilishi shart');
+    if (!abstractEn.trim()) {
+      setErrorMsg('Inglizcha annotatsiya kiritilishi shart');
       setLoading(false);
       return;
     }
@@ -207,19 +227,19 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
     }
 
     const payload = {
-      ...(initialArticle ? { clear_fields: Object.entries({ issue_id: issueId, page_first: pageFirst, page_last: pageLast, doi, publication_date: publicationDate, title_en: titleEn, title_ru: titleRu, abstract_en: abstractEn, abstract_ru: abstractRu }).filter(([, value]) => !value.trim()).map(([field]) => field) } : {}),
-      title_uz: titleUz.trim(),
+      ...(initialArticle ? { clear_fields: Object.entries({ issue_id: issueId, page_first: pageFirst, page_last: pageLast, doi, publication_date: publicationDate, title_en: titleEn, abstract_en: abstractEn }).filter(([, value]) => !value.trim()).map(([field]) => field) } : {}),
+      title_uz: initialArticle && initialArticle.original_language !== 'en' ? initialArticle.title_uz : titleEn.trim(),
       title_en: titleEn.trim() || undefined,
-      title_ru: titleRu.trim() || undefined,
-      abstract_uz: abstractUz.trim(),
+      title_ru: initialArticle?.title_ru,
+      abstract_uz: initialArticle && initialArticle.original_language !== 'en' ? initialArticle.abstract_uz : abstractEn.trim(),
       abstract_en: abstractEn.trim() || undefined,
-      abstract_ru: abstractRu.trim() || undefined,
-      keywords_uz: keywordsUz.split(',').map(k => k.trim()).filter(Boolean),
+      abstract_ru: initialArticle?.abstract_ru,
+      keywords_uz: initialArticle && initialArticle.original_language !== 'en' ? initialArticle.keywords_uz : keywordsEn.split(',').map(k => k.trim()).filter(Boolean),
       keywords_en: keywordsEn ? keywordsEn.split(',').map(k => k.trim()).filter(Boolean) : [],
-      keywords_ru: keywordsRu ? keywordsRu.split(',').map(k => k.trim()).filter(Boolean) : [],
-      original_language: originalLanguage,
+      keywords_ru: initialArticle?.keywords_ru || [],
+      original_language: initialArticle?.original_language || 'en',
       article_type: articleType,
-      status: publicationFile || (!pdfReady && initialArticle?.manuscript_file_url) || (!savedArticleId && status === 'published') ? 'draft' : status,
+      status: publicationFile || regenerateFromManuscript || (!pdfReady && initialArticle?.manuscript_file_url) || (!savedArticleId && status === 'published') ? 'draft' : status,
       issue_id: issueId || undefined,
       subject_id: subjectId,
       page_first: pageFirst ? parseInt(pageFirst) : undefined,
@@ -248,13 +268,14 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
       setSavedArticleId(data.id);
       let notificationWarning = data.notification_warning;
       let ready = pdfReady;
-      if (publicationFile || (!pdfReady && initialArticle?.manuscript_file_url)) {
+      if (publicationFile || regenerateFromManuscript || (!pdfReady && initialArticle?.manuscript_file_url)) {
         const form = new FormData();
         if (publicationFile) form.set('file', publicationFile); else form.set('use_manuscript', 'true');
         const upload = await fetch(`/api/admin/articles/${data.id}/pdf`, { method: 'POST', body: form });
         const uploaded = await upload.json();
         if (!upload.ok) throw new Error(`Qoralama saqlandi. ${uploaded.error || 'To‘liq fayl tayyorlanmadi.'}`);
         ready = true; setPdfReady(true); setPublicationFile(null); setPreparedPdfUrl(uploaded.url);
+        setRegenerateFromManuscript(false);
         setPageFirst(String(uploaded.page_first)); setPageLast(String(uploaded.page_last));
       }
       if (status === 'published' && data.status !== 'published') {
@@ -308,7 +329,7 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
               <span>To‘liq maqola fayli — PDF yoki DOCX</span>
             </h3>
             <p className="text-xs text-slate-600">
-              Faylni tanlang va pastdagi saqlash tugmasini bosing. PDF barcha sahifalari bilan saqlanadi. Oddiy DOCX to‘liq matndan PDF’ga aylantiriladi; jadval, rasm va formulali hujjatni Word’dan PDF qilib yuklang.
+              PDF sahifalari asl holida saqlanadi. DOCX uchun jurnalning titul sahifasi yaratiladi, maqola sarlavha, bo‘lim va ro‘yxatlari bilan PDF qilinadi. Jadval, rasm, formula yoki izohli Word hujjatini Word’dan PDF qilib yuklang.
             </p>
           </div>
 
@@ -328,6 +349,7 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm space-y-2">
         <p>{publicationFile ? `Tanlangan fayl: ${publicationFile.name}` : pdfReady ? 'To‘liq maqola PDF’i saqlangan.' : initialArticle?.manuscript_file_url ? 'Yuborilgan qo‘lyozma saqlash vaqtida ishlatiladi.' : 'To‘liq maqola fayli hali tanlanmagan.'}</p>
+        {initialArticle?.manuscript_file_url && pdfReady && <label className="flex items-start gap-2 text-xs text-slate-700"><input type="checkbox" checked={regenerateFromManuscript} onChange={event => { setRegenerateFromManuscript(event.target.checked); if (event.target.checked) setStatus('draft'); }} className="mt-0.5" /><span>Asl yuborilgan qo‘lyozmadan PDF’ni qayta tayyorla. Tekshiruv uchun maqola qoralama bo‘lib saqlanadi.</span></label>}
         {preparedPdfUrl && <a href={preparedPdfUrl} target="_blank" rel="noopener noreferrer" className="font-semibold text-teal-800 underline">To‘liq maqola PDF’ini ochish</a>}
       </div>
       {/* Alerts */}
@@ -353,59 +375,12 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
             <option value="auto">Avtomatik — maqola mazmuniga qarab</option>
             {subjectCollections.map(subject => <option key={subject.id} value={subject.id}>{subject.labels.uz}</option>)}
           </select>
-          <p className="text-sm text-slate-700">{subjectId === 'auto' ? `Aniqlangan yo‘nalish: ${subjectLabel(resolveSubjectId({ title_uz: titleUz, title_en: titleEn, title_ru: titleRu, abstract_uz: abstractUz, abstract_en: abstractEn, abstract_ru: abstractRu, keywords_uz: keywordsUz.split(','), keywords_en: keywordsEn.split(','), keywords_ru: keywordsRu.split(',') } as Article), 'uz')}.` : `Tanlangan yo‘nalish: ${subjectLabel(subjectId, 'uz')}.`} Nashrdan so‘ng maqola shu yo‘nalish sahifasida va uning muqovali to‘plamida ko‘rinadi.</p>
+          <p className="text-sm text-slate-700">{subjectId === 'auto' ? `Aniqlangan yo‘nalish: ${subjectLabel(resolveSubjectId({ title_en: titleEn, abstract_en: abstractEn, keywords_en: keywordsEn.split(',') } as Article), 'uz')}.` : `Tanlangan yo‘nalish: ${subjectLabel(subjectId, 'uz')}.`} Nashrdan so‘ng maqola shu yo‘nalish sahifasida va uning muqovali to‘plamida ko‘rinadi.</p>
         </section>
-        {/* SECTION 1: TITLES (UZ, EN, RU) */}
-        <div className="bg-white rounded-2xl academic-border academic-shadow p-6 sm:p-8 space-y-5">
-          <h2 className="text-base font-bold text-navy-900 border-b border-slate-100 pb-3 flex items-center gap-2">
-            <FileText className="w-4 h-4 text-gold-700" />
-            <span>1. Maqola sarlavhalari (3 tilda)</span>
-          </h2>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Sarlavha (O‘zbekcha) <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={titleUz}
-                onChange={e => setTitleUz(e.target.value)}
-                placeholder="Masalan: Sun‘iy intellekt yordamida makroiqtisodiy jarayonlarni modellashtirish..."
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-navy-900"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Sarlavha (Inglizcha / English)
-                </label>
-                <input
-                  type="text"
-                  value={titleEn}
-                  onChange={e => setTitleEn(e.target.value)}
-                  placeholder="Methods of Modeling and Forecasting..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-navy-900"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Sarlavha (Ruscha / Русский)
-                </label>
-                <input
-                  type="text"
-                  value={titleRu}
-                  onChange={e => setTitleRu(e.target.value)}
-                  placeholder="Методы моделирования и прогнозирования..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-navy-900"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
+        <section className="bg-white rounded-2xl academic-border academic-shadow p-6 sm:p-8 space-y-5">
+          <h2 className="text-base font-bold text-navy-900 flex items-center gap-2"><FileText className="w-4 h-4" />1. Article title (English)</h2>
+          <label className="block text-sm">Title *<input required minLength={5} maxLength={500} value={titleEn} onChange={e => setTracked(current => editManuscriptField(current, 'title', e.target.value))} className="w-full px-3 py-2 rounded-xl border border-slate-300" /></label>
+        </section>
 
         {/* SECTION 2: AUTHORS LIST (DYNAMIC) */}
         <div className="bg-white rounded-2xl academic-border academic-shadow p-6 sm:p-8 space-y-5">
@@ -535,74 +510,11 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
           </div>
         </div>
 
-        {/* SECTION 3: ABSTRACTS & KEYWORDS */}
-        <div className="bg-white rounded-2xl academic-border academic-shadow p-6 sm:p-8 space-y-5">
-          <h2 className="text-base font-bold text-navy-900 border-b border-slate-100 pb-3">
-            3. Annotatsiya va kalit so‘zlar (3 tilda)
-          </h2>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Annotatsiya (O‘zbekcha) <span className="text-rose-500">*</span>
-              </label>
-              <textarea
-                rows={4}
-                required
-                value={abstractUz}
-                onChange={e => setAbstractUz(e.target.value)}
-                placeholder="Maqolaning maqsadi, uslubiyati va asosiy xulosalari..."
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-navy-900"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Kalit so‘zlar (O‘zbekcha, vergul bilan ajrating) <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={keywordsUz}
-                onChange={e => setKeywordsUz(e.target.value)}
-                placeholder="sun‘iy intellekt, makroiqtisodiyot, mashinali o‘rganish, ekonometriya"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-navy-900"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div><label htmlFor="keywords-en" className="block text-xs font-bold text-slate-700 mb-1">Kalit so‘zlar (English)</label><input id="keywords-en" value={keywordsEn} onChange={event => setKeywordsEn(event.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-300" placeholder="research, science" /></div>
-              <div><label htmlFor="keywords-ru" className="block text-xs font-bold text-slate-700 mb-1">Kalit so‘zlar (Русский)</label><input id="keywords-ru" value={keywordsRu} onChange={event => setKeywordsRu(event.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-300" placeholder="исследования, наука" /></div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Annotatsiya (Inglizcha / English)
-                </label>
-                <textarea
-                  rows={3}
-                  value={abstractEn}
-                  onChange={e => setAbstractEn(e.target.value)}
-                  placeholder="Abstract in English..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-navy-900"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Annotatsiya (Ruscha / Русский)
-                </label>
-                <textarea
-                  rows={3}
-                  value={abstractRu}
-                  onChange={e => setAbstractRu(e.target.value)}
-                  placeholder="Аннотация на русском..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-navy-900"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
+        <section className="bg-white rounded-2xl academic-border academic-shadow p-6 sm:p-8 space-y-5">
+          <h2 className="text-base font-bold text-navy-900">3. Abstract and keywords (English)</h2>
+          <label className="block text-sm">Abstract *<textarea required minLength={50} maxLength={10000} rows={6} value={abstractEn} onChange={e => setTracked(current => editManuscriptField(current, 'abstract', e.target.value))} className="w-full px-3 py-2 rounded-xl border border-slate-300" /></label>
+          <label className="block text-sm">Keywords *<input required minLength={2} maxLength={1000} value={keywordsEn} onChange={e => setTracked(current => editManuscriptField(current, 'keywords', e.target.value))} className="w-full px-3 py-2 rounded-xl border border-slate-300" /><small>Separate keywords with commas.</small></label>
+        </section>
 
         {/* SECTION 4: PUBLICATION & ISSUE METADATA */}
         <div className="bg-white rounded-2xl academic-border academic-shadow p-6 sm:p-8 space-y-5">
@@ -633,15 +545,7 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
               <label className="block text-xs font-bold text-slate-700 mb-1">
                 Asl tili
               </label>
-              <select
-                value={originalLanguage}
-                onChange={e => setOriginalLanguage(e.target.value as Language)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-navy-900"
-              >
-                <option value="uz">O‘zbekcha (uz)</option>
-                <option value="en">Inglizcha (en)</option>
-                <option value="ru">Ruscha (ru)</option>
-              </select>
+              <input value={initialArticle?.original_language && initialArticle.original_language !== 'en' ? initialArticle.original_language : 'English (en)'} readOnly className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm" />
             </div>
 
             <div>
@@ -666,6 +570,7 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
               </label>
               <select
                 value={status}
+                disabled={regenerateFromManuscript}
                 onChange={e => setStatus(e.target.value as Article['status'])}
                 className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-navy-900"
               >
@@ -727,7 +632,7 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
             <textarea
               rows={4}
               value={references}
-              onChange={e => setReferences(e.target.value)}
+              onChange={e => { automaticReferences.current = null; referencesEdited.current = true; setReferences(e.target.value); }}
               placeholder="1. Vaswani, A., et al. (2017). Attention is all you need...&#10;2. Box, G. E., Jenkins, G. M. (2015)..."
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-navy-900"
             />

@@ -10,6 +10,7 @@ import { subjectCollections, subjectLabel } from '@/lib/subjects';
 import { SubjectCover } from '@/components/subjects/SubjectCover';
 import { publicPageMetadata } from '@/lib/page-metadata';
 import { siteUrl } from '@/lib/site-url';
+import { IntegrationLogos } from '@/components/home/IntegrationLogos';
 
 export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }) {
   const { lang } = await params;
@@ -45,6 +46,7 @@ export default async function HomePage({ params }: { params: Promise<{ lang: str
       </article>)}</div>
     </section>
     <section className="catalog-publications"><div className="journal-container"><div className="catalog-section-heading"><div><p className="catalog-eyebrow">AGM JOURNAL</p><h2>{t.latest}</h2></div><Link className="catalog-text-link" href={`/${currentLang}/articles`}>{t.all}<ArrowRight size={16} /></Link></div>{articles.length ? <div className="catalog-article-grid">{articles.map(article => <ArticleCard key={article.id} article={article} lang={currentLang} />)}</div> : <div className="catalog-empty"><BookOpen size={25} /><p>{t.empty}</p></div>}</div></section>
+    <IntegrationLogos lang={currentLang} />
     <section className="journal-container catalog-author"><h2>{t.author}</h2>{[['guidelines', t.guidelines], ['peer-review', t.review], ['policies', t.policies]].map(([path, label]) => <Link key={path} href={`/${currentLang}/${path}`}>{label}<ArrowUpRight size={17} /></Link>)}</section>
   </div>;
 }

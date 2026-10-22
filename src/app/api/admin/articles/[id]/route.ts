@@ -4,13 +4,17 @@ import { updateArticle, updateArticleStatus, getArticleById, deleteArticle } fro
 import { Article, ArticleStatus } from '@/types/journal';
 import { articleSchema, articleUpdateSchema, articleClearFields } from '@/lib/article-validation';
 import { PublicationError } from '@/lib/publication-ready';
-import { queueArticleStatusNotification } from '@/lib/article-status-notifications';
+import { queueArticleNotifications } from '@/lib/publication-notifications';
 import { deliverNotification } from '@/lib/notifications';
+
+export const maxDuration = 60;
 
 async function savedArticleResponse(previous: Article, updated: Article) {
   try {
-    const notification = await queueArticleStatusNotification(previous, updated);
-    if (notification) after(async () => { await deliverNotification(notification); });
+    const notifications = await queueArticleNotifications(previous, updated);
+    if (notifications.length) after(async () => {
+      for (const notification of notifications.slice(0, 3)) await deliverNotification(notification);
+    });
     return NextResponse.json(updated);
   } catch {
     // The article is already saved: do not report a false save failure or repeat its transition.

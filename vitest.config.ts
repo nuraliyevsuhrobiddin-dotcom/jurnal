@@ -5,6 +5,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
+    include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
+    env: { TRACKING_SECRET: 'synthetic-test-only-tracking-secret' },
   },
   resolve: {
     alias: {

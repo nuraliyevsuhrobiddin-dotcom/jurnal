@@ -2,6 +2,17 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   devIndicators: false,
+  async headers() {
+    return ['/staff/:path*', '/reviewer/:path*', '/api/staff/:path*', '/api/reviewer/:path*'].map(source => ({
+      source,
+      headers: [
+        { key: 'Cache-Control', value: 'private, no-store' },
+        { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+        { key: 'Referrer-Policy', value: 'no-referrer' },
+        { key: 'X-Content-Type-Options', value: 'nosniff' },
+      ],
+    }));
+  },
   outputFileTracingIncludes: {
     '/api/**': ['./public/fonts/*.ttf', './public/images/issues/*.png'],
   },
@@ -17,3 +28,4 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+

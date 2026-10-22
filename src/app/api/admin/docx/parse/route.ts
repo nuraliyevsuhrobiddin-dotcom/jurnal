@@ -1,7 +1,9 @@
+import { checkManuscriptLanguage } from '@/lib/manuscript-language';
 import { MAX_UPLOAD_BYTES } from '@/lib/upload-limits';
 import { adminAccess } from '@/lib/admin-access';
 import { NextRequest, NextResponse } from 'next/server';
 import { parseDocxFile } from '@/lib/pdf/docx-parser';
+import { extractManuscriptMetadata, metadataReport } from '@/lib/manuscript-metadata';
 import { isDocxArchive } from '@/lib/docx-validation';
 import { readUploadForm, UploadFormError } from '@/lib/upload-form';
 import { BodyLimitError } from '@/lib/bounded-body';
@@ -37,16 +39,20 @@ export async function POST(request: NextRequest) {
     const parsed = await parseDocxFile(buffer);
     if (!parsed.success) return NextResponse.json({ error: 'DOCX faylini o‘qib bo‘lmadi', warnings: parsed.warnings }, { status: 400 });
 
+    const metadata = extractManuscriptMetadata(parsed.rawText);
     return NextResponse.json({
+      metadata,
+      report: metadataReport(metadata),
+      language: checkManuscriptLanguage(parsed.rawText),
       success: parsed.success,
       fileName: file.name,
       fileSize: file.size,
       wordCount: parsed.wordCount,
       rawText: parsed.rawText,
-      extractedTitle: parsed.extractedTitle,
-      extractedAbstract: parsed.extractedAbstract,
-      extractedKeywords: parsed.extractedKeywords,
-      extractedReferences: parsed.extractedReferences,
+      extractedTitle: metadata.title,
+      extractedAbstract: metadata.abstract,
+      extractedKeywords: metadata.keywords?.split(', '),
+      extractedReferences: metadata.references,
       htmlPreview: parsed.htmlContent,
       warnings: parsed.warnings,
     });

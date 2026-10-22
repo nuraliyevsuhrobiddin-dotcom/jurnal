@@ -6,13 +6,11 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   FileText,
-  PlusCircle,
   BookMarked,
   Users,
   Award,
   Settings,
   History,
-  FileUp,
   Globe,
   Menu,
   X,
@@ -32,7 +30,7 @@ export default function AdminLayout({
   const [logoutError, setLogoutError] = useState(false);
   async function logout() {
     try {
-      const response = await fetch('/api/admin/session', { method: 'DELETE' });
+      const response = await fetch('/api/staff/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       if (!response.ok) throw new Error('Logout failed');
       router.push('/admin/login');
       router.refresh();
@@ -45,16 +43,17 @@ export default function AdminLayout({
   }
 
   const menuItems = [
+    { href: '/admin/staff', label: 'Tahririyat hisoblari', icon: ShieldCheck },
+    { href: '/admin/reviews', label: 'Taqrizlar', icon: FileText },
+    { href: '/admin/backups', label: 'Zaxira nusxalari', icon: History },
     { href: '/admin/integrations', label: 'Ilmiy integratsiyalar', icon: Globe },
     { href: '/admin/notifications', label: 'Email bildirishnomalari', icon: Mail },
     { href: '/admin/messages', label: 'Murojaatlar', icon: Mail },
     { href: '/admin', label: 'Boshqaruv paneli', icon: LayoutDashboard },
     { href: '/admin/articles', label: 'Maqolalar ro‘yxati', icon: FileText },
-    { href: '/admin/articles/new', label: 'Yangi maqola qo‘shish', icon: PlusCircle },
     { href: '/admin/issues', label: 'Jurnal sonlari', icon: BookMarked },
     { href: '/admin/editorial-board', label: 'Tahririyat a’zolari', icon: Users },
     { href: '/admin/certificates', label: 'Sertifikatlar', icon: Award },
-    { href: '/admin/pdf-generator', label: 'DOCX / PDF generator', icon: FileUp },
     { href: '/admin/audit-logs', label: 'Audit jurnali', icon: History },
     { href: '/admin/settings', label: 'Jurnal sozlamalari', icon: Settings },
   ];
@@ -105,7 +104,7 @@ export default function AdminLayout({
           <nav className="p-4 space-y-1">
             {menuItems.map((item) => {
               const Icon = item.icon;
-              const isActive = pathname === item.href;
+              const isActive = pathname === item.href || (item.href !== '/admin' && pathname.startsWith(`${item.href}/`));
               return (
                 <Link
                   key={item.href}

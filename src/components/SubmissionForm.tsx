@@ -1,42 +1,161 @@
 'use client';
-import { MAX_UPLOAD_BYTES } from '@/lib/upload-limits';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import Link from 'next/link';
-import { Send, CheckCircle2, Upload } from 'lucide-react';
+import { CheckCircle2, Send, Upload } from 'lucide-react';
+import { MAX_UPLOAD_BYTES } from '@/lib/upload-limits';
+import { applyManuscriptSuggestions, clearAutomaticFields, editManuscriptField, emptyManuscriptFields, manuscriptFieldNames, type ManuscriptField, type TrackedFields } from '@/lib/manuscript-fields';
+import { checkManuscriptLanguage, type LanguageCheck } from '@/lib/manuscript-language';
+import { manuscriptSubmissionSchema } from '@/lib/submission-validation';
+import type { ManuscriptMetadata } from '@/lib/manuscript-metadata';
 import type { Language } from '@/types/journal';
 
-const copy = {
- uz: { title: 'Maqola yuborish', intro: 'Qo‘lyozma va muallif ma’lumotlarini tahririyatga yuboring. Qabul qilish nashrga tasdiqlashni anglatmaydi.', author: 'Mas’ul muallif', name: 'To‘liq ism', email: 'Elektron pochta', affiliation: 'Tashkilot', country: 'Mamlakat', manuscript: 'Qo‘lyozma ma’lumotlari', article: 'Maqola nomi', abstract: 'Annotatsiya', keywords: 'Kalit so‘zlar', hint: 'Kalit so‘zlarni vergul bilan ajrating.', language: 'Qo‘lyozma tili', file: 'Qo‘lyozma fayli', fileHint: 'PDF yoki DOCX · eng ko‘pi 4 MB. Faylda barcha mualliflar va ularning tashkilotlari ko‘rsatilishi kerak.', original: 'Ish original ekanligini, barcha mualliflar yuborishga roziligini va u boshqa jurnalga bir vaqtda topshirilmaganini tasdiqlayman.', consent: 'Maxfiylik siyosatini o‘qidim va yuborilgan ma’lumotlarning tahririyat tomonidan ko‘rib chiqish uchun qayta ishlanishiga roziman.', privacy: 'Maxfiylik siyosati', guidelines: 'Mualliflar uchun qo‘llanma', send: 'Qo‘lyozmani yuborish', pending: 'Yuborilmoqda…', success: 'Qo‘lyozma qabul qilindi', reference: 'Murojaat raqami', received: 'Ushbu raqamni saqlang. Tahririyat siz bilan ko‘rsatilgan elektron pochta orqali bog‘lanadi.', error: 'Yuborib bo‘lmadi. Iltimos, qayta urinib ko‘ring.', invalid: 'PDF yoki DOCX faylni tanlang; hajmi 4 MB dan oshmasligi kerak.', note: 'Yuborishdan oldin nashr talablari bilan tanishing.' },
- en: { title: 'Submit a manuscript', intro: 'Send your manuscript and author details to the editorial office. Receipt does not constitute acceptance for publication.', author: 'Corresponding author', name: 'Full name', email: 'Email address', affiliation: 'Affiliation', country: 'Country', manuscript: 'Manuscript details', article: 'Article title', abstract: 'Abstract', keywords: 'Keywords', hint: 'Separate keywords with commas.', language: 'Manuscript language', file: 'Manuscript file', fileHint: 'PDF or DOCX · up to 4 MB. Include every author and affiliation in the manuscript.', original: 'I confirm that the work is original, all authors agree to this submission, and it is not simultaneously submitted to another journal.', consent: 'I have read the privacy policy and consent to the editorial office processing the submitted information for review.', privacy: 'Privacy policy', guidelines: 'Author guidelines', send: 'Send manuscript', pending: 'Submitting…', success: 'Manuscript received', reference: 'Submission reference', received: 'Keep this reference. The editorial office will contact you at the email address provided.', error: 'Submission failed. Please try again.', invalid: 'Choose a PDF or DOCX file no larger than 4 MB.', note: 'Review the publication requirements before submitting.' },
- ru: { title: 'Подать рукопись', intro: 'Отправьте рукопись и данные автора в редакцию. Получение рукописи не означает принятия к публикации.', author: 'Автор для переписки', name: 'Полное имя', email: 'Электронная почта', affiliation: 'Организация', country: 'Страна', manuscript: 'Данные рукописи', article: 'Название статьи', abstract: 'Аннотация', keywords: 'Ключевые слова', hint: 'Разделяйте ключевые слова запятыми.', language: 'Язык рукописи', file: 'Файл рукописи', fileHint: 'PDF или DOCX · до 4 МБ. Укажите в рукописи всех авторов и их организации.', original: 'Подтверждаю оригинальность работы, согласие всех авторов на подачу и отсутствие одновременной подачи в другой журнал.', consent: 'Я ознакомился с политикой конфиденциальности и согласен на обработку переданных данных редакцией для рассмотрения рукописи.', privacy: 'Политика конфиденциальности', guidelines: 'Руководство для авторов', send: 'Отправить рукопись', pending: 'Отправка…', success: 'Рукопись получена', reference: 'Номер обращения', received: 'Сохраните этот номер. Редакция свяжется с вами по указанной электронной почте.', error: 'Не удалось отправить. Попробуйте ещё раз.', invalid: 'Выберите файл PDF или DOCX размером не более 4 МБ.', note: 'Перед подачей ознакомьтесь с требованиями к публикации.' },
-};
+type Coauthor = { id: string; full_name: string; email: string; affiliation: string; country: string };
+const labels: Record<ManuscriptField, string> = { title: 'Article title', abstract: 'Abstract', keywords: 'Keywords', author_name: 'Full name', email: 'Email address', affiliation: 'Affiliation', country: 'Country' };
+const limits: Record<ManuscriptField, number> = { title: 500, abstract: 10000, keywords: 1000, author_name: 150, email: 254, affiliation: 500, country: 100 };
+const invalidFile = 'Choose a PDF or DOCX file no larger than 4 MB.';
+const orcidStartUrl = ['/api/orcid/start', '?lang=en'].join('');
 
-export function SubmissionForm({ lang, orcidEnabled = false, orcidFailed = false, orcidIdentity }: { lang: Language; orcidEnabled?: boolean; orcidFailed?: boolean; orcidIdentity?: { id: string; name: string; environment: string } }) {
- const orcidLabels = {
-  uz: { connect: 'ORCID orqali tasdiqlash', hint: 'ORCID ulashni formani to‘ldirishdan oldin bajaring.', disabled: 'ORCID tasdiqlash xizmati hali sozlanmagan.', verified: 'ORCID orqali tasdiqlandi', sandbox: 'ORCID sandbox sinovi — haqiqiy profil sifatida saqlanmaydi.' },
-  en: { connect: 'Connect with ORCID', hint: 'Connect ORCID before completing the form.', disabled: 'ORCID authentication is not configured yet.', verified: 'Authenticated with ORCID', sandbox: 'ORCID sandbox test — not saved as a real researcher profile.' },
-  ru: { connect: 'Подключить ORCID', hint: 'Подключите ORCID до заполнения формы.', disabled: 'Аутентификация ORCID ещё не настроена.', verified: 'Подтверждено через ORCID', sandbox: 'Тест ORCID sandbox — не сохраняется как настоящий профиль.' },
- }[lang];
- const t = copy[lang];
- const [pending, setPending] = useState(false);
- const [error, setError] = useState('');
- const [reference, setReference] = useState('');
- const [selectedFile, setSelectedFile] = useState<{ name: string; size: number } | null>(null);
- async function submit(event: FormEvent<HTMLFormElement>) {
-  event.preventDefault();
-  const data = new FormData(event.currentTarget);
-  const file = data.get('file');
-  if (!(file instanceof File) || !/\.(pdf|docx)$/i.test(file.name) || file.size > MAX_UPLOAD_BYTES || file.size === 0) { setError(t.invalid); return; }
-  setPending(true); setError('');
-  try { const response = await fetch('/api/submissions', { method: 'POST', body: data }); const result = await response.json(); if (!response.ok || !result.success) throw new Error(result.error || result.message || t.error); setReference(result.reference); } catch (err) { setError(err instanceof Error ? err.message : t.error); } finally { setPending(false); }
- }
- return <div className="policy-page"><div className="policy-banner"><div className="policy-width"><p className="policy-kicker">AGM JOURNAL / {t.author}</p><h1>{t.title}</h1><p>{t.intro}</p></div></div><div className="submission-wrap">
-  {!reference && <section className="submission-note" aria-label="ORCID">
-   {orcidFailed && <p role="alert">{lang === 'uz' ? 'ORCID tasdiqlash bajarilmadi. Qayta urinib ko‘ring yoki formani ORCIDsiz yuboring.' : lang === 'ru' ? 'Не удалось подтвердить ORCID. Повторите попытку или отправьте форму без ORCID.' : 'ORCID authentication failed. Try again or submit the form without ORCID.'}</p>}
-   {orcidIdentity ? <p role="status">{orcidIdentity.environment === 'sandbox' ? orcidLabels.sandbox : orcidLabels.verified}: {orcidIdentity.id}{orcidIdentity.name ? ` (${orcidIdentity.name})` : ''}</p>
-    : orcidEnabled ? <><a href={`/api/orcid/start?lang=${lang}`} className="font-semibold underline">{orcidLabels.connect}</a><p>{orcidLabels.hint}</p></> : <p>{orcidLabels.disabled}</p>}
-  </section>}
-  {reference ? <div className="submission-success" role="status"><CheckCircle2 size={32} /><h2>{t.success}</h2><p>{t.reference}</p><strong>{reference}</strong><p>{t.received}</p></div> : <form onSubmit={submit} className="submission-form"><p className="submission-note">{t.note} <Link href={`/${lang}/guidelines`}>{t.guidelines} ↗</Link></p><fieldset disabled={pending}><legend>{t.author}</legend><div className="submission-grid">{([{ name: 'author_name', label: t.name, type: 'text', autoComplete: 'name', max: 150 }, { name: 'email', label: t.email, type: 'email', autoComplete: 'email', max: 254 }, { name: 'affiliation', label: t.affiliation, type: 'text', autoComplete: 'organization', max: 500 }, { name: 'country', label: t.country, type: 'text', autoComplete: 'country-name', max: 100 }]).map(field => <label key={field.name}>{field.label}<input required name={field.name} type={field.type} minLength={field.type === 'email' ? undefined : 2} autoComplete={field.autoComplete} maxLength={field.max} /></label>)}</div></fieldset><fieldset disabled={pending}><legend>{t.manuscript}</legend><label>{t.article}<input name="title" required minLength={5} maxLength={500} /></label><label>{t.abstract}<textarea name="abstract" rows={6} required minLength={50} maxLength={10000} /></label><label>{t.keywords}<input name="keywords" required minLength={2} maxLength={1000} /><small>{t.hint}</small></label><label>{t.language}<select name="lang" defaultValue={lang}><option value="uz">O‘zbekcha</option><option value="en">English</option><option value="ru">Русский</option></select></label><label className="submission-upload"><span><Upload size={18} />{t.file}</span><input required name="file" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(e) => { const f = e.target.files?.[0]; setSelectedFile(f ? { name: f.name, size: f.size } : null); }} />{selectedFile && <div style={{ marginTop: '6px', fontSize: '13px', color: '#176e63', fontWeight: 600 }}>✓ {selectedFile.name} ({(selectedFile.size / (1024 * 1024)).toFixed(2)} MB)</div>}<small>{t.fileHint}</small></label></fieldset><fieldset disabled={pending} className="submission-declarations"><label><input type="checkbox" name="original" value="true" required /><span>{t.original}</span></label><label><input type="checkbox" name="consent" value="true" required /><span>{t.consent} <Link href={`/${lang}/privacy`}>{t.privacy} ↗</Link></span></label></fieldset>{error && <p className="submission-error" role="alert">{error}</p>}<button type="submit" className="policy-button" disabled={pending}><Send size={16} />{pending ? t.pending : t.send}</button></form>}
- </div></div>;
+export function SubmissionForm({ orcidEnabled = false, orcidFailed = false, orcidIdentity }: { lang: Language; orcidEnabled?: boolean; orcidFailed?: boolean; orcidIdentity?: { id: string; name: string; environment: string } }) {
+  const [fields, setFields] = useState<TrackedFields>({ values: { ...emptyManuscriptFields }, automatic: {}, edited: {} });
+  const [file, setFile] = useState<File | null>(null);
+  const [coauthors, setCoauthors] = useState<Coauthor[]>([]);
+  const [extracting, setExtracting] = useState(false);
+  const [report, setReport] = useState<{ found: ManuscriptField[]; missing: ManuscriptField[] } | null>(null);
+  const [documentLanguage, setDocumentLanguage] = useState<LanguageCheck | null>(null);
+  const [extractionNote, setExtractionNote] = useState('');
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState('');
+  const [reference, setReference] = useState('');
+  const [reviewing, setReviewing] = useState(false);
+  const [original, setOriginal] = useState(false);
+  const [consent, setConsent] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+  const controller = useRef<AbortController | null>(null);
+  const extractionId = useRef(0);
+  const sending = useRef(false);
+  const reviewHeading = useRef<HTMLHeadingElement>(null);
+  const values = fields.values;
+  const metadataLanguage = checkManuscriptLanguage(`${values.title}\n${values.abstract}\n${values.keywords}`);
+  useEffect(() => () => controller.current?.abort(), []);
+  useEffect(() => { if (reviewing) reviewHeading.current?.focus(); }, [reviewing]);
+
+  function edit(field: ManuscriptField, value: string) {
+    setFields(current => editManuscriptField(current, field, value));
+    setConfirmed(false);
+  }
+
+  async function selectFile(event: ChangeEvent<HTMLInputElement>) {
+    const nextFile = event.target.files?.[0] || null;
+    controller.current?.abort();
+    const id = ++extractionId.current;
+    setFile(nextFile); setFields(clearAutomaticFields); setReport(null); setDocumentLanguage(null);
+    setExtractionNote(''); setExtracting(false); setError(''); setConfirmed(false);
+    if (!nextFile) return;
+    if (!/\.(pdf|docx)$/i.test(nextFile.name) || !nextFile.size || nextFile.size > MAX_UPLOAD_BYTES) { setError(invalidFile); return; }
+    if (/\.pdf$/i.test(nextFile.name)) { setExtractionNote('PDF metadata must be entered manually. The editorial office will check the manuscript language.'); return; }
+    setExtracting(true);
+    const abort = new AbortController(); controller.current = abort;
+    const timeout = setTimeout(() => abort.abort(), 30000);
+    try {
+      const body = new FormData(); body.set('file', nextFile);
+      const response = await fetch('/api/submissions/metadata', { method: 'POST', body, signal: abort.signal });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Word metadata could not be read.');
+      if (id !== extractionId.current) return;
+      setFields(current => applyManuscriptSuggestions(current, result.metadata as ManuscriptMetadata));
+      setReport(result.report); setDocumentLanguage(result.language);
+      setExtractionNote(result.report.found.length ? 'Review the detected values below. Your manual edits have been preserved.' : 'No supported metadata headings were found. Use the Word template or complete the fields manually.');
+    } catch (cause) {
+      if (id === extractionId.current) setExtractionNote(`${cause instanceof Error && cause.name !== 'AbortError' ? cause.message : 'Reading the Word file timed out.'} Complete the fields manually or select another file.`);
+    } finally { clearTimeout(timeout); if (id === extractionId.current) setExtracting(false); }
+  }
+
+  function validate() {
+    if (!file || !/\.(pdf|docx)$/i.test(file.name) || !file.size || file.size > MAX_UPLOAD_BYTES) { setError(invalidFile); return false; }
+    const result = manuscriptSubmissionSchema.safeParse({ ...values, coauthors, lang: 'en', consent: String(consent), original: String(original), reviewed: 'true' });
+    if (!result.success) {
+      const fieldsWithErrors = [...new Set(result.error.issues.map(issue => String(issue.path[0] || 'submission')))];
+      setError(`Please check the required fields: ${fieldsWithErrors.map(field => labels[field as ManuscriptField] || field).join(', ')}.`);
+      return false;
+    }
+    if (metadataLanguage.status === 'non_english' || documentLanguage?.status === 'non_english') { setError('Only English manuscripts are accepted. Correct the metadata or select an English manuscript.'); return false; }
+    return true;
+  }
+
+  function review(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setError('');
+    if (!extracting && validate()) { setReviewing(true); setConfirmed(false); }
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!confirmed || sending.current || !validate() || !file) return;
+    sending.current = true; setPending(true); setError('');
+    try {
+      const body = new FormData();
+      for (const field of manuscriptFieldNames) body.set(field, values[field]);
+      body.set('coauthors', JSON.stringify(coauthors.map(({ full_name, email, affiliation, country }) => ({ full_name, email, affiliation, country }))));
+      body.set('lang', 'en'); body.set('consent', 'true'); body.set('original', 'true'); body.set('reviewed', 'true'); body.set('file', file);
+      const response = await fetch('/api/submissions', { method: 'POST', body });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Submission failed. Please try again.');
+      setReference(result.reference);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Submission failed. Please try again.'); }
+    finally { sending.current = false; setPending(false); }
+  }
+
+  function input(field: ManuscriptField) {
+    return <label key={field}>{labels[field]} *{field === 'abstract'
+      ? <textarea name={field} required minLength={50} maxLength={limits[field]} rows={6} value={values[field]} onChange={event => edit(field, event.target.value)} />
+      : <input name={field} required type={field === 'email' ? 'email' : 'text'} minLength={field === 'title' ? 5 : field === 'email' ? undefined : 2} maxLength={limits[field]} value={values[field]} onChange={event => edit(field, event.target.value)} />}
+      {fields.automatic[field] !== undefined && <small>Filled from the selected Word file. Please verify.</small>}
+    </label>;
+  }
+
+  return <div className="policy-page" lang="en">
+    <div className="policy-banner"><div className="policy-width"><p className="policy-kicker">AGM JOURNAL / AUTHORS</p><h1>Submit a manuscript</h1><p>Only English manuscripts are accepted. Receipt does not constitute acceptance for publication.</p></div></div>
+    <div className="submission-wrap">
+      {reference ? <div className="submission-success" role="status"><CheckCircle2 size={32} /><h2>Manuscript received</h2><p>Submission reference</p><strong>{reference}</strong><p>Keep this reference. The editorial office will contact the corresponding author at the email address provided.</p></div> : <>
+        {!reviewing && <section className="submission-note" aria-label="ORCID">
+          {orcidFailed && <p role="alert">ORCID authentication failed. Try again or submit without ORCID.</p>}
+              {orcidIdentity ? <p>{orcidIdentity.environment === 'sandbox' ? 'ORCID sandbox test; not saved as a real researcher profile' : 'Authenticated with ORCID'}: {orcidIdentity.id} {orcidIdentity.name}</p> : orcidEnabled ? <><a href={orcidStartUrl}>Connect with ORCID</a><p>Connect ORCID before completing the form.</p></> : <p>ORCID authentication is not configured yet.</p>}
+        </section>}
+        <form onSubmit={review} className="submission-form" hidden={reviewing}>
+          <p className="submission-note">Prepare your manuscript in English. <Link href="/en/guidelines">Author guidelines</Link> | <a href="/api/submissions/template" download>Download the English Word template</a></p>
+          <fieldset disabled={pending}><legend>1. Manuscript file</legend>
+            <label className="submission-upload"><span><Upload size={18} />Upload PDF or Word *</span><input required type="file" name="file" accept=".pdf,.docx" onChange={selectFile} /><small>PDF or DOCX, up to 4 MB. Include all authors and affiliations. Word headings: Title, Abstract, Keywords, Corresponding author, Email, Affiliation, Country.</small>{file && <p>{file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)</p>}</label>
+            <div aria-live="polite">{extracting ? <p>Reading the Word file...</p> : <>
+              {extractionNote && <p>{extractionNote}</p>}
+              {report && <><p>Detected: {report.found.map(field => labels[field]).join(', ') || 'none'}.</p><p>Not detected: {report.missing.map(field => labels[field]).join(', ') || 'none'}. Complete any empty fields.</p></>}
+              {documentLanguage && <p>{documentLanguage.message}</p>}
+            </>}</div>
+          </fieldset>
+          <fieldset><legend>2. Corresponding author</legend><div className="submission-grid">{(['author_name', 'email', 'affiliation', 'country'] as const).map(input)}</div></fieldset>
+          <fieldset><legend>3. Coauthors</legend><p>Enter every additional author in publication order. The corresponding author is listed first.</p>
+            {coauthors.map((author, index) => <fieldset key={author.id}><legend>Coauthor {index + 1}</legend><div className="submission-grid">
+              {(['full_name', 'email', 'affiliation', 'country'] as const).map(field => <label key={field}>{field === 'full_name' ? 'Full name' : field === 'email' ? 'Email (optional)' : field === 'affiliation' ? 'Affiliation' : 'Country'}{field !== 'email' && ' *'}<input type={field === 'email' ? 'email' : 'text'} required={field !== 'email'} minLength={field === 'email' ? undefined : 2} maxLength={field === 'affiliation' ? 500 : field === 'email' ? 254 : field === 'country' ? 100 : 150} value={author[field]} onChange={event => setCoauthors(current => current.map(item => item.id === author.id ? { ...item, [field]: event.target.value } : item))} /></label>)}
+            </div><button type="button" onClick={() => setCoauthors(current => current.filter(item => item.id !== author.id))}>Remove coauthor {index + 1}</button></fieldset>)}
+            <button type="button" disabled={coauthors.length >= 30} onClick={() => setCoauthors(current => [...current, { id: crypto.randomUUID(), full_name: '', email: '', affiliation: '', country: '' }])}>Add coauthor</button>
+          </fieldset>
+          <fieldset><legend>4. Manuscript details (English)</legend>{(['title', 'abstract', 'keywords'] as const).map(input)}<small>Separate keywords with commas or semicolons.</small>{values.abstract && <p role="status">{metadataLanguage.message}</p>}</fieldset>
+          <fieldset className="submission-declarations"><legend>5. Declarations</legend>
+            <label><input type="checkbox" required checked={original} onChange={event => setOriginal(event.target.checked)} /><span>I confirm that this work is original, all authors agree to this submission, and it is not simultaneously submitted to another journal.</span></label>
+            <label><input type="checkbox" required checked={consent} onChange={event => setConsent(event.target.checked)} /><span>I have read the <Link href="/en/privacy">privacy policy</Link> and consent to the editorial office processing this submission for review.</span></label>
+          </fieldset>
+          {!reviewing && error && <p className="submission-error" role="alert">{error}</p>}
+          <button type="submit" className="policy-button" disabled={extracting || pending}>Review submission</button>
+        </form>
+        {reviewing && <form onSubmit={submit} className="submission-form submission-review">
+          <h2 ref={reviewHeading} tabIndex={-1}>Review your submission</h2><p>Check the selected file, all authors and the English metadata before sending.</p>
+          <dl><dt>Manuscript file</dt><dd>{file?.name}</dd><dt>Language</dt><dd>English</dd>{(['title', 'abstract', 'keywords'] as const).map(field => <div key={field}><dt>{labels[field]}</dt><dd style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{values[field]}</dd></div>)}</dl>
+          <h3>Authors in publication order</h3><ol><li>{values.author_name} (corresponding author) - {values.affiliation}, {values.country}; {values.email}</li>{coauthors.map(author => <li key={author.id}>{author.full_name} - {author.affiliation}, {author.country}{author.email && `; ${author.email}`}</li>)}</ol>
+          <p>{documentLanguage?.message || 'The document language requires editorial verification.'}</p><p>{metadataLanguage.message}</p>
+          <fieldset className="submission-declarations" disabled={pending}><label><input type="checkbox" required checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /><span>I reviewed the file and all author details. I confirm that the manuscript, title, abstract and keywords are in English.</span></label></fieldset>
+          {error && <p className="submission-error" role="alert">{error}</p>}
+          <div className="flex flex-wrap gap-4"><button type="button" className="policy-button" disabled={pending} onClick={() => { setReviewing(false); setConfirmed(false); setError(''); }}>Back to editing</button><button type="submit" className="policy-button" disabled={pending || !confirmed}><Send size={16} />{pending ? 'Submitting...' : 'Send manuscript'}</button></div>
+        </form>}
+      </>}
+    </div>
+  </div>;
 }

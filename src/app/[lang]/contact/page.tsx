@@ -50,9 +50,9 @@ export default async function ContactPage({
               <span>{dict.contact.emailTitle}</span>
             </div>
             <p className="text-xs sm:text-sm text-slate-600">
-              {dict.contact.chiefEditor}: <a href="mailto:editor@agmjoural.uz" className="text-teal-700 hover:underline font-medium">editor@agmjoural.uz</a><br />
-              {dict.contact.editorialOffice}: <a href={`mailto:${settings.contact_email || 'editorial@agmjoural.uz'}`} className="text-teal-700 hover:underline font-medium">{settings.contact_email || 'editorial@agmjoural.uz'}</a>
+              {dict.contact.editorialOffice}: <a href={`mailto:${settings.contact_email}`} className="text-teal-700 hover:underline font-medium">{settings.contact_email}</a>
             </p>
+            <p className="text-xs text-slate-500">{settings.issn_online ? `ISSN (Online): ${settings.issn_online}` : currentLang === 'uz' ? 'ISSN: rasmiy tasdiqlash kutilmoqda.' : currentLang === 'ru' ? 'ISSN: ожидается официальное подтверждение.' : 'ISSN: official confirmation pending.'}</p>
           </div>
 
           <div className="bg-white rounded-2xl academic-border academic-shadow p-6 space-y-3">

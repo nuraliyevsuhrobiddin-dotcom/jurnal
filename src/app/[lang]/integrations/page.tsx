@@ -4,6 +4,7 @@ import { ArrowUpRight } from 'lucide-react';
 import { publicPageMetadata } from '@/lib/page-metadata';
 import type { Language } from '@/types/journal';
 import styles from './page.module.css';
+import { publicIntegrationStatuses } from '@/lib/public-integrations';
 
 const copy = {
   en: {
@@ -85,6 +86,7 @@ export async function generateMetadata({ params }: { params: Promise<{ lang: str
 export default async function IntegrationsPage({ params }: { params: Promise<{ lang: string }> }) {
   const lang = language((await params).lang);
   const text = copy[lang];
+  const statuses = publicIntegrationStatuses(lang);
   const feeds = {
     uz: { title: 'Ochiq metama’lumot xizmatlari', description: 'Nashr qilingan maqolalarni kutubxona kataloglari va RSS o‘quvchilariga ulash uchun ishlaydigan manzillar.', oai: 'OAI-PMH repozitoriy ma’lumoti', records: 'Dublin Core maqola yozuvlari', rss: 'Yangi maqolalar RSS tasmasi' },
     en: { title: 'Open metadata services', description: 'Live endpoints for harvesting published article metadata into library catalogues and RSS readers.', oai: 'OAI-PMH repository information', records: 'Dublin Core article records', rss: 'Latest articles RSS feed' },
@@ -105,10 +107,10 @@ export default async function IntegrationsPage({ params }: { params: Promise<{ l
           <a href={`/feed.xml?lang=${lang}`}>{feeds.rss}<ArrowUpRight size={14} aria-hidden="true" /></a>
         </div></div>
       </section>
-      <div className={styles.providers}>{providers.map((provider, index) => <section key={provider.name} className={styles.provider} aria-labelledby={`provider-${index}`}>
+      <div className={styles.providers}>{providers.map((provider, index) => <section id={provider.name.toLowerCase().replaceAll(' ', '-')} key={provider.name} className={styles.provider} aria-labelledby={`provider-${index}`}>
         <div className={styles.identity}><span className={styles.number}>0{index + 1}</span>
           <h2 id={`provider-${index}`} className={styles.brand}>{provider.logo ? <><Image unoptimized src={provider.logo} alt={provider.name} width={provider.width} height={provider.height} style={{ width: provider.width, height: provider.height, flex: 'none' }} />{provider.name === 'ORCID' && <span>ORCID</span>}</> : provider.name}</h2>
-          <span className={styles.status}>{text.statuses[index]}</span>
+          <span className={styles.status}>{statuses[index]}</span>
         </div>
         <div className={styles.detail}><h3>{text.scope}</h3><p>{text.descriptions[index]}</p><h3>{text.next}</h3><p>{text.steps[index]}</p>
           <div className={styles.links}><a href={provider.url} aria-label={`${provider.name}: ${text.action}`} target="_blank" rel="noopener noreferrer">{text.action}<ArrowUpRight size={14} aria-hidden="true" /></a><a href={provider.docs} aria-label={`${provider.name}: ${text.docs}`} target="_blank" rel="noopener noreferrer">{text.docs}<ArrowUpRight size={14} aria-hidden="true" /></a></div>
