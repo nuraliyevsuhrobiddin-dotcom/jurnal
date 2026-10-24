@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const parsed = settingsSchema.safeParse(body);
-    if (!parsed.success) return NextResponse.json({ error: 'Sozlamalar noto‘g‘ri. Majburiy maydonlar va emailni tekshiring.', details: parsed.error.flatten() }, { status: 400 });
+    if (!parsed.success) return NextResponse.json({ error: parsed.error.issues.slice(0, 3).map(issue => `${issue.path.join('.')}: ${issue.message}`).join('; '), details: parsed.error.flatten() }, { status: 400 });
     const updated = await updateJournalSettings(parsed.data);
     return NextResponse.json(updated);
   } catch (error: unknown) {

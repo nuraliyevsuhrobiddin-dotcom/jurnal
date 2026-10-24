@@ -71,6 +71,11 @@ export default function AdminSettingsPage() {
       )}
 
       <form onSubmit={handleSave} className="bg-white rounded-2xl academic-border academic-shadow p-6 sm:p-8 space-y-6">
+        <p className="text-sm text-slate-600">
+          ISSN faqat shu jurnalga rasmiy berilgan bo‘lsa kiritiladi. Raqam egasini{' '}
+          <a href="https://portal.issn.org/" target="_blank" rel="noopener noreferrer" className="underline">ISSN reyestrida tekshiring</a>.
+          Hali olinmagan bo‘lsa, maydonni bo‘sh qoldiring.
+        </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">

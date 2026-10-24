@@ -106,6 +106,8 @@ describe('Articles Management & Lifecycle Tests', () => {
     await expect(updateArticleStatus(testArticle.id, 'published')).rejects.toThrow();
     await updateArticle(testArticle.id, { authors: [{ id: 'test-author', article_id: testArticle.id, full_name: 'Test Author', affiliation: 'Research University', country: 'UZ', is_corresponding: true, order_index: 1 }], issue_id: journalStore.issues[0].id,
       page_first: 1, page_last: 2, pdf_url: `/api/articles/${testArticle.id}/pdf`, pdf_file_size: 1000 });
+    await expect(updateArticleStatus(testArticle.id, 'published')).rejects.toThrow('sahifalari');
+    await updateArticle(testArticle.id, { page_first: 10001, page_last: 10002 });
     // 3. Publish only after metadata and a readable full PDF are present.
     const publishedArticle = await updateArticleStatus(testArticle.id, 'published');
     expect(publishedArticle?.status).toBe('published');

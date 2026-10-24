@@ -36,20 +36,33 @@ export function DepositActions({ articleId, crossref, zenodo, crossrefMode, zeno
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [url, setUrl] = useState<string | null>(null);
+  const [crossrefJobId, setCrossrefJobId] = useState('');
   async function deposit(provider: 'crossref' | 'zenodo') {
     setBusy(true); setMessage(''); setUrl(null);
     try {
       const response = await fetch(`/api/admin/articles/${articleId}/deposit`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Depozit bajarilmadi.');
+      if (provider === 'crossref') setCrossrefJobId(data.job.id);
       setMessage(`${data.job.status}: ${data.job.message}${data.job.remote_id ? ` ID: ${data.job.remote_id}` : ''}`);
       if (data.job.remote_url && /^https:\/\/(sandbox\.)?zenodo\.org\/deposit\/\d+$/.test(data.job.remote_url)) setUrl(data.job.remote_url);
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Depozit bajarilmadi.'); }
     finally { setBusy(false); }
   }
+  async function checkCrossrefStatus() {
+    setBusy(true); setMessage('');
+    try {
+      const response = await fetch(`/api/admin/articles/${articleId}/deposit`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: 'crossref', action: 'check_status', job_id: crossrefJobId }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Hisobot olinmadi.');
+      setMessage(data.job.message);
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Hisobot olinmadi.'); }
+    finally { setBusy(false); }
+  }
   return <div className="space-y-2 pt-2">
     <div className="flex flex-wrap gap-3">
       <button type="button" disabled={busy || !crossref} onClick={() => deposit('crossref')} className="rounded border border-slate-300 px-3 py-2 text-sm disabled:opacity-50">Crossrefga yuborish ({crossrefMode})</button>
+      {crossrefJobId && <button type="button" disabled={busy} onClick={checkCrossrefStatus} className="rounded border border-slate-300 px-3 py-2 text-sm disabled:opacity-50">Crossref yakuniy hisobotini tekshirish</button>}
       <button type="button" disabled={busy || !zenodo} onClick={() => deposit('zenodo')} className="rounded border border-slate-300 px-3 py-2 text-sm disabled:opacity-50">Zenodo qoralamasi ({zenodoMode})</button>
     </div>
     {(!crossref || !zenodo) && <p className="text-xs text-slate-600">Kalitlari sozlanmagan xizmat tugmasi faol emas.</p>}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PDFDocument, degrees } from 'pdf-lib';
+import { PDFDocument, PDFDict, PDFName, degrees } from 'pdf-lib';
 import { assemblePublicationPdf, embedJournalFonts, generateCertificatePdf, generateIssueTocPdf, generateArticleTitlePagePdf, wrapPublicationText } from '@/lib/pdf/generator';
 import { journalStore } from '@/lib/data-store';
 
@@ -44,6 +44,9 @@ describe('Publication PDF layout', () => {
     expect(doc.getPageCount()).toBe(1);
     expect(doc.getPage(0).getWidth()).toBeCloseTo(841.89);
     expect(doc.getPage(0).getHeight()).toBeCloseTo(595.28);
+    // The QR and four local service marks must survive downloadable PDF generation.
+    const images = doc.getPage(0).node.Resources()?.lookup(PDFName.of('XObject'), PDFDict);
+    expect(images?.keys().length).toBeGreaterThanOrEqual(5);
     await expect(generateCertificatePdf({ ...cert, status: 'revoked' }, 'https://example.org')).rejects.toThrow('Certificate revoked');
     const overflow = await PDFDocument.load(await generateCertificatePdf({ ...cert, article_title: 'Very long scientific title '.repeat(150) }, 'https://example.org/verify/test'));
     expect(overflow.getPageCount()).toBeGreaterThan(1);

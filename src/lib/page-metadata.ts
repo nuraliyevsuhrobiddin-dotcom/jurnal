@@ -14,7 +14,7 @@ export async function policyMetadata(id: PolicyId, lang: string) {
 export function publicPageMetadata(lang: Language, path: string, title: string, description: string): Metadata {
   const url = siteUrl(`/${lang}${path}`);
   return {
-    title: `${title} | AGM Journal`, description,
+    title: /AGM Journal/i.test(title) ? title : `${title} | AGM Journal`, description,
     alternates: { canonical: url, types: { 'application/rss+xml': siteUrl(`/feed.xml?lang=${lang}`) }, languages: Object.fromEntries([...(['en', 'uz', 'ru'] as const).map(code => [code, siteUrl(`/${code}${path}`)]), ['x-default', siteUrl(`/en${path}`)]]) },
     openGraph: { title, description, url, siteName: 'AGM Journal', type: 'website', locale: lang === 'en' ? 'en_US' : lang === 'ru' ? 'ru_RU' : 'uz_UZ' },
     twitter: { card: 'summary', title, description },

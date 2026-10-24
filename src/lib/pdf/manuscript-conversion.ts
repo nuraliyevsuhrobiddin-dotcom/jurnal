@@ -30,8 +30,8 @@ function manuscriptBlocks(html: string): ManuscriptBlock[] {
   let listIndex = 1;
   const flush = () => {
     if (!current) return;
-    const runs = current.runs.map(run => ({ ...run, text: run.text.replace(/\s+/g, ' ') })).filter(run => run.text.trim());
-    if (runs.length) blocks.push({ tag: current.tag, runs });
+    const runs = current.runs.map(run => ({ ...run, text: run.text.replace(/\s+/g, ' ') }));
+    if (runs.some(run => run.text.trim())) blocks.push({ tag: current.tag, runs });
     current = null;
   };
   const tokens = /<\/?([a-z][a-z\d]*)\b[^>]*>|([^<]+)/gi;
@@ -66,25 +66,24 @@ function manuscriptBlocks(html: string): ManuscriptBlock[] {
   return blocks;
 }
 
-function manuscriptBodyBlocks(blocks: ManuscriptBlock[], article?: Article) {
+export function manuscriptBodyBlocks(blocks: ManuscriptBlock[], article?: Article) {
   if (!article) return blocks;
-  const textOf = (block: ManuscriptBlock) => block.runs.map(run => run.text).join(' ').replace(/\s+/g, ' ').trim();
+  const textOf = (block: ManuscriptBlock) => block.runs.map(run => run.text).join('').replace(/\s+/g, ' ').trim();
   const normalized = (value: string) => value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-  const headings = /^(?:\d+(?:\.\d+)*[.)]?\s*)?(introduction|background|literature review|materials and methods|methods|methodology|results|discussion|conclusion)\b/i;
-  const sectionIndex = blocks.findIndex((block, index) => index < 32 && headings.test(textOf(block)));
-  if (sectionIndex > 0) return blocks.slice(sectionIndex);
-
-  const labels = /^(abstract|summary|keywords?|key words|index terms?|corresponding author|authors?|affiliations?)\b/i;
+  // Remove only metadata reproduced verbatim on the cover. A later "Results"
+  // paragraph or a structured abstract must never erase earlier research text.
+  const labels = /^(?:abstract|summary|keywords?|key words|index terms?|corresponding author|authors?|affiliations?|annotatsiya|аннотация|ключевые слова|kalit so[‘’ʻʼ'`]?zlar)\s*[:：]\s*/i;
   const metadata = new Set([
     article.title_en, article.title_uz, article.title_ru,
     article.abstract_en, article.abstract_uz, article.abstract_ru,
     ...(article.authors || []).flatMap(author => [author.full_name, author.affiliation, author.email, author.orcid]),
     ...(article.keywords_en || []), ...(article.keywords_uz || []), ...(article.keywords_ru || []),
+    article.keywords_en?.join(' '), article.keywords_uz?.join(' '), article.keywords_ru?.join(' '),
   ].filter(Boolean).map(value => normalized(String(value))));
   let start = 0;
   while (start < Math.min(blocks.length, 20)) {
     const value = textOf(blocks[start]);
-    if (!value || labels.test(value) || metadata.has(normalized(value))) start++;
+    if (!value || metadata.has(normalized(value.replace(labels, '')))) start++;
     else break;
   }
   return blocks.slice(start);
@@ -93,7 +92,7 @@ function manuscriptBodyBlocks(blocks: ManuscriptBlock[], article?: Article) {
 export function publicationBodyPageCount(doc: PDFDocument) {
   const marker = doc.getKeywords()?.match(/(?:^|\s)AGM_BODY_PAGES:(\d+)(?:\s|$)/)?.[1];
   const count = marker ? Number(marker) : doc.getPageCount();
-  return Number.isSafeInteger(count) && count > 0 ? count : doc.getPageCount();
+  return Number.isSafeInteger(count) && count > 0 && count <= doc.getPageCount() ? count : doc.getPageCount();
 }
 
 async function typesetDocx(html: string, settings: JournalSettings, article?: Article) {
@@ -104,16 +103,19 @@ async function typesetDocx(html: string, settings: JournalSettings, article?: Ar
   let page = pdf.addPage([W, H]);
   let y = top;
   function frame() {
-    page.drawText(settings.journal_name.toUpperCase(), { x: M, y: H - 32, size: 9, font: fontBold, color: rgb(0.063, 0.169, 0.247) });
+    const journal = settings.journal_name.toUpperCase();
+    const journalSize = Math.min(9, (W - M * 2 - 105) / Math.max(fontBold.widthOfTextAtSize(journal, 1), 1));
+    page.drawText(journal, { x: M, y: H - 32, size: journalSize, font: fontBold, color: rgb(0.063, 0.169, 0.247) });
     if (articleId) page.drawText(articleId, { x: W - M - 88, y: H - 32, size: 7.5, font: fontRegular, color: rgb(0.35, 0.41, 0.46) });
     page.drawLine({ start: { x: M, y: H - 42 }, end: { x: W - M, y: H - 42 }, thickness: 0.8, color: rgb(0.05, 0.38, 0.39) });
   }
   function nextPage() { page = pdf.addPage([W, H]); frame(); y = top; }
   function drawBlock(block: ManuscriptBlock, index: number) {
     const heading = /^h[1-6]$/.test(block.tag);
-    const firstTitle = index === 0 && block.tag === 'p';
+    const firstTitle = !article && index === 0 && block.tag === 'p';
     const size = firstTitle ? 17 : block.tag === 'h1' ? 15 : block.tag === 'h2' ? 13 : block.tag === 'h3' ? 12 : heading ? 11 : 10.5;
     const lineHeight = firstTitle ? 22 : size * 1.55;
+    if (heading && y - lineHeight * 3 < bottom) nextPage();
     const blockRuns = block.runs;
     const maxWidth = W - M * 2;
     let lineRuns: ManuscriptRun[] = [];
@@ -144,14 +146,9 @@ async function typesetDocx(html: string, settings: JournalSettings, article?: Ar
         }
         const font = run.bold || heading || firstTitle ? fontBold : fontRegular;
         const wordWidth = font.widthOfTextAtSize(part, size);
-        const pendingSpace = lineRuns.length && lineRuns.at(-1)?.text !== ' ' ? font.widthOfTextAtSize(' ', size) : 0;
-        if (lineWidth + pendingSpace + wordWidth > maxWidth && lineRuns.length) {
+        if (lineWidth + wordWidth > maxWidth && lineRuns.length) {
           if (lineRuns.at(-1)?.text === ' ') { lineRuns.pop(); lineWidth -= font.widthOfTextAtSize(' ', size); }
           flushLine();
-        }
-        if (lineRuns.length && lineRuns.at(-1)?.text !== ' ') {
-          lineRuns.push({ text: ' ', bold: run.bold || heading || firstTitle });
-          lineWidth += font.widthOfTextAtSize(' ', size);
         }
         if (wordWidth <= maxWidth) {
           lineRuns.push({ text: part, bold: run.bold || heading || firstTitle }); lineWidth += wordWidth;
@@ -173,8 +170,11 @@ async function typesetDocx(html: string, settings: JournalSettings, article?: Ar
   blocks.forEach(drawBlock);
   pdf.getPages().forEach((sheet, index) => {
     sheet.drawLine({ start: { x: M, y: 48 }, end: { x: W - M, y: 48 }, thickness: 0.5, color: rgb(0.35, 0.41, 0.46) });
-    sheet.drawText(articleId ? `${settings.journal_name}  |  ${articleId}` : settings.journal_name, { x: M, y: 31, size: 7, font: fontRegular, color: rgb(0.35, 0.41, 0.46) });
-    sheet.drawText(`${index + 1} / ${pdf.getPageCount()}`, { x: W - M - 32, y: 31, size: 7, font: fontRegular, color: rgb(0.35, 0.41, 0.46) });
+    const footer = articleId ? `${settings.journal_name}  |  ${articleId}` : settings.journal_name;
+    const footerSize = Math.min(7, (W - M * 2 - 130) / Math.max(fontRegular.widthOfTextAtSize(footer, 1), 1));
+    sheet.drawText(footer, { x: M, y: 31, size: footerSize, font: fontRegular, color: rgb(0.35, 0.41, 0.46) });
+    const number = article?.page_first ? `p. ${article.page_first + index}  |  ${index + 1} / ${pdf.getPageCount()}` : `${index + 1} / ${pdf.getPageCount()}`;
+    sheet.drawText(number, { x: W - M - fontRegular.widthOfTextAtSize(number, 7), y: 31, size: 7, font: fontRegular, color: rgb(0.35, 0.41, 0.46) });
   });
   if (article) {
     const title = (article.original_language === 'en' ? article.title_en : article.original_language === 'ru' ? article.title_ru : article.title_uz) || article.title_uz;
@@ -225,7 +225,7 @@ export async function manuscriptToPdf(bytes: Uint8Array, extension: string, sett
   const zip = await JSZip.loadAsync(bytes);
   const xml = await zip.file('word/document.xml')?.async('string') || '';
   // Never silently discard scientific figures, equations, tables or notes.
-  if (/<(?:m:oMath|w:(?:drawing|pict|tbl|object|footnoteReference|endnoteReference))\b/.test(xml)) {
+  if (/<(?:m:oMath|w:(?:drawing|pict|tbl|object|footnoteReference|endnoteReference|vertAlign|sym|txbxContent))\b/.test(xml)) {
     throw new ManuscriptFileError('Bu DOCX’da jadval, rasm, formula yoki izoh bor. Ularni to‘liq saqlash uchun Word’dan PDF sifatida saqlang va shu PDF’ni tanlang.');
   }
   const parsed = await parseDocxFile(Buffer.from(bytes));

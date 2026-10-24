@@ -7,7 +7,7 @@ import os from 'node:os';
 import { createServerClient } from '@/lib/supabase/server';
 import { consumeLimit, protectRequest, requestIdentity } from '@/lib/request-limit';
 import { boundedBody } from '@/lib/bounded-body';
-import { assertPublicationReady } from '@/lib/publication-ready';
+import { assertPublicationReady, assertIssuePageRangeAvailable } from '@/lib/publication-ready';
 import { readArticlePdf } from '@/lib/pdf/storage';
 import { journalStore } from '@/lib/data-store';
 import { distinctEditorialMembers } from '@/lib/editorial-members';
@@ -56,11 +56,24 @@ describe('Abuse protection', () => {
 
 describe('Publication readiness', () => {
   const article = { ...journalStore.articles[0], pdf_url: '/api/articles/test/pdf', pdf_file_size: 1000, issue: journalStore.issues[0] };
+  it('rejects intersecting journal page ranges, allowing adjacent ranges and other issues', () => {
+    const existing = { ...article, id: 'existing', status: 'published' as const, page_first: 5, page_last: 9 };
+    for (const [page_first, page_last] of [[1, 5], [9, 12], [6, 7], [1, 20]]) {
+      expect(() => assertIssuePageRangeAvailable({ ...article, page_first, page_last }, [existing])).toThrow('sahifalari');
+    }
+    expect(() => assertIssuePageRangeAvailable({ ...article, page_first: 10, page_last: 12 }, [existing])).not.toThrow();
+    expect(() => assertIssuePageRangeAvailable({ ...article, issue_id: 'another-issue', page_first: 5, page_last: 9 }, [existing])).not.toThrow();
+    expect(() => assertIssuePageRangeAvailable(existing, [existing])).not.toThrow();
+    expect(() => assertIssuePageRangeAvailable(article, [{ ...existing, status: 'draft' }])).not.toThrow();
+  });
   it('blocks publication when English discovery metadata is absent or whitespace-only', async () => {
     await expect(assertPublicationReady({ ...article, title_en: '  ' })).rejects.toThrow('Inglizcha sarlavha');
     await expect(assertPublicationReady({ ...article, abstract_en: undefined })).rejects.toThrow('Inglizcha annotatsiya');
     await expect(assertPublicationReady({ ...article, keywords_en: [] })).rejects.toThrow('Inglizcha kalit');
     await expect(assertPublicationReady({ ...article, keywords_en: ['  '] })).rejects.toThrow();
+  });
+  it('blocks unresolved placeholder author names before publishing', async () => {
+    await expect(assertPublicationReady({ ...article, authors: article.authors!.map(author => ({ ...author, full_name: 'Normengov Jorabek XXX' })) })).rejects.toThrow('tasdiqlangan');
   });
   it('rejects missing issue, author metadata, and stored manuscript', async () => {
     await expect(assertPublicationReady({ ...article, issue_id: undefined })).rejects.toThrow();
@@ -77,6 +90,12 @@ describe('Publication readiness', () => {
     document.setKeywords(['AGM_FULL_ARTICLE_V2']); vi.mocked(readArticlePdf).mockResolvedValue(await document.save());
     await expect(assertPublicationReady(article)).rejects.toThrow('betlari');
     await expect(assertPublicationReady({ ...article, page_first: 1, page_last: 1 })).resolves.toBeUndefined();
+  });
+  it('checks the journal page range for an original author PDF as well', async () => {
+    const document = await PDFDocument.create(); document.addPage(); document.addPage();
+    vi.mocked(readArticlePdf).mockResolvedValue(await document.save());
+    await expect(assertPublicationReady({ ...article, page_first: 7, page_last: 9 })).rejects.toThrow('betlari');
+    await expect(assertPublicationReady({ ...article, page_first: 7, page_last: 8 })).resolves.toBeUndefined();
   });
 });
 

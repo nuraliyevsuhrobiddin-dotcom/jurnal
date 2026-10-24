@@ -1,6 +1,6 @@
 export class BodyLimitError extends Error {}
 
-export async function boundedBody(request: Request, maximum: number): Promise<Uint8Array> {
+export async function boundedBody(request: Pick<Request, 'headers' | 'body'>, maximum: number): Promise<Uint8Array> {
   if (Number(request.headers.get('content-length') || 0) > maximum) throw new BodyLimitError('Request too large');
   if (!request.body) return new Uint8Array();
   const reader = request.body.getReader();

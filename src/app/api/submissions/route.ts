@@ -72,11 +72,17 @@ export async function POST(request: NextRequest) {
         ],
       });
       const reference = `AGM-SUB-${uuid.slice(0, 8).toUpperCase()}`;
+      let receiptQueued = false;
+      let receiptTrackingUrl = '';
       try {
-        const notification = await queueNotification({ recipient: data.email, subject: `AGM Journal — ${reference}`, body: `Your manuscript has been received. Receipt does not constitute acceptance for publication.\n\nReference: ${reference}\nTitle: ${data.title}\n\nTrack your manuscript using this private link:\n${trackingUrl(article.id)}\n\nThe editorial office will contact you after review.` });
+        receiptTrackingUrl = trackingUrl(article.id);
+        const notification = await queueNotification({ recipient: data.email, subject: `AGM Journal — ${reference}`, body: `Your manuscript has been received. Receipt does not constitute acceptance for publication.\n\nReference: ${reference}\nTitle: ${data.title}\n\nTrack your manuscript using this private link:\n${receiptTrackingUrl}\n\nThe editorial office will contact you after review.` });
+        receiptQueued = true;
         after(async () => { await deliverNotification(notification); });
       } catch (error) { console.error('Submission receipt queue failed:', error); }
-      return NextResponse.json({ success: true, submission_id: article.id, reference }, { status: 201 });
+      return NextResponse.json({ success: true, submission_id: article.id, reference,
+        tracking_url: receiptTrackingUrl ? new URL(receiptTrackingUrl).pathname : null, receipt_queued: receiptQueued,
+      }, { status: 201, headers: { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' } });
     } catch (cause) {
       await removeManuscript(stored);
       throw cause;

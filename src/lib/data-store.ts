@@ -314,7 +314,7 @@ export class JournalStore {
     established_year: 2026,
     contact_email: 'agmjoural.editorial@gmail.com',
     contact_phone: '+998 99 777 70 31',
-    address: 'Toshkent shahri, Mirobod tumani, Nukus ko‘chasi 45-uy',
+    address: 'O‘zbekiston, Qashqadaryo viloyati, Shahrisabz shahri, Shahrisabz ko‘chasi, 10-uy, 181302 (yozishmalar uchun)',
     doi_prefix: '',
   };
 

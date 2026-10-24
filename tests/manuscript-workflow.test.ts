@@ -10,6 +10,7 @@ import { saveManuscript } from '@/lib/manuscript-storage';
 import { isDocxArchive } from '@/lib/docx-validation';
 import { extractManuscriptMetadata, metadataReport } from '@/lib/manuscript-metadata';
 import { checkManuscriptLanguage } from '@/lib/manuscript-language';
+import { queueNotification } from '@/lib/notifications';
 import { applyManuscriptSuggestions, clearAutomaticFields, editManuscriptField, emptyManuscriptFields, type TrackedFields } from '@/lib/manuscript-fields';
 
 vi.mock('next/server', async importOriginal => ({ ...await importOriginal<typeof import('next/server')>(), after: vi.fn() }));
@@ -99,6 +100,20 @@ describe('Submission storage and verification', () => {
     expect((await request({}, true)).status).toBe(201);
     expect(vi.mocked(createArticle).mock.calls[0][0].submission_notes).toContain('Manuscript language: english');
   });
+  it('returns a private tracking link so receipt delivery is not the only way to follow a submission', async () => {
+    const response = await request();
+    expect(response.status).toBe(201);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.json()).toMatchObject({ success: true, receipt_queued: true, tracking_url: expect.stringMatching(/^\/track\//) });
+  });
+
+  it('keeps a saved submission and its tracking link when the email queue fails', async () => {
+    vi.mocked(queueNotification).mockRejectedValueOnce(new Error('Synthetic outbox failure'));
+    const response = await request();
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ success: true, receipt_queued: false, tracking_url: expect.stringMatching(/^\/track\//) });
+    expect(createArticle).toHaveBeenCalledTimes(1);
+  });
   it('rejects non-English Word body even with English metadata', async () => {
     const zip = await JSZip.loadAsync(await (await template()).arrayBuffer());
     zip.file('word/document.xml', `<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>${'va uchun bilan ushbu tadqiqot natijalar va maqola orqali bu bir ham '.repeat(12)}</w:t></w:r></w:p></w:body></w:document>`);
@@ -115,6 +130,12 @@ describe('Submission storage and verification', () => {
   });
   it('rejects non-English metadata even when lang is en', async () => {
     expect((await request({ abstract: 'va uchun bilan ushbu tadqiqot natijalar va maqola orqali bu bir ham '.repeat(5) })).status).toBe(400);
+    expect(createArticle).not.toHaveBeenCalled();
+  });
+  it('rejects unchanged template metadata instead of saving example author details', async () => {
+    const buffer = Buffer.from(await (await template()).arrayBuffer());
+    const metadata = extractManuscriptMetadata((await mammoth.extractRawText({ buffer })).value);
+    expect((await request(Object.fromEntries(Object.entries(metadata).filter(([, value]) => typeof value === 'string')) as Record<string, string>, true)).status).toBe(400);
     expect(createArticle).not.toHaveBeenCalled();
   });
 });

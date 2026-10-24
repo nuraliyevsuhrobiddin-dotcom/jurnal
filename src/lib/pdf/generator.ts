@@ -1,5 +1,7 @@
 import { PDFDocument, PDFFont, degrees, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
+import sharp from 'sharp';
+import { certificateServices, certificateServicesNote } from './certificate-services';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { generateQrPngBuffer } from './qr';
@@ -58,13 +60,18 @@ export async function generateCertificatePdf(
   const { fontBold, fontRegular } = await embedJournalFonts(doc);
   const W = 841.89, H = 595.28;
   const navy = rgb(0.063, 0.169, 0.247), teal = rgb(0.06, 0.38, 0.39);
-  const gold = teal, muted = rgb(0.38, 0.43, 0.46);
+  const gold = rgb(0.72, 0.61, 0.40), muted = rgb(0.32, 0.38, 0.42);
+  const logos = await Promise.all(certificateServices.map(async service => {
+    const bytes = await readFile(path.join(process.cwd(), 'public', service.asset));
+    const png = await sharp(bytes, { density: 192 }).resize({ width: 570, height: 192, fit: 'inside' }).png().toBuffer();
+    return doc.embedPng(png);
+  }));
   const qr = await doc.embedPng(await generateQrPngBuffer(verificationUrl));
   let page = doc.addPage([W, H]);
-  let y = H - 185;
+  let y = H - 175;
   const journalName = cert.journal_name || settings?.journal_name || 'AGM Journal';
   function frame() {
-    page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: rgb(1, 1, 1) });
+    page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: rgb(0.996, 0.991, 0.978) });
     page.drawRectangle({ x: 25, y: 25, width: W - 50, height: H - 50, borderColor: gold, borderWidth: 0.8 });
     page.drawRectangle({ x: W - 192, y: 26, width: 166, height: H - 52, color: navy });
     page.drawText('AGM', { x: W - 165, y: H - 86, size: 32, font: fontBold, color: rgb(1, 1, 1) });
@@ -74,7 +81,7 @@ export async function generateCertificatePdf(
     page.drawText('ONLINE REGISTRY', { x: W - 158, y: 115, size: 7, font: fontRegular, color: rgb(0.75, 0.84, 0.83) });
     page.drawText(journalName.toUpperCase(), { x: 54, y: H - 74, size: fitFont(journalName.toUpperCase(), fontBold, 19, W - 276), font: fontBold, color: navy });
     page.drawLine({ start: { x: 54, y: H - 91 }, end: { x: W - 218, y: H - 91 }, thickness: 1.3, color: teal });
-    page.drawText(doc.getPageCount() === 1 ? 'SERTIFIKAT / CERTIFICATE' : 'CERTIFICATE / CONTINUED', { x: 54, y: H - 130, size: 24, font: fontBold, color: gold });
+    page.drawText(doc.getPageCount() === 1 ? 'SERTIFIKAT / CERTIFICATE' : 'CERTIFICATE / CONTINUED', { x: 54, y: H - 130, size: 24, font: fontBold, color: teal });
     page.drawText('ILMIY MAQOLA NASHRI  /  SCIENTIFIC PUBLICATION', { x: 54, y: H - 149, size: 8, font: fontRegular, color: muted });
   }
   frame();
@@ -82,7 +89,7 @@ export async function generateCertificatePdf(
     const font = bold ? fontBold : fontRegular;
     const clean = value.replace(/[\r\n\t]+/g, ' ');
     for (const line of wrapText(clean, W - 276, size, font)) {
-      if (y < 134) { page = doc.addPage([W, H]); frame(); y = H - 185; }
+      if (y < 214) { page = doc.addPage([W, H]); frame(); y = H - 175; }
       page.drawText(line, { x: 54, y, size, font, color }); y -= gap;
     }
   }
@@ -100,6 +107,20 @@ export async function generateCertificatePdf(
   text(`Nashr sanasi / Publication date: ${cert.issue_date}`, 9, false, muted);
   if (settings && isValidIssn(settings.issn_online)) text(`ISSN: ${settings.issn_online}`, 8, false, muted);
   doc.getPages().forEach((sheet, index) => {
+    // A fixed service band sits below all flowing text, above the registry.
+    sheet.drawLine({ start: { x: 54, y: 198 }, end: { x: W - 218, y: 198 }, thickness: 0.6, color: gold });
+    sheet.drawText('SUPPORTED SERVICES / NASHR XIZMATLARI', { x: 54, y: 184, size: 7, font: fontBold, color: teal });
+    const cellWidth = (W - 276) / certificateServices.length;
+    certificateServices.forEach((service, serviceIndex) => {
+      const x = 54 + serviceIndex * cellWidth;
+      const logo = logos[serviceIndex];
+      const logoSize = logo.scaleToFit(service.name === 'ORCID' ? 23 : 110, 23);
+      sheet.drawRectangle({ x, y: 145, width: cellWidth - 10, height: 31, color: rgb(1, 1, 1) });
+      sheet.drawImage(logo, { x: x + 5, y: 149 + (23 - logoSize.height) / 2, ...logoSize });
+      if (service.name === 'ORCID') sheet.drawText('ORCID', { x: x + 34, y: 156, size: 12, font: fontBold, color: navy });
+      sheet.drawText(service.caption, { x: x + 5, y: 132, size: 6.5, font: fontRegular, color: muted });
+    });
+    sheet.drawText(certificateServicesNote, { x: 54, y: 117, size: 6.5, font: fontRegular, color: muted });
     sheet.drawLine({ start: { x: 54, y: 108 }, end: { x: W - 218, y: 108 }, thickness: 0.6, color: gold });
     sheet.drawText(cert.certificate_number, { x: 54, y: 87, size: fitFont(cert.certificate_number, fontBold, 9, W - 276), font: fontBold, color: navy });
     sheet.drawText(`Tekshiruv kodi / Verification: ${cert.verification_code}`, { x: 54, y: 70, size: fitFont(`Tekshiruv kodi / Verification: ${cert.verification_code}`, fontRegular, 8, W - 276), font: fontRegular, color: muted });
@@ -234,7 +255,7 @@ export async function generatePublicationCoverPdf(article: Article, settings: Jo
   }
   function newPage() {
     page = doc.addPage([W, H]);
-    page.drawText(settings.journal_name.toUpperCase(), { x: M, y: H - 42, size: 10, font: fontBold, color: navy });
+    page.drawText(settings.journal_name.toUpperCase(), { x: M, y: H - 42, size: fitFont(settings.journal_name.toUpperCase(), fontBold, 10, W - M * 2 - 105), font: fontBold, color: navy });
     page.drawText(articleId, { x: W - M - 82, y: H - 42, size: 7, font: fontRegular, color: muted });
     page.drawLine({ start: { x: M, y: H - 54 }, end: { x: W - M, y: H - 54 }, thickness: 0.8, color: teal });
     y = H - 88;
@@ -248,13 +269,14 @@ export async function generatePublicationCoverPdf(article: Article, settings: Jo
   page.drawRectangle({ x: M, y: H - 226, width: articleTypeWidth + 16, height: 16, color: pale });
   page.drawRectangle({ x: M, y: H - 226, width: 2, height: 16, color: teal });
   page.drawText(articleTypeLabel, { x: M + 8, y: H - 220, size: 7, font: fontBold, color: teal });
-  const titleSize = fitFont(title, fontBold, 25, W - M * 2);
-  const titleLines = wrapped(title, Math.min(25, Math.max(18, titleSize)), fontBold);
+  const titleSize = 22;
+  const titleLines = wrapped(title, titleSize, fontBold);
   for (const line of titleLines) {
     if (y < 90) newPage();
-    page.drawText(line, { x: M, y, size: Math.min(25, Math.max(18, titleSize)), font: fontBold, color: navy });
-    y -= 32;
+    page.drawText(line, { x: M, y, size: titleSize, font: fontBold, color: navy });
+    y -= 29;
   }
+  if (y < 125) newPage();
   y -= 7;
   page.drawLine({ start: { x: M, y }, end: { x: M + 54, y }, thickness: 2.5, color: teal }); y -= 20;
   page.drawText('AUTHORS & AFFILIATIONS', { x: M, y, size: 7, font: fontBold, color: teal }); y -= 17;
@@ -297,7 +319,12 @@ export async function generatePublicationCoverPdf(article: Article, settings: Jo
   y -= 7; page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.5, color: muted }); y -= 15;
   page.drawText('HOW TO CITE', { x: M, y, size: 7, font: fontBold, color: teal }); y -= 13;
   for (const line of wrapped(cite, 7.5, fontRegular)) { if (y < 67) newPage(); page.drawText(line, { x: M, y, size: 7.5, font: fontRegular, color: ink }); y -= 11; }
-  if (article.doi) { if (y < 67) newPage(); page.drawText(`DOI  https://doi.org/${article.doi}`, { x: M, y, size: 7.5, font: fontRegular, color: teal }); y -= 11; }
+  if (article.doi) {
+    for (const line of wrapped(`DOI  https://doi.org/${article.doi}`, 7.5, fontRegular)) {
+      if (y < 67) newPage();
+      page.drawText(line, { x: M, y, size: 7.5, font: fontRegular, color: teal }); y -= 11;
+    }
+  }
   if (isValidIssn(settings.issn_online)) { if (y < 67) newPage(); page.drawText(`ISSN  ${settings.issn_online}`, { x: M, y, size: 7, font: fontRegular, color: muted }); }
   doc.getPages().forEach((sheet, index) => {
     sheet.drawLine({ start: { x: M, y: 43 }, end: { x: W - M, y: 43 }, thickness: 0.45, color: muted });

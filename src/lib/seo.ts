@@ -113,6 +113,7 @@ export function generateArticleJsonLd(article: Article, settings: JournalSetting
   const url = `${BASE_URL}/${lang}/article/${article.slug}`;
   const title = (lang === 'ru' ? article.title_ru : lang === 'en' ? article.title_en : article.title_uz) || article.title_uz;
   const abstract = (lang === 'ru' ? article.abstract_ru : lang === 'en' ? article.abstract_en : article.abstract_uz) || article.abstract_uz;
+  const keywords = (lang === 'ru' ? article.keywords_ru : lang === 'en' ? article.keywords_en : article.keywords_uz) || article.keywords_uz;
   return {
     '@context': 'https://schema.org',
     '@type': 'ScholarlyArticle',
@@ -122,6 +123,7 @@ export function generateArticleJsonLd(article: Article, settings: JournalSetting
     'headline': title,
     'name': title,
     'description': abstract,
+    'keywords': keywords,
     'articleSection': subjectLabel(resolveSubjectId(article), lang),
     'dateModified': article.updated_at,
     'isAccessibleForFree': true,
@@ -129,6 +131,8 @@ export function generateArticleJsonLd(article: Article, settings: JournalSetting
     'encoding': { '@type': 'MediaObject', contentUrl: `${url}/fulltext.pdf`, encodingFormat: 'application/pdf' },
     'datePublished': article.publication_date || article.created_at,
     'inLanguage': article.original_language,
+    ...(article.page_first != null ? { pageStart: article.page_first } : {}),
+    ...(article.page_last != null ? { pageEnd: article.page_last } : {}),
     'author': (article.authors || []).map(a => ({
       '@type': 'Person',
       'name': scholarlyAuthorName(a.full_name),
@@ -148,7 +152,5 @@ export function generateArticleJsonLd(article: Article, settings: JournalSetting
       },
     },
     ...(article.doi ? { 'identifier': `https://doi.org/${article.doi}` } : {}),
-    ...(article.page_first ? { 'pageStart': article.page_first } : {}),
-    ...(article.page_last ? { 'pageEnd': article.page_last } : {}),
   };
 }

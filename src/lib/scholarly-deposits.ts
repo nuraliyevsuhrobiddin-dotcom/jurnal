@@ -40,7 +40,7 @@ export async function submitCrossref(article: Article, settings: JournalSettings
     await saveIntegrationJob(tracked);
     const form = new FormData();
     form.set('operation', 'doMDUpload'); form.set('login_id', config.username); form.set('login_passwd', config.password);
-    form.set('fname', new Blob([content], { type: 'application/xml' }), `agm-${article.id}.xml`);
+    form.set('fname', new Blob([content], { type: 'application/xml' }), `agm-${job.id}.xml`);
     const response = await fetch(config.url, { method: 'POST', body: form, redirect: 'error', signal: AbortSignal.timeout(20000) });
     if (!response.ok) return { ...tracked, status: 'failed', message: `Crossref HTTP ${response.status}. Hisob va depozit jurnalini tekshiring.` };
     const text = await response.text();

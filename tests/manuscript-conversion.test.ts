@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import JSZip from 'jszip';
 import { PDFDocument } from 'pdf-lib';
-import { manuscriptToPdf } from '@/lib/pdf/manuscript-conversion';
+import { manuscriptToPdf, manuscriptBodyBlocks, publicationBodyPageCount } from '@/lib/pdf/manuscript-conversion';
 import { generateArticleTitlePagePdf, assemblePublicationPdf } from '@/lib/pdf/generator';
 import { generatePolicyPdf } from '@/lib/pdf/policy-generator';
 import { getPolicyDocument } from '@/lib/policies';
@@ -48,7 +48,26 @@ describe('Full manuscript conversion', () => {
     const pdf = await PDFDocument.load(await manuscriptToPdf(await docx(body), 'docx', settings));
     expect(pdf.getPageCount()).toBeGreaterThan(3);
   });
-  it.each(['<w:tbl/>', '<w:drawing/>', '<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"/>'])('refuses to silently lose scientific content: %s', async element => {
+  it.each(['<w:tbl/>', '<w:drawing/>', '<w:rPr><w:vertAlign w:val="superscript"/></w:rPr>', '<w:sym w:font="Symbol" w:char="F061"/>', '<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"/>'])('refuses to silently lose scientific content: %s', async element => {
     await expect(manuscriptToPdf(await docx(`<w:p><w:r><w:t>Research</w:t></w:r></w:p>${element}`), 'docx', settings)).rejects.toThrow('Word’dan PDF');
+  });
+  it('retains the research preceding a Results paragraph and unmatched abstract text', () => {
+    const article = journalStore.articles[0];
+    const block = (text: string) => ({ tag: 'p', runs: [{ text, bold: false }] });
+    const blocks = [block(article.title_uz), block('Abstract: An updated scientific summary.'), block('Research context and evidence.'), block('Results showed significant differences.')];
+    expect(manuscriptBodyBlocks(blocks, article)).toEqual(blocks.slice(1));
+    expect(manuscriptBodyBlocks(blocks.slice(2), article)).toEqual(blocks.slice(2));
+  });
+  it('removes only matching cover metadata, preserving words split by inline formatting', () => {
+    const article = journalStore.articles[0];
+    const title = { tag: 'p', runs: [{ text: article.title_uz.slice(0, 5), bold: true }, { text: article.title_uz.slice(5), bold: false }] };
+    const abstract = { tag: 'p', runs: [{ text: `Abstract: ${article.abstract_uz}`, bold: false }] };
+    const body = { tag: 'h1', runs: [{ text: 'Introduction', bold: true }] };
+    expect(manuscriptBodyBlocks([title, abstract, body], article)).toEqual([body]);
+  });
+  it('does not trust a body-page marker exceeding the actual document', async () => {
+    const pdf = await PDFDocument.create(); pdf.addPage();
+    pdf.setKeywords(['AGM_BODY_PAGES:999']);
+    expect(publicationBodyPageCount(pdf)).toBe(1);
   });
 });

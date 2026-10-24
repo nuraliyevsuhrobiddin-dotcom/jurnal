@@ -53,6 +53,7 @@ describe('Sandbox deposit workflows', () => {
     expect(fetcher.mock.calls[0][0]).toBe('https://test.crossref.org/servlet/deposit');
     const form = (fetcher.mock.calls[0] as unknown as [string, RequestInit])[1].body as FormData;
     expect(form.get('operation')).toBe('doMDUpload'); expect(form.get('fname')).toBeInstanceOf(Blob);
+    expect((form.get('fname') as File).name).toBe(`agm-${result.id}.xml`);
     expect(result.status).toBe('submitted'); expect(result.message).toContain('DOI hali tasdiqlanmagan');
     expect(JSON.stringify(await getIntegrationJob(result.id))).not.toContain('synthetic-password');
   });

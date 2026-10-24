@@ -7,6 +7,15 @@ import { internationalMetadataGaps } from './international-metadata';
 
 export class PublicationError extends Error {}
 
+export function assertIssuePageRangeAvailable(article: Article, published: Article[]) {
+  const { issue_id, page_first, page_last } = article;
+  if (!issue_id || page_first == null || page_last == null) return;
+  const conflict = published.find(other => other.id !== article.id && other.status === 'published'
+    && other.issue_id === issue_id && other.page_first != null && other.page_last != null
+    && other.page_first <= page_last && other.page_last >= page_first);
+  if (conflict) throw new PublicationError(`Bu jurnal sonida ${conflict.page_first}–${conflict.page_last} sahifalari boshqa maqolaga ajratilgan. Bo‘sh sahifa diapazonini belgilang va PDF’ni qayta tayyorlang.`);
+}
+
 export async function assertPublicationReady(article: Article) {
   const parsed = articleSchema.safeParse(article);
   if (!parsed.success) throw new PublicationError('Nashr uchun sarlavha, annotatsiya, kalit so‘zlar va muallif ma’lumotlarini to‘ldiring.');
@@ -21,7 +30,7 @@ export async function assertPublicationReady(article: Article) {
   try {
     const pdf = await PDFDocument.load(bytes);
     if (pdf.getPageCount() < 1 || pdf.getKeywords()?.includes('AGM_METADATA_ONLY')) throw new Error('Missing manuscript');
-    if (pdf.getKeywords()?.includes('AGM_FULL_ARTICLE_V2') && article.page_last - article.page_first + 1 !== publicationBodyPageCount(pdf)) {
+    if (article.page_last - article.page_first + 1 !== publicationBodyPageCount(pdf)) {
       throw new PublicationError('Maqola sahifalari PDF betlari soniga mos emas. To‘liq faylni qayta saqlang yoki sahifalarni to‘g‘rilang.');
     }
   } catch (error) {

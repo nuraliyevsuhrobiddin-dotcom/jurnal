@@ -5,6 +5,7 @@ import { mailConfigured, mailProvider } from '@/lib/notifications';
 import { isServerSupabaseConfigured } from '@/lib/supabase/server';
 import { IntegrationControls, DepositActions } from '@/components/admin/IntegrationControls';
 import { configured, crossrefConfig, zenodoConfig, orcidConfig } from '@/lib/integration-config';
+import { DiscoverySetup } from '@/components/admin/DiscoverySetup';
 
 export default async function IntegrationsPage() {
   const [articles, settings] = await Promise.all([getAllArticlesAdmin(), getJournalSettings()]);
@@ -14,7 +15,7 @@ export default async function IntegrationsPage() {
   const services = [
     { name: 'OAI-PMH', state: 'Ishlaydi', detail: 'Dublin Core metama’lumotlari; sana filtri va sahifalangan yig‘ish.', href: '/api/oai?verb=Identify', action: 'Repozitoriyni tekshirish' },
     { name: 'RSS', state: 'Ishlaydi', detail: 'Yangi nashrlar tasmasi. O‘zbek, ingliz va rus tillari.', href: '/feed.xml?lang=uz', action: 'RSS tasmasini ochish' },
-    { name: 'Google Scholar', state: 'Metama’lumot mavjud', detail: 'Indekslashni Google hal qiladi. Search Console tekshiruvi: ' + (process.env.GOOGLE_SITE_VERIFICATION ? 'token sozlangan.' : 'token sozlanmagan.'), href: '/sitemap.xml', action: 'Sayt xaritasi' },
+    { name: 'Google Scholar', state: 'Metama’lumot mavjud', detail: 'Indekslashni Google hal qiladi. ' + (process.env.GOOGLE_SITE_VERIFICATION ? 'Search Console HTML tokeni sozlangan; indeks holati hisobda tekshiriladi.' : 'HTML tokeni yo‘q; DNS yoki boshqa usulda tasdiqlangan saytga bu token shart emas. Indeks holatini Search Console’da tekshiring.'), href: '/sitemap.xml', action: 'Sayt xaritasi' },
     { name: mailProvider() === 'gmail' ? 'Email / Gmail' : 'Email / Resend', state: mailConfigured() ? 'Kalitlar sozlangan' : 'Sozlash kerak', detail: 'Gmail uchun Google OAuth kalitlari va GMAIL_SENDER; Resend uchun RESEND_API_KEY va tasdiqlangan MAIL_FROM kerak.', href: '/admin/notifications', action: 'Email navbatini ko‘rish' },
     { name: 'Email qayta urinish jadvali', state: process.env.CRON_SECRET ? 'Maxfiy kalit sozlangan' : 'CRON_SECRET kerak', detail: 'Supabase jadvali: migration 012 va Vault sozlangach har 5 daqiqada. Har ishga tushishda 30 tagacha xat qayta ishlanadi. Vercel kunlik jadvali zaxira sifatida qoladi.', href: '/admin/notifications', action: 'Navbatni tekshirish' },
     { name: 'Supabase', state: isServerSupabaseConfigured ? 'Kalitlar sozlangan' : 'Lokal saqlash', detail: 'Production uchun DB, saqlash bucketlari va 001–012 migratsiyalarini tekshiring.', href: '/admin/settings', action: 'Jurnal sozlamalari' },
@@ -27,6 +28,7 @@ export default async function IntegrationsPage() {
     <header><h1 className="text-3xl font-bold text-navy-900">Ilmiy integratsiyalar</h1>
       <p className="mt-2 text-slate-600">Ishlayotgan imkoniyatlar, sozlash holati va nashr metama’lumotlari eksporti.</p></header>
     <IntegrationControls />
+    <DiscoverySetup verifiedToken={Boolean(process.env.GOOGLE_SITE_VERIFICATION?.trim())} doiPrefix={settings.doi_prefix} crossrefReady={configured(crossrefConfig)} />
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{services.map(service => <section key={service.name} className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
       <h2 className="text-lg font-bold text-navy-900">{service.name}</h2><p className="text-sm font-semibold text-teal-800">{service.state}</p>
       <p className="text-sm text-slate-600">{service.detail}</p><a href={service.href} className="inline-block text-sm font-semibold text-teal-800 underline">{service.action}</a>

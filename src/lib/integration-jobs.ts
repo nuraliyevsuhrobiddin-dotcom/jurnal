@@ -3,6 +3,7 @@ import { IntegrationError } from './integration-config';
 import { mkdir, writeFile, readFile, rename, link, unlink } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 
 export interface IntegrationJob {
   id: string; article_id: string; provider: 'crossref' | 'zenodo'; environment: string;
@@ -14,6 +15,19 @@ const directory = () => path.join(process.env.JOURNAL_DATA_DIR || path.join(proc
 const missingTable = (error: { code?: string } | null) => error?.code === 'PGRST205' || error?.code === '42P01';
 const storageKey = (id: string) => { filename(id); return `_integration-jobs/${id}.json`; };
 const missingObject = (error: { statusCode?: string | number; status?: string | number }) => Number(error.statusCode || error.status) === 404;
+
+async function replaceLocalJob(temporary: string, target: string) {
+  // On Windows, a concurrent reader/antivirus can briefly prevent replacement.
+  // Retry the atomic rename, never truncate or remove the existing job/claim.
+  for (let attempt = 0; ; attempt++) {
+    try { await rename(temporary, target); return; }
+    catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (attempt >= 5 || !['EPERM', 'EBUSY', 'EACCES'].includes(code || '')) throw error;
+      await delay(10 * 2 ** attempt);
+    }
+  }
+}
 
 async function readStoredJob(client: NonNullable<ReturnType<typeof createServerClient>>, id: string): Promise<IntegrationJob | null> {
   const { data, error } = await client.storage.from('journal-manuscripts').download(storageKey(id));
@@ -79,7 +93,8 @@ export async function saveIntegrationJob(job: IntegrationJob) {
     const target = filename(job.id);
     const temporary = `${target}.${randomUUID()}.tmp`;
     await writeFile(temporary, JSON.stringify(job), { mode: 0o600 });
-    await rename(temporary, target);
+    try { await replaceLocalJob(temporary, target); }
+    finally { await unlink(temporary).catch(error => { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }); }
   }
   return job;
 }

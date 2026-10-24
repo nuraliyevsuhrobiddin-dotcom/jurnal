@@ -7,6 +7,7 @@ import { getCertificateByCode, getJournalSettings } from '@/lib/db';
 import { isValidIssn } from '@/lib/identifiers';
 import { CheckCircle2, XCircle, Download, ArrowLeft } from 'lucide-react';
 import styles from './certificate.module.css';
+import { certificateServices } from '@/lib/pdf/certificate-services';
 
 export default async function DedicatedCertificatePage({ params }: { params: Promise<{ code: string }> }) {
  const { code } = await params;
@@ -30,6 +31,11 @@ export default async function DedicatedCertificatePage({ params }: { params: Pro
     <section className={styles.recipient}><p className={styles.kicker}>MUALLIF · AUTHOR</p><h2>{cert.author_name}</h2>{cert.author_affiliation && <p>{cert.author_affiliation}</p>}</section>
     <section className={styles.article}><p className={styles.kicker}>NASHR ETILGAN MAQOLA · PUBLISHED ARTICLE</p><h3>{cert.article_title}</h3></section>
     <dl className={styles.metadata}>{[['Jild / Volume', cert.issue_volume], ['Son / Issue', cert.issue_number], ['Yil / Year', cert.issue_year], ['Nashr sanasi / Date', cert.issue_date]].map(([label,value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+    <section className={styles.services} aria-labelledby="certificate-services-heading">
+     <div className={styles.servicesHeading}><p className={styles.kicker} id="certificate-services-heading">NASHR XIZMATLARI · SUPPORTED SERVICES</p><span>Scholarly publishing workflows</span></div>
+     <ul className={styles.serviceList}>{certificateServices.map(service => <li key={service.name}><div className={styles.serviceLogo}><Image src={service.asset} width={service.width} height={service.height} alt={service.name} unoptimized />{service.name === 'ORCID' && <strong>ORCID</strong>}</div><p>{service.caption}</p></li>)}</ul>
+     <p className={styles.serviceNote}>Logotiplar qo‘llab-quvvatlanadigan nashr xizmatlarini bildiradi; jurnalning indekslanganligi yoki ushbu tashkilotlar tasdig‘ini anglatmaydi.</p>
+    </section>
     <footer className={styles.registry}><div><p className={styles.kicker}>SERTIFIKAT REYESTRI</p><strong>{cert.certificate_number}</strong><p>Tekshiruv kodi: <span>{cert.verification_code}</span></p><p className={styles.small}>Nashriyot: {settings.publisher || settings.journal_name}</p></div><a className={styles.qr} href={verificationUrl} aria-label="Sertifikatning reyestr yozuvini ochish"><Image src={qrCode} unoptimized width={96} height={96} alt="Sertifikatning tekshirish sahifasi QR kodi" /><span>SCAN TO VERIFY</span></a><div className={styles.editorial}><strong>Jurnal tahririyati</strong><span>{isValid ? 'Nashr yozuvi tasdiqlangan' : 'BEKOR QILINGAN'}</span><a href={verificationUrl}>Sertifikatni tekshirish →</a></div></footer>
    </article>
    <p className={styles.note}>Sertifikat nashr yozuvini tasdiqlaydi. Uning amaldagi holati jurnal reyestrida tekshiriladi.</p>

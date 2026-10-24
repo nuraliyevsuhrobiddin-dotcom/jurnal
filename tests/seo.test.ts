@@ -103,6 +103,9 @@ describe('Google Scholar Metadata & SEO Tests', () => {
     expect(jsonLd.author.length).toBe(2);
     expect(jsonLd.author[0].name).toBe('Alisher Qodirov');
     expect(jsonLd.isPartOf.name).toBe('AGM Journal');
+    expect(jsonLd.keywords).toEqual(['economics', 'AI']);
+    expect(jsonLd.pageStart).toBe(1);
+    expect(jsonLd.pageEnd).toBe(12);
   });
 
   it('should generate localized metadata for verify-certificate page across languages', async () => {

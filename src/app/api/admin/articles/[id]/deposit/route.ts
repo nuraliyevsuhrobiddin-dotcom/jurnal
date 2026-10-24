@@ -6,6 +6,7 @@ import { protectRequest } from '@/lib/request-limit';
 import { submitCrossref, prepareZenodoDraft } from '@/lib/scholarly-deposits';
 import { IntegrationError } from '@/lib/integration-config';
 import { CrossrefExportError } from '@/lib/crossref-export';
+import { refreshCrossrefReport } from '@/lib/crossref-report';
 
 export const maxDuration = 60;
 
@@ -18,7 +19,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     let body;
     try { body = JSON.parse(new TextDecoder().decode(await boundedBody(request, 4096))); }
     catch (error) { if (error instanceof BodyLimitError) throw error; return NextResponse.json({ error: 'Noto‘g‘ri JSON.' }, { status: 400 }); }
-    if (!body || !['crossref', 'zenodo'].includes(body.provider) || Object.keys(body).some(key => key !== 'provider')) return NextResponse.json({ error: 'crossref yoki zenodo xizmatini tanlang.' }, { status: 400 });
+    if (!body || typeof body !== 'object' || Array.isArray(body) || !['crossref', 'zenodo'].includes(body.provider)) return NextResponse.json({ error: 'crossref yoki zenodo xizmatini tanlang.' }, { status: 400 });
+    if (body.action === 'check_status') {
+      if (body.provider !== 'crossref' || typeof body.job_id !== 'string' || Object.keys(body).some(key => !['provider', 'action', 'job_id'].includes(key))) return NextResponse.json({ error: 'Crossref depozitini tanlang.' }, { status: 400 });
+      const job = await refreshCrossrefReport(id, body.job_id);
+      return NextResponse.json({ job }, { headers: { 'Cache-Control': 'private, no-store' } });
+    }
+    if (Object.keys(body).some(key => key !== 'provider')) return NextResponse.json({ error: 'Noto‘g‘ri depozit amali.' }, { status: 400 });
     const [article, settings] = await Promise.all([getArticleById(id), getJournalSettings()]);
     if (!article) return new Response(null, { status: 404 });
     const job = body.provider === 'crossref' ? await submitCrossref(article, settings) : await prepareZenodoDraft(article, settings);

@@ -63,6 +63,8 @@
    - Canonical URL va 3 tildagi `hreflang` havolalari.
    - Dinamik XML sitemap (`/sitemap.xml`) va `robots.txt`.
    - JSON-LD `ScholarlyArticle` structured data.
+   - Ochiq sahifalarni amalda tekshirish: `npm run check:discovery -- --report`.
+   - [Google Search Console va Crossref DOI sozlash](docs/google-crossref-setup-uz.md).
 
 6. **Supabase Database & Xavfsizlik**:
    - SQL migratsiya fayli: `supabase/migrations/001_initial_schema.sql`
@@ -187,3 +189,8 @@ Standalone reverse proxies must replace X-Real-IP before enabling `TRUST_PROXY_I
 Publishing now requires an issue, page range, valid author metadata and an uploaded full PDF. Save new articles as drafts first. Public PDF downloads no longer return a cover-only placeholder. Public catalog and admin list paginate after filtering. Identical board entries are collapsed on the public page without deleting source data.
 
 See [verification details](artifacts/launch-hardening.md).
+
+
+## Sozlamalar va kalitlar
+
+O‘zbekcha yo‘riqnoma: [Kalitlar va ishga tushirish](docs/setup-uz.md). Tekshirish: `npm run check:setup -- --online`. Maxfiy qiymatlar chiqarilmaydi.

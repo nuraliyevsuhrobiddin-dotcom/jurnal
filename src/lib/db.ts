@@ -1,7 +1,7 @@
 import { journalStore } from './data-store';
 import { randomUUID } from 'node:crypto';
 import { isValidIssn } from './identifiers';
-import { assertPublicationReady, PublicationError } from './publication-ready';
+import { assertPublicationReady, assertIssuePageRangeAvailable, PublicationError } from './publication-ready';
 import { distinctEditorialMembers } from './editorial-members';
 import { isServerSupabaseConfigured, createServerClient } from './supabase/server';
 import { normalizeRemoteArticle, remoteArticles, remoteRows, remoteSave, remoteSaveArticle, remoteSaveIssue, remoteSettings, remoteSaveSettings } from './remote-db';
@@ -201,7 +201,12 @@ export async function updateArticle(id: string, updates: Partial<Article>): Prom
   if ((updates.status || previous.status) === 'published') {
     const issueId = Object.hasOwn(updates, 'issue_id') ? updates.issue_id : previous.issue_id;
     const issue = issueId ? await getIssueById(issueId) : undefined;
-    await assertPublicationReady({ ...previous, ...updates, issue: issue || undefined });
+    const candidate = { ...previous, ...updates, issue: issue || undefined };
+    await assertPublicationReady(candidate);
+    if (previous.status !== 'published' || candidate.issue_id !== previous.issue_id
+      || candidate.page_first !== previous.page_first || candidate.page_last !== previous.page_last) {
+      assertIssuePageRangeAvailable(candidate, await getPublishedArticles({ issueId }));
+    }
   }
   journalStore.refresh();
   if (createServerClient()) {
