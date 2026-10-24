@@ -15,15 +15,15 @@ export const manuscriptSubmissionSchema = z.object({
   email: z.string().trim().email().max(254),
   affiliation: z.string().trim().min(2).max(500),
   country: z.string().trim().min(2).max(100),
-  lang: z.literal('en', { error: 'Only English manuscripts are accepted.' }),
+  lang: z.enum(['uz', 'en', 'ru']),
   consent: z.literal('true'),
   original: z.literal('true'),
-  reviewed: z.literal('true', { error: 'Review the submission and confirm that it is in English.' }),
+  reviewed: z.literal('true', { error: 'Review the submission and confirm its language.' }),
   coauthors: z.array(coauthorSchema).max(30).default([]),
 }).superRefine((data, context) => {
   // A downloaded template is a starting point, not a completed submission.
   for (const field of ['title', 'abstract', 'keywords', 'author_name', 'email', 'affiliation', 'country'] as const) {
-    if (/^replace (?:this|with)\b/i.test(data[field]) || data[field] === 'author@example.org' || data[field] === 'first keyword, second keyword, third keyword') {
+    if (/^replace (?:this|with)\b/i.test(data[field]) || /^\{\{[A-Z_]+\}\}$/.test(data[field]) || data[field] === 'author@example.org' || data[field] === 'first keyword, second keyword, third keyword') {
       context.addIssue({ code: 'custom', path: [field], message: 'Replace the template examples with your manuscript details.' });
     }
   }

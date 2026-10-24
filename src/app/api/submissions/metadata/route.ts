@@ -5,7 +5,6 @@ import { readUploadForm, UploadFormError } from '@/lib/upload-form';
 import { BodyLimitError } from '@/lib/bounded-body';
 import { isDocxArchive } from '@/lib/docx-validation';
 import { extractManuscriptMetadata, metadataReport } from '@/lib/manuscript-metadata';
-import { checkManuscriptLanguage } from '@/lib/manuscript-language';
 import { protectRequest } from '@/lib/request-limit';
 
 export const runtime = 'nodejs';
@@ -27,7 +26,7 @@ export async function POST(request: NextRequest) {
     try { text = (await mammoth.extractRawText({ buffer })).value; }
     catch { return NextResponse.json({ error: 'The Word document could not be read.' }, { status: 400 }); }
     const metadata = extractManuscriptMetadata(text);
-    return NextResponse.json({ success: true, metadata, report: metadataReport(metadata), language: checkManuscriptLanguage(text) }, { headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json({ success: true, metadata, report: metadataReport(metadata) }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     if (error instanceof BodyLimitError) return NextResponse.json({ error: 'File exceeds 4 MB limit.' }, { status: 413 });
     if (error instanceof UploadFormError) return NextResponse.json({ error: 'Upload a valid multipart form.' }, { status: 400 });

@@ -9,7 +9,7 @@ describe('Submission interface languages', () => {
     ['uz', 'Maqola yuborish', 'Maqola nomi'],
     ['ru', 'Отправить рукопись', 'Название статьи'],
     ['en', 'Submit a manuscript', 'Article title'],
-  ])('renders the %s interface while preserving the English manuscript requirement', (lang, heading, title) => {
+  ])('renders the %s interface and defaults the manuscript language to it', (lang, heading, title) => {
     const html = renderToStaticMarkup(<SubmissionForm lang={lang} orcidEnabled />);
     expect(html).toContain(`<h1>${heading}</h1>`);
     expect(html).toContain(`${title} *`);
@@ -17,7 +17,10 @@ describe('Submission interface languages', () => {
     expect(html).toContain(`/api/orcid/start?lang=${lang}`);
     expect(html).toContain(`href="/${lang}/guidelines"`);
     expect(html).toContain(`href="/${lang}/privacy"`);
-    expect(html).toContain(submissionTranslator(lang)('Only English manuscripts are accepted. Receipt does not constitute acceptance for publication.'));
+    expect(html).toContain(submissionTranslator(lang)('Manuscripts are accepted in Uzbek, English and Russian. Receipt does not constitute acceptance for publication.'));
+    expect(html).toContain(`<option value="${lang}" selected=""`);
+    expect(html).toContain(`/api/submissions/template?lang=${lang}`);
+    expect(html).not.toContain('Only English manuscripts');
     if (lang !== 'en') {
       expect(html).not.toContain('>Send manuscript<');
       expect(html).not.toContain('>Review submission<');

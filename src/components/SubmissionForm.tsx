@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { CheckCircle2, Send, Upload } from 'lucide-react';
 import { MAX_UPLOAD_BYTES } from '@/lib/upload-limits';
 import { applyManuscriptSuggestions, clearAutomaticFields, editManuscriptField, emptyManuscriptFields, manuscriptFieldNames, type ManuscriptField, type TrackedFields } from '@/lib/manuscript-fields';
-import { checkManuscriptLanguage, type LanguageCheck } from '@/lib/manuscript-language';
 import { manuscriptSubmissionSchema } from '@/lib/submission-validation';
 import type { ManuscriptMetadata } from '@/lib/manuscript-metadata';
 import type { Language } from '@/types/journal';
@@ -21,10 +20,11 @@ export function SubmissionForm({ lang, orcidEnabled = false, orcidFailed = false
   const orcidStartUrl = `/api/orcid/start?lang=${lang}`;
   const [fields, setFields] = useState<TrackedFields>({ values: { ...emptyManuscriptFields }, automatic: {}, edited: {} });
   const [file, setFile] = useState<File | null>(null);
+  const [manuscriptLanguage, setManuscriptLanguage] = useState<Language>(lang);
+  const languageNames = { uz: t('Uzbek'), en: t('English'), ru: t('Russian') };
   const [coauthors, setCoauthors] = useState<Coauthor[]>([]);
   const [extracting, setExtracting] = useState(false);
   const [report, setReport] = useState<{ found: ManuscriptField[]; missing: ManuscriptField[] } | null>(null);
-  const [documentLanguage, setDocumentLanguage] = useState<LanguageCheck | null>(null);
   const [extractionNote, setExtractionNote] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
@@ -40,7 +40,6 @@ export function SubmissionForm({ lang, orcidEnabled = false, orcidFailed = false
   const sending = useRef(false);
   const reviewHeading = useRef<HTMLHeadingElement>(null);
   const values = fields.values;
-  const metadataLanguage = checkManuscriptLanguage(`${values.title}\n${values.abstract}\n${values.keywords}`);
   useEffect(() => () => controller.current?.abort(), []);
   useEffect(() => { if (reviewing) reviewHeading.current?.focus(); }, [reviewing]);
 
@@ -53,7 +52,7 @@ export function SubmissionForm({ lang, orcidEnabled = false, orcidFailed = false
     const nextFile = event.target.files?.[0] || null;
     controller.current?.abort();
     const id = ++extractionId.current;
-    setFile(nextFile); setFields(clearAutomaticFields); setReport(null); setDocumentLanguage(null);
+    setFile(nextFile); setFields(clearAutomaticFields); setReport(null);
     setExtractionNote(''); setExtracting(false); setError(''); setConfirmed(false);
     if (!nextFile) return;
     if (!/\.(pdf|docx)$/i.test(nextFile.name) || !nextFile.size || nextFile.size > MAX_UPLOAD_BYTES) { setError(invalidFile); return; }
@@ -68,7 +67,7 @@ export function SubmissionForm({ lang, orcidEnabled = false, orcidFailed = false
       if (!response.ok || !result.success) throw new Error(result.error || t("Word metadata could not be read."));
       if (id !== extractionId.current) return;
       setFields(current => applyManuscriptSuggestions(current, result.metadata as ManuscriptMetadata));
-      setReport(result.report); setDocumentLanguage(result.language);
+      setReport(result.report);
       setExtractionNote(result.report.found.length ? t("Review the detected values below. Your manual edits have been preserved.") : t("No supported metadata headings were found. Use the Word template or complete the fields manually."));
     } catch (cause) {
       if (id === extractionId.current) setExtractionNote(`${cause instanceof Error && cause.name !== 'AbortError' ? t(cause.message, 'Word metadata could not be read.') : t("Reading the Word file timed out.")} ${t('Complete the fields manually or select another file.')}`);
@@ -77,7 +76,7 @@ export function SubmissionForm({ lang, orcidEnabled = false, orcidFailed = false
 
   function validate() {
     if (!file || !/\.(pdf|docx)$/i.test(file.name) || !file.size || file.size > MAX_UPLOAD_BYTES) { setError(invalidFile); return false; }
-    const result = manuscriptSubmissionSchema.safeParse({ ...values, coauthors, lang: 'en', consent: String(consent), original: String(original), reviewed: 'true' });
+    const result = manuscriptSubmissionSchema.safeParse({ ...values, coauthors, lang: manuscriptLanguage, consent: String(consent), original: String(original), reviewed: 'true' });
     if (!result.success) {
       const fieldsWithErrors = [...new Set(result.error.issues.map(issue => String(issue.path[0] || 'submission')))];
       const reason = result.error.issues.some(issue => issue.message === 'Replace the template examples with your manuscript details.')
@@ -85,7 +84,6 @@ export function SubmissionForm({ lang, orcidEnabled = false, orcidFailed = false
       setError(`${t(reason)} ${fieldsWithErrors.map(field => labels[field as ManuscriptField] || t(field)).join(', ')}.`);
       return false;
     }
-    if (metadataLanguage.status === 'non_english' || documentLanguage?.status === 'non_english') { setError(t("Only English manuscripts are accepted. Correct the metadata or select an English manuscript.")); return false; }
     return true;
   }
 
@@ -102,7 +100,7 @@ export function SubmissionForm({ lang, orcidEnabled = false, orcidFailed = false
       const body = new FormData();
       for (const field of manuscriptFieldNames) body.set(field, values[field]);
       body.set('coauthors', JSON.stringify(coauthors.map(({ full_name, email, affiliation, country }) => ({ full_name, email, affiliation, country }))));
-      body.set('lang', 'en'); body.set('consent', 'true'); body.set('original', 'true'); body.set('reviewed', 'true'); body.set('file', file);
+      body.set('lang', manuscriptLanguage); body.set('consent', 'true'); body.set('original', 'true'); body.set('reviewed', 'true'); body.set('file', file);
       const response = await fetch('/api/submissions', { method: 'POST', body });
       const result = await response.json().catch(() => { throw new Error('Submission failed. Please try again.'); });
       if (!response.ok || !result.success) throw new Error(result.error || t("Submission failed. Please try again."));
@@ -122,7 +120,7 @@ export function SubmissionForm({ lang, orcidEnabled = false, orcidFailed = false
   }
 
   return <div className="policy-page" lang={lang}>
-    <div className="policy-banner"><div className="policy-width"><p className="policy-kicker">{t("AGM JOURNAL / AUTHORS")}</p><h1>{t("Submit a manuscript")}</h1><p>{t("Only English manuscripts are accepted. Receipt does not constitute acceptance for publication.")}</p></div></div>
+    <div className="policy-banner"><div className="policy-width"><p className="policy-kicker">{t("AGM JOURNAL / AUTHORS")}</p><h1>{t("Submit a manuscript")}</h1><p>{t("Manuscripts are accepted in Uzbek, English and Russian. Receipt does not constitute acceptance for publication.")}</p></div></div>
     <div className="submission-wrap">
       {reference ? <div className="submission-success" role="status"><CheckCircle2 size={32} /><h2>{t("Manuscript received")}</h2><p>{t("Submission reference")}</p><strong>{reference}</strong><p>{t("Keep this reference. The editorial office will contact the corresponding author at the email address provided.")}</p>
         {trackingLink && <><Link href={trackingLink} className="policy-button" prefetch={false}>{t('Track your manuscript')}</Link><p>{t('Save this private tracking link. Email delivery is processed separately.')}</p></>}
@@ -133,13 +131,13 @@ export function SubmissionForm({ lang, orcidEnabled = false, orcidFailed = false
               {orcidIdentity ? <p>{orcidIdentity.environment === 'sandbox' ? t("ORCID sandbox test; not saved as a real researcher profile") : t("Authenticated with ORCID")}: {orcidIdentity.id} {orcidIdentity.name}</p> : orcidEnabled ? <><a href={orcidStartUrl}>{t("Connect with ORCID")}</a><p>{t("Connect ORCID before completing the form.")}</p></> : <p>{t("ORCID authentication is not configured yet.")}</p>}
         </section>}
         <form onSubmit={review} className="submission-form" hidden={reviewing}>
-          <p className="submission-note">{t("Prepare your manuscript in English.")}{' '}<Link href={`/${lang}/guidelines`}>{t("Author guidelines")}</Link> | <a href="/api/submissions/template" download>{t("Download the English Word template")}</a></p>
+          <p className="submission-note">{t("Prepare your manuscript in the selected language.")}{' '}<Link href={`/${lang}/guidelines`}>{t("Author guidelines")}</Link> | <a href={`/api/submissions/template?lang=${manuscriptLanguage}`} download>{t("Download the Word template")}</a></p>
           <fieldset disabled={pending}><legend>{t("1. Manuscript file")}</legend>
-            <label className="submission-upload"><span><Upload size={18} />{t("Upload PDF or Word *")}</span><input required type="file" name="file" accept=".pdf,.docx" onChange={selectFile} /><small>{t("PDF or DOCX, up to 4 MB. Include all authors and affiliations. Word headings: Title, Abstract, Keywords, Corresponding author, Email, Affiliation, Country.")}</small>{file && <p>{file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)</p>}</label>
+            <label>{t('Manuscript language')} *<select name="lang" value={manuscriptLanguage} onChange={event => { setManuscriptLanguage(event.target.value as Language); setConfirmed(false); }}>{(['uz', 'en', 'ru'] as const).map(code => <option key={code} value={code}>{languageNames[code]}</option>)}</select></label>
+            <label className="submission-upload"><span><Upload size={18} />{t("Upload PDF or Word *")}</span><input required type="file" name="file" accept=".pdf,.docx" onChange={selectFile} /><small>{t("PDF or DOCX, up to 4 MB. Include all authors and affiliations. Use the template in your manuscript language.")}</small>{file && <p>{file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)</p>}</label>
             <div aria-live="polite">{extracting ? <p>{t("Reading the Word file...")}</p> : <>
               {extractionNote && <p>{extractionNote}</p>}
               {report && <><p>{t("Detected:")}{' '}{report.found.map(field => labels[field]).join(', ') || t("none")}.</p><p>{t("Not detected:")}{' '}{report.missing.map(field => labels[field]).join(', ') || t("none")}{t(". Complete any empty fields.")}</p></>}
-              {documentLanguage && <p>{t(documentLanguage.message)}</p>}
             </>}</div>
           </fieldset>
           <fieldset><legend>{t("2. Corresponding author")}</legend><div className="submission-grid">{(['author_name', 'email', 'affiliation', 'country'] as const).map(input)}</div></fieldset>
@@ -149,7 +147,7 @@ export function SubmissionForm({ lang, orcidEnabled = false, orcidFailed = false
             </div><button type="button" onClick={() => setCoauthors(current => current.filter(item => item.id !== author.id))}>{t("Remove coauthor")}{' '}{index + 1}</button></fieldset>)}
             <button type="button" disabled={coauthors.length >= 30} onClick={() => setCoauthors(current => [...current, { id: crypto.randomUUID(), full_name: '', email: '', affiliation: '', country: '' }])}>{t("Add coauthor")}</button>
           </fieldset>
-          <fieldset><legend>{t("4. Manuscript details (English)")}</legend>{(['title', 'abstract', 'keywords'] as const).map(input)}<small>{t("Separate keywords with commas or semicolons.")}</small>{values.abstract && <p role="status">{t(metadataLanguage.message)}</p>}</fieldset>
+          <fieldset><legend>{t("4. Manuscript details")} — {languageNames[manuscriptLanguage]}</legend>{(['title', 'abstract', 'keywords'] as const).map(input)}<small>{t("Separate keywords with commas or semicolons.")}</small></fieldset>
           <fieldset className="submission-declarations"><legend>{t("5. Declarations")}</legend>
             <label><input type="checkbox" required checked={original} onChange={event => setOriginal(event.target.checked)} /><span>{t("I confirm that this work is original, all authors agree to this submission, and it is not simultaneously submitted to another journal.")}</span></label>
             <label><input type="checkbox" required checked={consent} onChange={event => setConsent(event.target.checked)} /><span>{t("I have read the")}{' '}<Link href={`/${lang}/privacy`}>{t("privacy policy")}</Link> {' '}{t("and consent to the editorial office processing this submission for review.")}</span></label>
@@ -158,11 +156,11 @@ export function SubmissionForm({ lang, orcidEnabled = false, orcidFailed = false
           <button type="submit" className="policy-button" disabled={extracting || pending}>{t("Review submission")}</button>
         </form>
         {reviewing && <form onSubmit={submit} className="submission-form submission-review">
-          <h2 ref={reviewHeading} tabIndex={-1}>{t("Review your submission")}</h2><p>{t("Check the selected file, all authors and the English metadata before sending.")}</p>
-          <dl><dt>{t("Manuscript file")}</dt><dd>{file?.name}</dd><dt>{t("Language")}</dt><dd>{t("English")}</dd>{(['title', 'abstract', 'keywords'] as const).map(field => <div key={field}><dt>{labels[field]}</dt><dd style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{values[field]}</dd></div>)}</dl>
+          <h2 ref={reviewHeading} tabIndex={-1}>{t("Review your submission")}</h2><p>{t("Check the selected file, all authors and metadata before sending.")}</p>
+          <dl><dt>{t("Manuscript file")}</dt><dd>{file?.name}</dd><dt>{t("Language")}</dt><dd>{languageNames[manuscriptLanguage]}</dd>{(['title', 'abstract', 'keywords'] as const).map(field => <div key={field}><dt>{labels[field]}</dt><dd style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{values[field]}</dd></div>)}</dl>
           <h3>{t("Authors in publication order")}</h3><ol><li>{values.author_name} {' '}{t("(corresponding author) -")}{' '}{values.affiliation}, {values.country}; {values.email}</li>{coauthors.map(author => <li key={author.id}>{author.full_name} - {author.affiliation}, {author.country}{author.email && `; ${author.email}`}</li>)}</ol>
-          <p>{t(documentLanguage?.message || 'The document language requires editorial verification.')}</p><p>{t(metadataLanguage.message)}</p>
-          <fieldset className="submission-declarations" disabled={pending}><label><input type="checkbox" required checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /><span>{t("I reviewed the file and all author details. I confirm that the manuscript, title, abstract and keywords are in English.")}</span></label></fieldset>
+          <p>{t('The document language requires editorial verification.')}</p>
+          <fieldset className="submission-declarations" disabled={pending}><label><input type="checkbox" required checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /><span>{t("I reviewed the file and all author details. The manuscript, title, abstract and keywords are in the selected language.")}</span></label></fieldset>
           {error && <p className="submission-error" role="alert">{error}</p>}
           <div className="flex flex-wrap gap-4"><button type="button" className="policy-button" disabled={pending} onClick={() => { setReviewing(false); setConfirmed(false); setError(''); }}>{t("Back to editing")}</button><button type="submit" className="policy-button" disabled={pending || !confirmed}><Send size={16} />{pending ? t("Submitting...") : t("Send manuscript")}</button></div>
         </form>}

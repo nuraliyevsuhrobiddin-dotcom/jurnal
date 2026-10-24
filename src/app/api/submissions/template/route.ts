@@ -2,8 +2,32 @@ import JSZip from 'jszip';
 
 export const runtime = 'nodejs';
 
-export async function GET() {
-  const paragraphs = [
+export async function GET(request?: Request) {
+  const lang = request ? new URL(request.url).searchParams.get('lang') || 'en' : 'en';
+  if (!['uz', 'en', 'ru'].includes(lang)) return new Response('Unsupported manuscript language', { status: 400 });
+  const paragraphs = lang === 'uz' ? [
+    'Sarlavha: {{TITLE}}', 'Mas’ul muallif: {{AUTHOR}}', 'Email: author@example.org',
+    'Tashkilot: {{AFFILIATION}}', 'Mamlakat: {{COUNTRY}}',
+    'Hammualliflar: barcha hammualliflar va tashkilotlarini yozing; har birini onlayn formada ham kiriting.',
+    'Annotatsiya', '{{ABSTRACT}}', 'Kalit so‘zlar: {{KEYWORDS}}',
+    '1. Kirish', 'Bu yerga tadqiqotning kirish qismini yozing.',
+    '2. Metodlar', 'Materiallar, usullar va tahlilni bayon qiling.',
+    '3. Natijalar', 'Tadqiqot natijalarini keltiring.',
+    '4. Muhokama', 'Natijalar, ularning ahamiyati va cheklovlarini muhokama qiling.',
+    '5. Xulosa', 'Asosiy xulosalarni yozing.', 'Adabiyotlar',
+    'Manbalarni yagona iqtibos uslubida to‘liq kiriting. {{...}} belgilarini haqiqiy ma’lumotlar bilan almashtiring.',
+  ] : lang === 'ru' ? [
+    'Название: {{TITLE}}', 'Контактный автор: {{AUTHOR}}', 'Email: author@example.org',
+    'Организация: {{AFFILIATION}}', 'Страна: {{COUNTRY}}',
+    'Соавторы: укажите всех соавторов и их организации; добавьте каждого также в онлайн-форме.',
+    'Аннотация', '{{ABSTRACT}}', 'Ключевые слова: {{KEYWORDS}}',
+    '1. Введение', 'Опишите постановку исследовательского вопроса.',
+    '2. Методы', 'Опишите материалы, методы и анализ.',
+    '3. Результаты', 'Представьте результаты исследования.',
+    '4. Обсуждение', 'Обсудите результаты, их значение и ограничения.',
+    '5. Заключение', 'Сформулируйте основные выводы.', 'Литература',
+    'Приведите полные ссылки в едином стиле. Замените обозначения {{...}} настоящими данными.',
+  ] : [
     'Title: Replace this with your English article title',
     'Corresponding author: Replace with full name',
     'Email: author@example.org',
@@ -34,7 +58,7 @@ export async function GET() {
   const bytes = await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
   return new Response(new Uint8Array(bytes).buffer, { headers: {
     'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'Content-Disposition': 'attachment; filename="AGM-English-manuscript-template.docx"',
+    'Content-Disposition': `attachment; filename="AGM-${lang}-manuscript-template.docx"`,
     'Cache-Control': 'public, max-age=86400',
   } });
 }

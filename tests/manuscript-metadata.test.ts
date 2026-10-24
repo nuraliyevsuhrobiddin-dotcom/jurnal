@@ -8,7 +8,7 @@ import { POST } from '@/app/api/submissions/metadata/route';
 
 vi.mock('@/lib/request-limit', () => ({ protectRequest: vi.fn(async () => null) }));
 
-describe('English manuscript metadata', () => {
+describe('Multilingual manuscript metadata', () => {
   it('extracts multiline abstracts, explicit author details, keywords and references', () => {
     const metadata = extractManuscriptMetadata(`Title: Climate and agriculture
 Corresponding author: Jane Smith
@@ -37,9 +37,9 @@ Smith, J. (2025). Climate research.`);
     expect(metadata.author_name).toBeUndefined();
   });
 
-  it.each(['uz', 'ru'])('rejects %s submissions', lang => {
+  it.each(['uz', 'en', 'ru'])('accepts %s submissions', lang => {
     const result = manuscriptSubmissionSchema.safeParse({ title: 'Research article', abstract: 'A sufficiently long abstract describing research methods and findings.', keywords: 'research', author_name: 'Jane Smith', email: 'jane@example.org', affiliation: 'University', country: 'UK', lang, consent: 'true', original: 'true', reviewed: 'true' });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 
   it('reads a genuine DOCX and returns metadata without document HTML or raw text', async () => {

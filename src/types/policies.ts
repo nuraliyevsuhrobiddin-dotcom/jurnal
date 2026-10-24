@@ -2,8 +2,8 @@ import type { Language } from './journal';
 
 export const policyIds = ['journal-charter', 'about', 'guidelines', 'peer-review', 'ethics', 'plagiarism', 'open-access', 'apc', 'indexing', 'complaints', 'corrections', 'data-policy', 'ai-policy', 'archiving', 'privacy', 'terms'] as const;
 export type PolicyId = (typeof policyIds)[number];
-export const POLICY_VERSION = '1.0.0';
-export const POLICY_DATE = '2026-10-13';
+export const POLICY_VERSION = '1.1.0';
+export const POLICY_DATE = '2026-10-24';
 
 export interface PolicySource { label: string; url: string }
 export interface PolicySection { id: string; title: string; paragraphs: string[]; items?: string[] }

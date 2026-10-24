@@ -12,7 +12,7 @@ import { POLICY_VERSION } from '@/types/policies';
 import { isDocxArchive } from '@/lib/docx-validation';
 import { orcidProofCookie, readOrcidProof } from '@/lib/orcid-auth';
 import mammoth from 'mammoth';
-import { checkManuscriptLanguage } from '@/lib/manuscript-language';
+import { submissionTranslator } from '@/lib/submission-copy';
 import { trackingUrl } from '@/lib/submission-tracking';
 
 export async function POST(request: NextRequest) {
@@ -24,7 +24,6 @@ export async function POST(request: NextRequest) {
   if (size > MAX_UPLOAD_BODY_BYTES) return NextResponse.json({ error: 'File exceeds 4 MB limit' }, { status: 413 });
   try {
     const form = await readUploadForm(request);
-    if (form.get('lang') !== 'en') return NextResponse.json({ error: 'Only English manuscripts are accepted.' }, { status: 400 });
     let coauthors: unknown = [];
     try { coauthors = JSON.parse(String(form.get('coauthors') || '[]')); }
     catch { return NextResponse.json({ error: 'Invalid coauthor details.' }, { status: 400 }); }
@@ -39,15 +38,9 @@ export async function POST(request: NextRequest) {
       if (Buffer.from(bytes.slice(0, 5)).toString() !== '%PDF-') return NextResponse.json({ error: 'The file is not a PDF.' }, { status: 400 });
       try { await PDFDocument.load(bytes); } catch { return NextResponse.json({ error: 'Upload a readable PDF without password protection.' }, { status: 400 }); }
     } else if (!isDocxArchive(bytes)) return NextResponse.json({ error: 'The DOCX file is not a valid unencrypted Word document within the size limits.' }, { status: 400 });
-    const metadataLanguage = checkManuscriptLanguage(`${result.data.title}\n${result.data.abstract}\n${result.data.keywords}`);
-    if (metadataLanguage.status === 'non_english') return NextResponse.json({ error: metadataLanguage.message }, { status: 400 });
-    let documentLanguage = checkManuscriptLanguage('');
     if (extension === 'docx') {
-      let text: string;
-      try { text = (await mammoth.extractRawText({ buffer: Buffer.from(bytes) })).value; }
+      try { await mammoth.extractRawText({ buffer: Buffer.from(bytes) }); }
       catch { return NextResponse.json({ error: 'The Word document could not be read. Upload a readable DOCX or PDF.' }, { status: 400 }); }
-      documentLanguage = checkManuscriptLanguage(text);
-      if (documentLanguage.status === 'non_english') return NextResponse.json({ error: documentLanguage.message }, { status: 400 });
     }
     const now = Date.now();
     const emailLimit = await protectRequest(request, 'submission-email', 5, 900, result.data.email.toLowerCase());
@@ -57,15 +50,17 @@ export async function POST(request: NextRequest) {
       const data = result.data;
       const uuid = stored.id;
       const orcid = readOrcidProof(request.cookies.get(orcidProofCookie)?.value);
+      const keywords = data.keywords.split(/[,;]/).map(word => word.trim()).filter(Boolean);
       const article = await createArticle({
         slug: `submitted-${uuid}`,
-        title_uz: data.title, title_en: data.title,
-        abstract_uz: data.abstract, abstract_en: data.abstract,
-        keywords_uz: data.keywords.split(/[,;]/).map(word => word.trim()).filter(Boolean),
-        keywords_en: data.keywords.split(/[,;]/).map(word => word.trim()).filter(Boolean),
+        // Required legacy fields also serve as the original-language fallback.
+        // Never label Uzbek/Russian content as an English translation.
+        title_uz: data.title, abstract_uz: data.abstract, keywords_uz: keywords,
+        ...(data.lang === 'en' ? { title_en: data.title, abstract_en: data.abstract, keywords_en: keywords } : {}),
+        ...(data.lang === 'ru' ? { title_ru: data.title, abstract_ru: data.abstract, keywords_ru: keywords } : {}),
         original_language: data.lang, article_type: 'original_research', status: 'draft', license: 'CC BY 4.0', references_list: [],
         manuscript_file_url: `/api/admin/manuscripts/${uuid}`,
-        submission_notes: `Public author submission; policy version ${POLICY_VERSION}; author confirms originality, all-author consent, no simultaneous submission, reviewed metadata and English manuscript. Metadata language: ${metadataLanguage.status}. Manuscript language: ${extension === 'pdf' ? 'PDF requires manual editorial language review' : documentLanguage.status}. Received ${new Date(now).toISOString()}.`,
+        submission_notes: `Public author submission; policy version ${POLICY_VERSION}; author confirms originality, all-author consent, no simultaneous submission and reviewed metadata. Declared manuscript language: ${data.lang}; editorial language verification required. ${extension === 'pdf' ? 'PDF requires manual editorial language review.' : 'Word document readability verified.'} Received ${new Date(now).toISOString()}.`,
         authors: [
           { id: uuid, article_id: '', full_name: data.author_name, email: data.email, affiliation: data.affiliation, country: data.country, ...(orcid?.environment === 'production' ? { orcid: orcid.id } : {}), is_corresponding: true, order_index: 1 },
           ...data.coauthors.map((author, index) => ({ ...author, email: author.email || undefined, id: crypto.randomUUID(), article_id: '', is_corresponding: false, order_index: index + 2 })),
@@ -76,7 +71,8 @@ export async function POST(request: NextRequest) {
       let receiptTrackingUrl = '';
       try {
         receiptTrackingUrl = trackingUrl(article.id);
-        const notification = await queueNotification({ recipient: data.email, subject: `AGM Journal — ${reference}`, body: `Your manuscript has been received. Receipt does not constitute acceptance for publication.\n\nReference: ${reference}\nTitle: ${data.title}\n\nTrack your manuscript using this private link:\n${receiptTrackingUrl}\n\nThe editorial office will contact you after review.` });
+        const t = submissionTranslator(data.lang);
+        const notification = await queueNotification({ recipient: data.email, subject: `AGM Journal — ${reference}`, body: `${t('Your manuscript has been received. Receipt does not constitute acceptance for publication.')}\n\n${t('Submission reference')}: ${reference}\n${t('Article title')}: ${data.title}\n\n${t('Track your manuscript')}:\n${receiptTrackingUrl}\n\n${t('The editorial office will contact you after review.')}` });
         receiptQueued = true;
         after(async () => { await deliverNotification(notification); });
       } catch (error) { console.error('Submission receipt queue failed:', error); }

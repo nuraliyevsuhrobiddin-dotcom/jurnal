@@ -63,15 +63,15 @@ describe('Word headings and language checks', () => {
     expect(checkManuscriptLanguage('va uchun bilan ushbu tadqiqot natijalar va maqola orqali bu bir ham '.repeat(4)).status).toBe('non_english');
     expect(checkManuscriptLanguage('A short title').status).toBe('uncertain');
   });
-  it('provides a readable Word template with metadata that round trips', async () => {
-    const response = await template();
+  it.each(['uz', 'en', 'ru'])('provides a readable %s Word template with metadata that round trips', async lang => {
+    const response = await template(new Request(`http://localhost/api/submissions/template?lang=${lang}`));
     const buffer = Buffer.from(await response.arrayBuffer());
     expect(isDocxArchive(buffer)).toBe(true);
-    expect(response.headers.get('content-disposition')).toContain('.docx');
+    expect(response.headers.get('content-disposition')).toContain(`AGM-${lang}-manuscript-template.docx`);
     const text = (await mammoth.extractRawText({ buffer })).value;
     const report = metadataReport(extractManuscriptMetadata(text));
     expect(report.missing).toEqual([]);
-    expect(text).toContain('Coauthors:');
+    expect(extractManuscriptMetadata(text).title).toBe(lang === 'en' ? 'Replace this with your English article title' : '{{TITLE}}');
   });
 });
 
@@ -98,7 +98,7 @@ describe('Submission storage and verification', () => {
   });
   it('checks the Word document independently of client-side metadata extraction', async () => {
     expect((await request({}, true)).status).toBe(201);
-    expect(vi.mocked(createArticle).mock.calls[0][0].submission_notes).toContain('Manuscript language: english');
+    expect(vi.mocked(createArticle).mock.calls[0][0].submission_notes).toContain('Word document readability verified');
   });
   it('returns a private tracking link so receipt delivery is not the only way to follow a submission', async () => {
     const response = await request();
@@ -114,26 +114,38 @@ describe('Submission storage and verification', () => {
     expect(await response.json()).toMatchObject({ success: true, receipt_queued: false, tracking_url: expect.stringMatching(/^\/track\//) });
     expect(createArticle).toHaveBeenCalledTimes(1);
   });
-  it('rejects non-English Word body even with English metadata', async () => {
+  it.each([
+    ['uz', 'Ushbu tadqiqot natijalari', 'va uchun bilan ushbu tadqiqot natijalar va maqola orqali bu bir ham '.repeat(12)],
+    ['ru', 'Результаты научного исследования', 'В работе представлены методы исследования и результаты анализа данных. '.repeat(12)],
+  ])('accepts a %s Word body without imposing an English language heuristic', async (lang, title, text) => {
     const zip = await JSZip.loadAsync(await (await template()).arrayBuffer());
-    zip.file('word/document.xml', `<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>${'va uchun bilan ushbu tadqiqot natijalar va maqola orqali bu bir ham '.repeat(12)}</w:t></w:r></w:p></w:body></w:document>`);
+    zip.file('word/document.xml', `<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>${text}</w:t></w:r></w:p></w:body></w:document>`);
     const form = new FormData();
-    for (const [key, value] of Object.entries(submission)) form.set(key, value);
+    for (const [key, value] of Object.entries({ ...submission, lang, title, abstract: text })) form.set(key, value);
     form.set('file', new File([new Uint8Array(await zip.generateAsync({ type: 'nodebuffer' }))], 'non-english.docx'));
     const response = await POST(new NextRequest('http://localhost/api/submissions', { method: 'POST', body: form }));
-    expect(response.status).toBe(400);
-    expect(saveManuscript).not.toHaveBeenCalled();
+    expect(response.status).toBe(201);
+    const saved = vi.mocked(createArticle).mock.calls[0][0];
+    expect(saved).toMatchObject({ original_language: lang, title_uz: title, abstract_uz: text.trim() });
+    expect(saved.title_en).toBeUndefined();
+    expect(saved.abstract_en).toBeUndefined();
+    if (lang === 'ru') expect(saved.title_ru).toBe(title);
   });
-  it.each<Record<string, string>>([{ reviewed: 'false' }, { coauthors: '{invalid' }, { coauthors: JSON.stringify([{ full_name: 'X' }]) }, { lang: 'uz' }])('rejects invalid or unreviewed data before saving', async overrides => {
+  it.each<Record<string, string>>([{ reviewed: 'false' }, { coauthors: '{invalid' }, { coauthors: JSON.stringify([{ full_name: 'X' }]) }, { lang: 'xx' }, { lang: '' }])('rejects invalid or unreviewed data before saving', async overrides => {
     expect((await request(overrides)).status).toBe(400);
     expect(saveManuscript).not.toHaveBeenCalled();
   });
-  it('rejects non-English metadata even when lang is en', async () => {
-    expect((await request({ abstract: 'va uchun bilan ushbu tadqiqot natijalar va maqola orqali bu bir ham '.repeat(5) })).status).toBe(400);
-    expect(createArticle).not.toHaveBeenCalled();
+  it.each(['uz', 'en', 'ru'])('preserves the declared %s language and sends a localized receipt for PDF submissions', async lang => {
+    expect((await request({ lang })).status).toBe(201);
+    const saved = vi.mocked(createArticle).mock.calls[0][0];
+    expect(saved.original_language).toBe(lang);
+    expect(saved.title_en).toBe(lang === 'en' ? submission.title : undefined);
+    expect(saved.title_ru).toBe(lang === 'ru' ? submission.title : undefined);
+    const body = vi.mocked(queueNotification).mock.calls[0][0].body;
+    expect(body).toContain(lang === 'uz' ? 'Maqolangiz qabul qilib olindi' : lang === 'ru' ? 'Ваша рукопись получена' : 'Your manuscript has been received');
   });
-  it('rejects unchanged template metadata instead of saving example author details', async () => {
-    const buffer = Buffer.from(await (await template()).arrayBuffer());
+  it.each(['uz', 'en', 'ru'])('rejects unchanged %s template metadata instead of saving example author details', async lang => {
+    const buffer = Buffer.from(await (await template(new Request(`http://localhost/api/submissions/template?lang=${lang}`))).arrayBuffer());
     const metadata = extractManuscriptMetadata((await mammoth.extractRawText({ buffer })).value);
     expect((await request(Object.fromEntries(Object.entries(metadata).filter(([, value]) => typeof value === 'string')) as Record<string, string>, true)).status).toBe(400);
     expect(createArticle).not.toHaveBeenCalled();
