@@ -14,7 +14,14 @@ export interface ParsedDocxResult {
 
 export async function parseDocxFile(buffer: Buffer): Promise<ParsedDocxResult> {
   try {
-    const htmlResult = await mammoth.convertToHtml({ buffer });
+    const htmlResult = await mammoth.convertToHtml({ buffer }, { styleMap: [
+      "p[style-name='Title'] => h1:fresh",
+      "p[style-name='Author'] => p:fresh",
+      "p[style-name='Abstract'] => p:fresh",
+      "p[style-name='Declaration'] => p:fresh",
+      "p[style-name='Reference'] => p:fresh",
+      "p[style-name='Note'] => p:fresh",
+    ] });
     const textResult = await mammoth.extractRawText({ buffer });
 
     const rawText = textResult.value || '';

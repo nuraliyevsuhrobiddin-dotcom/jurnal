@@ -38,7 +38,7 @@ Smith, J. (2025). Climate research.`);
   });
 
   it.each(['uz', 'en', 'ru'])('accepts %s submissions', lang => {
-    const result = manuscriptSubmissionSchema.safeParse({ title: 'Research article', abstract: 'A sufficiently long abstract describing research methods and findings.', keywords: 'research', author_name: 'Jane Smith', email: 'jane@example.org', affiliation: 'University', country: 'UK', lang, consent: 'true', original: 'true', reviewed: 'true' });
+    const result = manuscriptSubmissionSchema.safeParse({ title: 'Research article', abstract: 'A sufficiently long abstract describing research methods and findings.', keywords: 'research', author_name: 'Jane Smith', email: 'jane@example.org', affiliation: 'University', country: 'UK', lang, consent: 'true', original: 'true', reviewed: 'true', template_confirmed: 'true', template_version: '1.0' });
     expect(result.success).toBe(true);
   });
 

@@ -21,7 +21,13 @@ export function readTrackingToken(token: string, now = Date.now()): string | nul
   const expected = createHmac('sha256', secret()).update(`tracking:${id}.${expires}`).digest('base64url');
   return timingSafeEqual(Buffer.from(expected), Buffer.from(signature)) ? id : null;
 }
-export function submissionReference(article: Pick<Article, 'id' | 'manuscript_file_url'>) {
+export function submissionReference(article: Pick<Article, 'id' | 'manuscript_file_url'> & Partial<Pick<Article, 'slug' | 'submission_notes'>>) {
+  const recorded = article.submission_notes?.match(/Submission reference:\s*(AGM-SUB-[A-F0-9]{8})\b/i)?.[1];
+  if (recorded) return recorded.toUpperCase();
+  // Public submission slugs preserve the initial manuscript ID, even after the
+  // editor replaces the source file. Existing receipt numbers must stay valid.
+  const original = article.slug?.match(/^submitted-([a-f0-9-]{36})(?:-|$)/i)?.[1];
+  if (original) return `AGM-SUB-${original.slice(0, 8).toUpperCase()}`;
   const manuscriptId = article.manuscript_file_url?.split('/').pop() || article.id;
   return `AGM-SUB-${manuscriptId.slice(0, 8).toUpperCase()}`;
 }

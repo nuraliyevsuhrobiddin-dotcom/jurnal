@@ -26,7 +26,7 @@ export function PdfUpload() {
       const response = await fetch(`/api/admin/articles/${encodeURIComponent(id)}/pdf`, { method: 'POST', body: data });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
-      setStatus(file.name.toLowerCase().endsWith('.docx') ? 'Jurnal titul sahifasi va formatlangan maqola PDF sifatida saqlandi.' : 'Muallif tayyorlagan PDF sahifalari asl ko‘rinishida saqlandi.');
+      setStatus('Maqola jurnal shablonida PDF sifatida saqlandi. Nashrdan oldin faylni tekshiring.');
       setPreview(result.url);
     } catch (cause) { setStatus(cause instanceof Error ? cause.message : 'PDF saqlanmadi.'); }
     finally { setBusy(false); }
@@ -35,7 +35,7 @@ export function PdfUpload() {
     <div><label htmlFor="pdf-article" className="block font-semibold text-sm mb-2">Maqolani tanlang</label>
       <select id="pdf-article" name="article_id" required defaultValue="" className="w-full rounded-lg border border-slate-300 p-3"><option value="" disabled>Maqola…</option>{articles.map(article => <option key={article.id} value={article.id}>{article.title_uz}</option>)}</select></div>
     <div><label htmlFor="pdf-file" className="block font-semibold text-sm mb-2">To‘liq maqola PDF yoki DOCX fayli (4 MB gacha)</label><input id="pdf-file" name="file" type="file" accept=".pdf,.docx" required className="w-full text-sm" /></div>
-    <p className="text-sm text-slate-600">PDF sahifalari asl holida saqlanadi. DOCX uchun jurnal titul sahifasi yaratiladi, maqola sarlavha, bo‘lim va ro‘yxatlari bilan PDF qilinadi. Jadval, rasm, formula yoki izohli Word hujjatini PDF sifatida yuklang.</p>
+    <p className="text-sm text-slate-600">PDF sahifalariga jurnal shabloni qo‘llanadi. DOCX matni, jadvallari va rasmlari jurnal maketida PDF qilinadi. Tayyor faylni nashrdan oldin tekshiring.</p>
     <button disabled={busy || !articles.length} className="px-5 py-3 bg-navy-900 text-white rounded-lg font-semibold disabled:opacity-50">{busy ? 'Tayyorlanmoqda…' : 'PDF tayyorlash va saqlash'}</button>
     <p role="status" className="text-sm text-slate-700">{status}</p>
     {preview && <a href={preview} target="_blank" rel="noopener noreferrer" className="inline-block text-teal-800 underline">PDF faylini ko‘rish</a>}

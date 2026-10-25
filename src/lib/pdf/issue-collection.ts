@@ -3,7 +3,7 @@ import path from 'node:path';
 import sharp from 'sharp';
 import { PDFDocument, rgb } from 'pdf-lib';
 import type { Article, Issue, JournalSettings } from '@/types/journal';
-import { embedJournalFonts, generateIssueTocPdf, wrapPublicationText } from './generator';
+import { embedJournalFonts, generateIssueTocPdf, wrapPublicationText, ensurePublicationLayout } from './generator';
 import { readArticlePdf } from './storage';
 import { createServerClient } from '@/lib/supabase/server';
 import { orderIssueArticles } from '@/lib/issues/article-order';
@@ -104,7 +104,7 @@ export async function buildIssueCollection(issue: Issue, articles: Article[], se
       if (!bytes) throw new IssueCollectionError('A published article PDF is missing. The editorial office must restore it before downloading the complete issue.', 409);
       total += bytes.byteLength;
       if (total > MAX_BYTES) throw new IssueCollectionError('This issue exceeds the 100 MB automatic collection limit.', 413);
-      try { await append(bytes); } catch (error) {
+      try { await append(await ensurePublicationLayout(article, settings, bytes)); } catch (error) {
         if (error instanceof IssueCollectionError) throw error;
         throw new IssueCollectionError('An article PDF cannot be read. Please contact the editorial office.', 409);
       }

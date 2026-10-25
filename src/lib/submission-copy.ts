@@ -2,6 +2,10 @@ import type { Language } from '@/types/journal';
 
 // English source messages are also used by the upload API. Keep translations together.
 export const submissionMessages = [
+  ['View the manuscript sample and requirements', 'Maqola namunasi va talablarni ko‘rish', 'Образец статьи и требования'],
+  ['template_confirmed', 'Shablonga muvofiqlik tasdig‘i', 'Подтверждение соответствия шаблону'],
+  ['template_version', 'Shablon versiyasi', 'Версия шаблона'],
+  ['Replace all template placeholders with your manuscript details before submitting.', 'Yuborishdan oldin shablondagi barcha {{...}} joylarini maqolangiz ma’lumotlari bilan almashtiring.', 'Перед подачей замените все поля {{...}} в шаблоне сведениями вашей рукописи.'],
   ['Article title', 'Maqola nomi', 'Название статьи'],
   ['Abstract', 'Annotatsiya', 'Аннотация'],
   ['Keywords', 'Kalit so‘zlar', 'Ключевые слова'],

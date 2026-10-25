@@ -12,7 +12,7 @@ import {
   Sparkles,
   ArrowLeft
 } from 'lucide-react';
-import { Article, Issue } from '@/types/journal';
+import { Article, Issue, Language } from '@/types/journal';
 import { applyManuscriptSuggestions, clearAutomaticFields, editManuscriptField, emptyManuscriptFields, type TrackedFields } from '@/lib/manuscript-fields';
 import { MAX_UPLOAD_BYTES } from '@/lib/upload-limits';
 import { subjectCollections, resolveSubjectId, subjectLabel } from '@/lib/subjects';
@@ -44,8 +44,10 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
   const [preparedPdfUrl, setPreparedPdfUrl] = useState(initialArticle?.pdf_url ? `/api/admin/articles/${initialArticle.id}/pdf` : '');
 
   // Form states
-  const [tracked, setTracked] = useState<TrackedFields>({ values: { ...emptyManuscriptFields, title: initialArticle?.title_en || '', abstract: initialArticle?.abstract_en || '', keywords: (initialArticle?.keywords_en || []).join(', ') }, automatic: {}, edited: {} });
-  const titleEn = tracked.values.title, abstractEn = tracked.values.abstract, keywordsEn = tracked.values.keywords;
+  const [manuscriptLanguage, setManuscriptLanguage] = useState<Language>(initialArticle?.original_language || 'uz');
+  const initialLanguage = initialArticle?.original_language || 'uz';
+  const [tracked, setTracked] = useState<TrackedFields>({ values: { ...emptyManuscriptFields, title: initialArticle?.[`title_${initialLanguage}`] || initialArticle?.title_uz || '', abstract: initialArticle?.[`abstract_${initialLanguage}`] || initialArticle?.abstract_uz || '', keywords: (initialArticle?.[`keywords_${initialLanguage}`] || initialArticle?.keywords_uz || []).join(', ') }, automatic: {}, edited: {} });
+  const title = tracked.values.title, abstract = tracked.values.abstract, keywords = tracked.values.keywords;
   const automaticAuthor = useRef<Partial<AuthorInput>>({});
   const authorEdited = useRef(new Set<string>());
   const automaticReferences = useRef<string | null>(null);
@@ -208,14 +210,14 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
     setSuccessMsg(null);
 
     // Validation checks
-    if (!titleEn.trim()) {
-      setErrorMsg('Inglizcha sarlavha kiritilishi shart');
+    if (!title.trim()) {
+      setErrorMsg('Maqola sarlavhasi kiritilishi shart');
       setLoading(false);
       return;
     }
 
-    if (!abstractEn.trim()) {
-      setErrorMsg('Inglizcha annotatsiya kiritilishi shart');
+    if (!abstract.trim()) {
+      setErrorMsg('Maqola annotatsiyasi kiritilishi shart');
       setLoading(false);
       return;
     }
@@ -227,17 +229,20 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
     }
 
     const payload = {
-      ...(initialArticle ? { clear_fields: Object.entries({ issue_id: issueId, page_first: pageFirst, page_last: pageLast, doi, publication_date: publicationDate, title_en: titleEn, abstract_en: abstractEn }).filter(([, value]) => !value.trim()).map(([field]) => field) } : {}),
-      title_uz: initialArticle && initialArticle.original_language !== 'en' ? initialArticle.title_uz : titleEn.trim(),
-      title_en: titleEn.trim() || undefined,
+      ...(initialArticle ? { clear_fields: Object.entries({ issue_id: issueId, page_first: pageFirst, page_last: pageLast, doi, publication_date: publicationDate }).filter(([, value]) => !value.trim()).map(([field]) => field) } : {}),
+      title_uz: manuscriptLanguage === 'uz' ? title.trim() : initialArticle?.title_uz || title.trim(),
+      abstract_uz: manuscriptLanguage === 'uz' ? abstract.trim() : initialArticle?.abstract_uz || abstract.trim(),
+      keywords_uz: manuscriptLanguage === 'uz' ? keywords.split(',').map(k => k.trim()).filter(Boolean) : initialArticle?.keywords_uz || keywords.split(',').map(k => k.trim()).filter(Boolean),
+      title_en: initialArticle?.title_en,
+      abstract_en: initialArticle?.abstract_en,
+      keywords_en: initialArticle?.keywords_en || [],
       title_ru: initialArticle?.title_ru,
-      abstract_uz: initialArticle && initialArticle.original_language !== 'en' ? initialArticle.abstract_uz : abstractEn.trim(),
-      abstract_en: abstractEn.trim() || undefined,
       abstract_ru: initialArticle?.abstract_ru,
-      keywords_uz: initialArticle && initialArticle.original_language !== 'en' ? initialArticle.keywords_uz : keywordsEn.split(',').map(k => k.trim()).filter(Boolean),
-      keywords_en: keywordsEn ? keywordsEn.split(',').map(k => k.trim()).filter(Boolean) : [],
       keywords_ru: initialArticle?.keywords_ru || [],
-      original_language: initialArticle?.original_language || 'en',
+      [`title_${manuscriptLanguage}`]: title.trim(),
+      [`abstract_${manuscriptLanguage}`]: abstract.trim(),
+      [`keywords_${manuscriptLanguage}`]: keywords.split(',').map(k => k.trim()).filter(Boolean),
+      original_language: manuscriptLanguage,
       article_type: articleType,
       status: publicationFile || regenerateFromManuscript || (!pdfReady && initialArticle?.manuscript_file_url) || (!savedArticleId && status === 'published') ? 'draft' : status,
       issue_id: issueId || undefined,
@@ -329,7 +334,7 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
               <span>To‘liq maqola fayli — PDF yoki DOCX</span>
             </h3>
             <p className="text-xs text-slate-600">
-              PDF sahifalari asl holida saqlanadi. DOCX uchun jurnalning titul sahifasi yaratiladi, maqola sarlavha, bo‘lim va ro‘yxatlari bilan PDF qilinadi. Jadval, rasm, formula yoki izohli Word hujjatini Word’dan PDF qilib yuklang.
+              PDF sahifalariga jurnal shabloni qo‘llanadi. DOCX maqolalar jurnal maketida PDF qilinadi. Tayyor faylni nashrdan oldin tekshiring.
             </p>
           </div>
 
@@ -375,11 +380,12 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
             <option value="auto">Avtomatik — maqola mazmuniga qarab</option>
             {subjectCollections.map(subject => <option key={subject.id} value={subject.id}>{subject.labels.uz}</option>)}
           </select>
-          <p className="text-sm text-slate-700">{subjectId === 'auto' ? `Aniqlangan yo‘nalish: ${subjectLabel(resolveSubjectId({ title_en: titleEn, abstract_en: abstractEn, keywords_en: keywordsEn.split(',') } as Article), 'uz')}.` : `Tanlangan yo‘nalish: ${subjectLabel(subjectId, 'uz')}.`} Nashrdan so‘ng maqola shu yo‘nalish sahifasida va uning muqovali to‘plamida ko‘rinadi.</p>
+          <p className="text-sm text-slate-700">{subjectId === 'auto' ? `Aniqlangan yo‘nalish: ${subjectLabel(resolveSubjectId({ title_en: title, abstract_en: abstract, keywords_en: keywords.split(',') } as Article), 'uz')}.` : `Tanlangan yo‘nalish: ${subjectLabel(subjectId, 'uz')}.`} Nashrdan so‘ng maqola shu yo‘nalish sahifasida va uning muqovali to‘plamida ko‘rinadi.</p>
         </section>
         <section className="bg-white rounded-2xl academic-border academic-shadow p-6 sm:p-8 space-y-5">
-          <h2 className="text-base font-bold text-navy-900 flex items-center gap-2"><FileText className="w-4 h-4" />1. Article title (English)</h2>
-          <label className="block text-sm">Title *<input required minLength={5} maxLength={500} value={titleEn} onChange={e => setTracked(current => editManuscriptField(current, 'title', e.target.value))} className="w-full px-3 py-2 rounded-xl border border-slate-300" /></label>
+          <h2 className="text-base font-bold text-navy-900 flex items-center gap-2"><FileText className="w-4 h-4" />1. Maqola nomi</h2>
+          <label className="block text-sm">Maqola tili<select aria-label="Maqola tili" value={manuscriptLanguage} onChange={event => setManuscriptLanguage(event.target.value as Language)} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2"><option value="uz">O‘zbekcha</option><option value="ru">Русский</option><option value="en">English</option></select></label>
+          <label className="block text-sm">Sarlavha *<input required minLength={5} maxLength={500} value={title} onChange={e => setTracked(current => editManuscriptField(current, 'title', e.target.value))} className="w-full px-3 py-2 rounded-xl border border-slate-300" /></label>
         </section>
 
         {/* SECTION 2: AUTHORS LIST (DYNAMIC) */}
@@ -511,9 +517,9 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
         </div>
 
         <section className="bg-white rounded-2xl academic-border academic-shadow p-6 sm:p-8 space-y-5">
-          <h2 className="text-base font-bold text-navy-900">3. Abstract and keywords (English)</h2>
-          <label className="block text-sm">Abstract *<textarea required minLength={50} maxLength={10000} rows={6} value={abstractEn} onChange={e => setTracked(current => editManuscriptField(current, 'abstract', e.target.value))} className="w-full px-3 py-2 rounded-xl border border-slate-300" /></label>
-          <label className="block text-sm">Keywords *<input required minLength={2} maxLength={1000} value={keywordsEn} onChange={e => setTracked(current => editManuscriptField(current, 'keywords', e.target.value))} className="w-full px-3 py-2 rounded-xl border border-slate-300" /><small>Separate keywords with commas.</small></label>
+          <h2 className="text-base font-bold text-navy-900">3. Annotatsiya va kalit so‘zlar</h2>
+          <label className="block text-sm">Annotatsiya *<textarea required minLength={50} maxLength={10000} rows={6} value={abstract} onChange={e => setTracked(current => editManuscriptField(current, 'abstract', e.target.value))} className="w-full px-3 py-2 rounded-xl border border-slate-300" /></label>
+          <label className="block text-sm">Kalit so‘zlar *<input required minLength={2} maxLength={1000} value={keywords} onChange={e => setTracked(current => editManuscriptField(current, 'keywords', e.target.value))} className="w-full px-3 py-2 rounded-xl border border-slate-300" /><small>Kalit so‘zlarni vergul bilan ajrating.</small></label>
         </section>
 
         {/* SECTION 4: PUBLICATION & ISSUE METADATA */}
@@ -545,7 +551,7 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
               <label className="block text-xs font-bold text-slate-700 mb-1">
                 Asl tili
               </label>
-              <input value={initialArticle?.original_language && initialArticle.original_language !== 'en' ? initialArticle.original_language : 'English (en)'} readOnly className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm" />
+              <input value={{ uz: 'O‘zbekcha (uz)', ru: 'Русский (ru)', en: 'English (en)' }[manuscriptLanguage]} readOnly className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm" />
             </div>
 
             <div>

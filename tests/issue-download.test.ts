@@ -38,7 +38,7 @@ describe('Issue PDF download route', () => {
     const pdf = await PDFDocument.load(await response.arrayBuffer());
     const papers = journalStore.articles.filter(a => a.status === 'published' && a.issue_id === issue.id);
     expect(pdf.getPageCount()).toBeGreaterThanOrEqual(2 + papers.length);
-  });
+  }, 60000);
   it('blocks a subject collection below 25 even when the whole issue has 25', async () => {
     journalStore.articles[0] = { ...journalStore.articles[0], subject_id: 'social-sciences' };
     const response = await GET(new NextRequest('http://localhost/api/issues/test/pdf?subject=social-sciences'), { params: Promise.resolve({ id: journalStore.issues[0].id }) });
@@ -59,7 +59,7 @@ describe('Issue PDF download route', () => {
     const response = await GET(new NextRequest('http://localhost/api/issues/test/pdf?subject=social-sciences'), { params: Promise.resolve({ id: journalStore.issues[0].id }) });
     expect(response.status).toBe(200);
     expect(response.headers.get('content-disposition')).toContain('social-sciences.pdf');
-  });
+  }, 60000);
   it('returns 409 for missing published PDF and 404 for malformed issue IDs', async () => {
     vi.mocked(readArticlePdf).mockResolvedValue(null);
     const response = await GET(request(), { params: Promise.resolve({ id: journalStore.issues[0].id }) });

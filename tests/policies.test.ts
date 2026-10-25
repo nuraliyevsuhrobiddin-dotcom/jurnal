@@ -66,7 +66,7 @@ describe('Editorial input boundaries', () => {
     large.writeUInt32LE(81 * 1024 * 1024, entry + 24);
     expect(isDocxArchive(large)).toBe(false);
   });
-  const submission = { title: 'Research manuscript', abstract: 'An original scientific research abstract containing sufficient detail about the methods and results.', keywords: 'research, methods', author_name: 'Test Author', email: 'researcher@example.org', affiliation: 'Research University', country: 'Uzbekistan', lang: 'en', consent: 'true', original: 'true', reviewed: 'true' };
+  const submission = { title: 'Research manuscript', abstract: 'An original scientific research abstract containing sufficient detail about the methods and results.', keywords: 'research, methods', author_name: 'Test Author', email: 'researcher@example.org', affiliation: 'Research University', country: 'Uzbekistan', lang: 'en', consent: 'true', original: 'true', reviewed: 'true', template_confirmed: 'true', template_version: '1.0' };
   it('requires metadata, author consent and originality declarations', () => {
     expect(manuscriptSubmissionSchema.safeParse(submission).success).toBe(true);
     for (const invalid of [{ consent: 'false' }, { original: '' }, { email: 'invalid' }, { abstract: 'short' }, { lang: 'xx' }]) expect(manuscriptSubmissionSchema.safeParse({ ...submission, ...invalid }).success).toBe(false);

@@ -66,11 +66,17 @@ describe('Publication readiness', () => {
     expect(() => assertIssuePageRangeAvailable(existing, [existing])).not.toThrow();
     expect(() => assertIssuePageRangeAvailable(article, [{ ...existing, status: 'draft' }])).not.toThrow();
   });
-  it('blocks publication when English discovery metadata is absent or whitespace-only', async () => {
-    await expect(assertPublicationReady({ ...article, title_en: '  ' })).rejects.toThrow('Inglizcha sarlavha');
-    await expect(assertPublicationReady({ ...article, abstract_en: undefined })).rejects.toThrow('Inglizcha annotatsiya');
-    await expect(assertPublicationReady({ ...article, keywords_en: [] })).rejects.toThrow('Inglizcha kalit');
-    await expect(assertPublicationReady({ ...article, keywords_en: ['  '] })).rejects.toThrow();
+  it('requires English metadata for an English original', async () => {
+    const english = { ...article, original_language: 'en' as const };
+    await expect(assertPublicationReady({ ...english, title_en: '  ' })).rejects.toThrow('Inglizcha sarlavha');
+    await expect(assertPublicationReady({ ...english, abstract_en: undefined })).rejects.toThrow('Inglizcha annotatsiya');
+    await expect(assertPublicationReady({ ...english, keywords_en: [] })).rejects.toThrow('Inglizcha kalit');
+    await expect(assertPublicationReady({ ...english, keywords_en: ['  '] })).rejects.toThrow();
+  });
+  it.each(['uz', 'ru'] as const)('publishes a %s original without requiring an English translation', async language => {
+    const pdf = await PDFDocument.create(); pdf.addPage();
+    vi.mocked(readArticlePdf).mockResolvedValue(await pdf.save());
+    await expect(assertPublicationReady({ ...article, original_language: language, title_en: undefined, abstract_en: undefined, keywords_en: [], page_first: 1, page_last: 1 })).resolves.toBeUndefined();
   });
   it('blocks unresolved placeholder author names before publishing', async () => {
     await expect(assertPublicationReady({ ...article, authors: article.authors!.map(author => ({ ...author, full_name: 'Normengov Jorabek XXX' })) })).rejects.toThrow('tasdiqlangan');

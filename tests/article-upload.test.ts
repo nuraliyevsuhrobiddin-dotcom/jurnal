@@ -9,7 +9,7 @@ import { updateArticle } from '@/lib/db';
 
 vi.mock('@/lib/admin-access', () => ({ adminAccess: vi.fn(async () => null) }));
 vi.mock('@/lib/db', () => ({
-  getArticleById: vi.fn(async () => ({ ...journalStore.articles[0], page_first: 7 })),
+  getArticleById: vi.fn(async () => ({ ...journalStore.articles[0], status: 'draft', page_first: 7 })),
   getJournalSettings: vi.fn(async () => journalStore.settings),
   updateArticle: vi.fn(async () => journalStore.articles[0]),
 }));
@@ -33,7 +33,10 @@ describe('Article PDF upload', () => {
     expect(readManuscript).not.toHaveBeenCalled();
     expect(saveManuscript).toHaveBeenCalledOnce();
     const saved = vi.mocked(saveArticlePdf).mock.calls[0][1];
-    expect((await PDFDocument.load(saved)).getPageCount()).toBe(2);
+    expect((await PDFDocument.load(saved)).getPageCount()).toBe(3);
+    expect((await PDFDocument.load(saved)).getKeywords()).toContain('AGM_BODY_PAGES:2');
+    expect((await PDFDocument.load(saved)).getKeywords()).toContain('AGM_FULL_ARTICLE_V2');
+    expect((await PDFDocument.load(saved)).getPage(0).getWidth()).toBeCloseTo(595.28);
     expect(updateArticle).toHaveBeenCalledWith(journalStore.articles[0].id, expect.objectContaining({ page_first: 7, page_last: 8, manuscript_file_url: '/api/admin/manuscripts/new-source' }));
     expect(await response.json()).toMatchObject({ page_count: 2, page_first: 7, page_last: 8 });
   });

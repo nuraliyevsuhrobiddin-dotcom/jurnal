@@ -20,7 +20,7 @@ vi.mock('@/lib/notifications', () => ({ queueNotification: vi.fn(async () => ({}
 vi.mock('@/lib/manuscript-storage', () => ({ saveManuscript: vi.fn(async () => ({ id: 'manuscript-id' })), removeManuscript: vi.fn() }));
 
 const english = 'This study examines the effects of climate on agriculture. The data were analysed using a comparative method and the results showed significant differences between the regions.';
-const submission = { title: 'Climate and agriculture research', abstract: english, keywords: 'climate, agriculture', author_name: 'Jane Smith', email: 'jane@example.org', affiliation: 'Research University', country: 'United Kingdom', lang: 'en', consent: 'true', original: 'true', reviewed: 'true' };
+const submission = { title: 'Climate and agriculture research', abstract: english, keywords: 'climate, agriculture', author_name: 'Jane Smith', email: 'jane@example.org', affiliation: 'Research University', country: 'United Kingdom', lang: 'en', consent: 'true', original: 'true', reviewed: 'true', template_confirmed: 'true', template_version: '1.0' };
 
 beforeEach(() => { vi.clearAllMocks(); });
 
@@ -70,15 +70,21 @@ describe('Word headings and language checks', () => {
     expect(response.headers.get('content-disposition')).toContain(`AGM-${lang}-manuscript-template.docx`);
     const text = (await mammoth.extractRawText({ buffer })).value;
     const report = metadataReport(extractManuscriptMetadata(text));
-    expect(report.missing).toEqual([]);
-    expect(extractManuscriptMetadata(text).title).toBe(lang === 'en' ? 'Replace this with your English article title' : '{{TITLE}}');
+    expect(report.missing).toEqual(['email']);
+    expect(extractManuscriptMetadata(text).title).toBe('{{TITLE}}');
   });
 });
 
 async function request(overrides: Record<string, string> = {}, useWord = false) {
   const form = new FormData();
   for (const [key, value] of Object.entries({ ...submission, ...overrides })) form.set(key, value);
-  if (useWord) form.set('file', new File([await (await template()).arrayBuffer()], 'manuscript.docx'));
+  if (useWord) {
+    const zip = await JSZip.loadAsync(await (await template(new Request('http://localhost/api/submissions/template?lang=en'))).arrayBuffer());
+    const xml = await zip.file('word/document.xml')!.async('string');
+    const values: Record<string, string> = { TITLE: submission.title, ABSTRACT: submission.abstract, KEYWORDS: submission.keywords, AUTHOR: submission.author_name, EMAIL: submission.email, AFFILIATION: submission.affiliation, COUNTRY: submission.country };
+    zip.file('word/document.xml', xml.replace(/\{\{([A-Z_]+)\}\}/g, (_all, key: string) => values[key] || 'Completed research information'));
+    form.set('file', new File([new Uint8Array(await zip.generateAsync({ type: 'uint8array' }))], 'manuscript.docx'));
+  }
   else {
     const pdf = await PDFDocument.create(); pdf.addPage();
     form.set('file', new File([new Uint8Array(await pdf.save())], 'manuscript.pdf'));
@@ -87,6 +93,16 @@ async function request(overrides: Record<string, string> = {}, useWord = false) 
 }
 
 describe('Submission storage and verification', () => {
+  it('rejects an unfinished Word template even when the online metadata is complete', async () => {
+    const form = new FormData();
+    for (const [key, value] of Object.entries(submission)) form.set(key, value);
+    form.set('file', new File([await (await template()).arrayBuffer()], 'unfinished.docx'));
+    const response = await POST(new NextRequest('http://localhost/api/submissions', { method: 'POST', body: form }));
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toContain('Replace all template placeholders');
+    expect(saveManuscript).not.toHaveBeenCalled();
+    expect(createArticle).not.toHaveBeenCalled();
+  });
   it('saves all authors in order and flags PDF language for editorial review', async () => {
     const response = await request({ coauthors: JSON.stringify([{ full_name: 'John Smith', email: '', affiliation: 'Other University', country: 'Canada' }]) });
     expect(response.status).toBe(201);
@@ -131,7 +147,7 @@ describe('Submission storage and verification', () => {
     expect(saved.abstract_en).toBeUndefined();
     if (lang === 'ru') expect(saved.title_ru).toBe(title);
   });
-  it.each<Record<string, string>>([{ reviewed: 'false' }, { coauthors: '{invalid' }, { coauthors: JSON.stringify([{ full_name: 'X' }]) }, { lang: 'xx' }, { lang: '' }])('rejects invalid or unreviewed data before saving', async overrides => {
+  it.each<Record<string, string>>([{ template_confirmed: 'false' }, { template_version: 'outdated' }, { reviewed: 'false' }, { coauthors: '{invalid' }, { coauthors: JSON.stringify([{ full_name: 'X' }]) }, { lang: 'xx' }, { lang: '' }])('rejects invalid or unreviewed data before saving', async overrides => {
     expect((await request(overrides)).status).toBe(400);
     expect(saveManuscript).not.toHaveBeenCalled();
   });

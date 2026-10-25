@@ -20,7 +20,7 @@ vi.mock('@/lib/db', () => ({
   getJournalSettings: async () => ({}),
 }));
 vi.mock('@/lib/pdf/storage', () => ({ readArticlePdf: async () => Buffer.from('%PDF-article') }));
-vi.mock('@/lib/pdf/generator', () => ({ generateCertificatePdf: async () => Buffer.from('%PDF-certificate') }));
+vi.mock('@/lib/pdf/generator', () => ({ generateCertificatePdf: async () => Buffer.from('%PDF-certificate'), ensurePublicationLayout: async (_article: unknown, _settings: unknown, bytes: Uint8Array) => bytes }));
 
 let directory: string;
 beforeEach(async () => {

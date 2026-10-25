@@ -8,6 +8,7 @@ import { generateQrPngBuffer } from './qr';
 import { Article, Certificate, Issue, JournalSettings } from '@/types/journal';
 import { isValidIssn } from '@/lib/identifiers';
 import { resolveSubjectId, subjectLabel } from '@/lib/subjects';
+import { PUBLICATION_DESIGN, publicationAccent, publicationGold, publicationPaper, drawResearchWeave, drawBodyIdentity, embedPublicationSeal, addPublicationLink, publicationCoverHash } from './publication-design';
 
 // Helper to wrap text into lines fitting within maxWidth
 export async function embedJournalFonts(pdfDoc: PDFDocument) {
@@ -223,14 +224,21 @@ export async function generateArticleTitlePagePdf(
   return doc.save();
 }
 
-/** Branded first page used for the published version of a Word manuscript. */
+/** Article-specific editorial cover; all metadata stays selectable and paginated. */
 export async function generatePublicationCoverPdf(article: Article, settings: JournalSettings): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const { fontBold, fontRegular } = await embedJournalFonts(doc);
   const W = 595.28, H = 841.89, M = 48;
-  const navy = rgb(0.063, 0.169, 0.247), teal = rgb(0.05, 0.38, 0.39);
+  const navy = rgb(0.063, 0.169, 0.247), teal = publicationAccent(article);
   const ink = rgb(0.13, 0.17, 0.2), muted = rgb(0.38, 0.43, 0.47), pale = rgb(0.94, 0.97, 0.96);
   const language = article.original_language;
+  const labels = {
+    uz: { series: 'ILMIY TADQIQOTLAR', open: 'OCHIQ FOYDALANISH', authors: 'MUALLIFLAR VA TASHKILOTLAR', abstract: 'ANNOTATSIYA', continued: 'DAVOMI', keywords: 'KALIT SO‘ZLAR', cite: 'IQTIBOS UCHUN', corresponding: 'Mas’ul muallif', date: 'Nashr sanasi', pages: 'Sahifalar', pending: 'Belgilanmagan', volume: 'JILD', issue: 'SON', passport: 'MAQOLA MA’LUMOTLARI', types: { original_research: 'ORIGINAL TADQIQOT', review: 'ILMIY SHARH', short_communication: 'QISQA XABAR', case_study: 'HOLAT TADQIQOTI' } },
+    ru: { series: 'НАУЧНЫЕ ИССЛЕДОВАНИЯ', open: 'ОТКРЫТЫЙ ДОСТУП', authors: 'АВТОРЫ И ОРГАНИЗАЦИИ', abstract: 'АННОТАЦИЯ', continued: 'ПРОДОЛЖЕНИЕ', keywords: 'КЛЮЧЕВЫЕ СЛОВА', cite: 'ДЛЯ ЦИТИРОВАНИЯ', corresponding: 'Ответственный автор', date: 'Дата публикации', pages: 'Страницы', pending: 'Не назначено', volume: 'ТОМ', issue: 'ВЫПУСК', passport: 'СВЕДЕНИЯ О СТАТЬЕ', types: { original_research: 'ОРИГИНАЛЬНОЕ ИССЛЕДОВАНИЕ', review: 'НАУЧНЫЙ ОБЗОР', short_communication: 'КРАТКОЕ СООБЩЕНИЕ', case_study: 'ОПИСАНИЕ СЛУЧАЯ' } },
+    en: { series: 'RESEARCH & DISCOVERY', open: 'OPEN ACCESS', authors: 'AUTHORS & AFFILIATIONS', abstract: 'ABSTRACT', continued: 'CONTINUED', keywords: 'KEYWORDS', cite: 'HOW TO CITE', corresponding: 'Corresponding author', date: 'Publication date', pages: 'Pages', pending: 'Unassigned', volume: 'VOL.', issue: 'ISSUE', passport: 'ARTICLE RECORD', types: { original_research: 'ORIGINAL RESEARCH', review: 'REVIEW ARTICLE', short_communication: 'SHORT COMMUNICATION', case_study: 'CASE STUDY' } },
+  }[language];
+  const seal = await embedPublicationSeal(doc);
+  const qr = await doc.embedPng(await generateQrPngBuffer(siteUrlForPdf(article)));
   const title = (language === 'ru' ? article.title_ru : language === 'en' ? article.title_en : article.title_uz)
     || article.title_en || article.title_uz || article.title_ru || 'Research article';
   const abstract = (language === 'ru' ? article.abstract_ru : language === 'en' ? article.abstract_en : article.abstract_uz)
@@ -238,25 +246,37 @@ export async function generatePublicationCoverPdf(article: Article, settings: Jo
   const keywords = (language === 'ru' ? article.keywords_ru : language === 'en' ? article.keywords_en : article.keywords_uz)
     || article.keywords_en || article.keywords_uz || article.keywords_ru || [];
   const articleId = `AGM-${article.id.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
-  const issue = article.issue ? `VOL. ${article.issue.volume}  /  ISSUE ${article.issue.issue_number}  /  ${article.issue.year}` : 'RESEARCH ARTICLE';
+  const issue = article.issue ? `${labels.volume} ${article.issue.volume}  /  ${labels.issue} ${article.issue.issue_number}  /  ${article.issue.year}` : labels.passport;
   const pageRange = article.page_first == null ? '—' : `${article.page_first}${article.page_last != null && article.page_last !== article.page_first ? `–${article.page_last}` : ''}`;
   let page = doc.addPage([W, H]);
   let y = H - 252;
   function header() {
+    page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: publicationPaper });
     page.drawRectangle({ x: 0, y: H - 188, width: W, height: 188, color: navy });
+    drawResearchWeave(page, article, W - 256, H - 182, 235, 122);
     page.drawRectangle({ x: 0, y: H - 188, width: 8, height: 188, color: teal });
-    page.drawText(settings.journal_name.toUpperCase(), { x: M, y: H - 49, size: fitFont(settings.journal_name.toUpperCase(), fontBold, 18, W - M * 2 - 110), font: fontBold, color: rgb(1, 1, 1) });
-    page.drawText(articleId, { x: W - M - 82, y: H - 49, size: 7.5, font: fontBold, color: rgb(0.76, 0.86, 0.85) });
-    page.drawText('OPEN ACCESS  ·  JOURNAL ARTICLE', { x: M, y: H - 68, size: 7, font: fontRegular, color: rgb(0.72, 0.86, 0.83) });
-    page.drawLine({ start: { x: M, y: H - 83 }, end: { x: W - M, y: H - 83 }, thickness: 0.7, color: rgb(0.35, 0.57, 0.56) });
-    page.drawText(issue, { x: M, y: H - 105, size: 8, font: fontBold, color: rgb(1, 1, 1) });
-    const published = article.publication_date || article.issue?.publication_date || '';
-    page.drawText(`PUBLISHED ${published}  ·  JOURNAL PAGES ${pageRange}`, { x: M, y: H - 123, size: 7, font: fontRegular, color: rgb(0.78, 0.86, 0.86) });
+    page.drawRectangle({ x: M, y: H - 28, width: 28, height: 2, color: publicationGold });
+    page.drawText(labels.series, { x: M + 38, y: H - 30, size: 7, font: fontBold, color: publicationGold });
+    page.drawText(settings.journal_name.toUpperCase(), { x: M, y: H - 80, size: fitFont(settings.journal_name.toUpperCase(), fontBold, 34, W - M * 2 - 100), font: fontBold, color: rgb(1, 1, 1) });
+    page.drawRectangle({ x: W - M - 63, y: H - 88, width: 64, height: 64, color: publicationPaper });
+    page.drawImage(seal, { x: W - M - 59, y: H - 84, width: 56, height: 56 });
+    const subject = (subjectLabel(resolveSubjectId(article), language) || '').toUpperCase();
+    page.drawText(subject, { x: M, y: H - 103, size: fitFont(subject, fontRegular, 8, W - M * 2 - 95), font: fontRegular, color: rgb(0.75, 0.86, 0.83) });
+    page.drawLine({ start: { x: M, y: H - 119 }, end: { x: W - M - 88, y: H - 119 }, thickness: 0.45, color: publicationGold });
+    page.drawText(issue, { x: M, y: H - 139, size: 9, font: fontBold, color: rgb(1, 1, 1) });
+    page.drawText(`${labels.open}  /  ${articleId}`, { x: M, y: H - 158, size: 7, font: fontRegular, color: rgb(0.75, 0.86, 0.83) });
+    page.drawImage(qr, { x: W - M - 57, y: H - 171, width: 52, height: 52 });
+    addPublicationLink(doc, page, siteUrlForPdf(article), W - M - 57, H - 171, 52, 52);
+    page.drawRectangle({ x: 0, y: H - 191, width: W, height: 3, color: publicationGold });
+    const published = article.publication_date || article.issue?.publication_date || labels.pending;
+    page.drawText(`${labels.date}: ${published}   /   ${labels.pages}: ${pageRange}`, { x: M, y: H - 207, size: 6.5, font: fontRegular, color: muted });
   }
   function newPage() {
     page = doc.addPage([W, H]);
+    page.drawRectangle({ x: 0, y: 0, width: 7, height: H, color: teal });
+    page.drawImage(seal, { x: W - M - 23, y: H - 48, width: 23, height: 23 });
     page.drawText(settings.journal_name.toUpperCase(), { x: M, y: H - 42, size: fitFont(settings.journal_name.toUpperCase(), fontBold, 10, W - M * 2 - 105), font: fontBold, color: navy });
-    page.drawText(articleId, { x: W - M - 82, y: H - 42, size: 7, font: fontRegular, color: muted });
+    page.drawText(articleId, { x: W - M - 116, y: H - 42, size: 7, font: fontRegular, color: muted });
     page.drawLine({ start: { x: M, y: H - 54 }, end: { x: W - M, y: H - 54 }, thickness: 0.8, color: teal });
     y = H - 88;
   }
@@ -264,7 +284,7 @@ export async function generatePublicationCoverPdf(article: Article, settings: Jo
     return value.split(/\r?\n/).flatMap(paragraph => wrapText(paragraph, maxWidth, size, font));
   }
   header();
-  const articleTypeLabel = article.article_type.replace(/_/g, ' ').toUpperCase();
+  const articleTypeLabel = labels.types[article.article_type];
   const articleTypeWidth = fontBold.widthOfTextAtSize(articleTypeLabel, 7);
   page.drawRectangle({ x: M, y: H - 226, width: articleTypeWidth + 16, height: 16, color: pale });
   page.drawRectangle({ x: M, y: H - 226, width: 2, height: 16, color: teal });
@@ -279,7 +299,7 @@ export async function generatePublicationCoverPdf(article: Article, settings: Jo
   if (y < 125) newPage();
   y -= 7;
   page.drawLine({ start: { x: M, y }, end: { x: M + 54, y }, thickness: 2.5, color: teal }); y -= 20;
-  page.drawText('AUTHORS & AFFILIATIONS', { x: M, y, size: 7, font: fontBold, color: teal }); y -= 17;
+  page.drawText(labels.authors, { x: M, y, size: 7, font: fontBold, color: teal }); y -= 17;
   const authors = [...(article.authors || [])].sort((a, b) => a.order_index - b.order_index);
   for (const [index, author] of authors.entries()) {
     const lines = wrapped(`${String(index + 1).padStart(2, '0')}  ${author.full_name}${author.is_corresponding ? '  *' : ''}`, 10, fontBold);
@@ -289,7 +309,7 @@ export async function generatePublicationCoverPdf(article: Article, settings: Jo
     if (author.orcid) { for (const line of wrapped(`ORCID  ${author.orcid}`, 7, fontRegular, W - M * 2 - 22)) { if (y < 80) newPage(); page.drawText(line, { x: M + 22, y, size: 7, font: fontRegular, color: teal }); y -= 11; } }
   }
   const corresponding = authors.find(author => author.is_corresponding && author.email);
-  if (corresponding) { for (const line of wrapped(`* Corresponding author: ${corresponding.email}`, 7, fontRegular, W - M * 2 - 22)) { if (y < 80) newPage(); page.drawText(line, { x: M + 22, y, size: 7, font: fontRegular, color: muted }); y -= 11; } y -= 6; }
+  if (corresponding) { for (const line of wrapped(`* ${labels.corresponding}: ${corresponding.email}`, 7, fontRegular, W - M * 2 - 22)) { if (y < 80) newPage(); page.drawText(line, { x: M + 22, y, size: 7, font: fontRegular, color: muted }); y -= 11; } y -= 6; }
   if (y < 180) newPage();
   const abstractLines = wrapped(abstract, 9, fontRegular, W - M * 2 - 30);
   let abstractOffset = 0;
@@ -300,7 +320,7 @@ export async function generatePublicationCoverPdf(article: Article, settings: Jo
     const cardHeight = lines.length * 13 + 30;
     page.drawRectangle({ x: M, y: y - cardHeight + 4, width: W - M * 2, height: cardHeight, color: pale });
     page.drawRectangle({ x: M, y: y - cardHeight + 4, width: 3, height: cardHeight, color: teal });
-    page.drawText(abstractOffset ? 'ABSTRACT  ·  CONTINUED' : 'ABSTRACT', { x: M + 15, y: y - 13, size: 7, font: fontBold, color: teal });
+    page.drawText(abstractOffset ? `${labels.abstract} / ${labels.continued}` : labels.abstract, { x: M + 15, y: y - 13, size: 7, font: fontBold, color: teal });
     let abstractY = y - 29;
     for (const line of lines) { page.drawText(line, { x: M + 15, y: abstractY, size: 9, font: fontRegular, color: ink }); abstractY -= 13; }
     y -= cardHeight + 17;
@@ -309,7 +329,7 @@ export async function generatePublicationCoverPdf(article: Article, settings: Jo
   }
   if (keywords.length) {
     if (y < 90) newPage();
-    page.drawText('KEYWORDS', { x: M, y, size: 7, font: fontBold, color: teal }); y -= 14;
+    page.drawText(labels.keywords, { x: M, y, size: 7, font: fontBold, color: teal }); y -= 14;
     for (const line of wrapped(keywords.join('  ·  '), 8.5, fontRegular)) { if (y < 75) newPage(); page.drawText(line, { x: M, y, size: 8.5, font: fontRegular, color: ink }); y -= 13; }
   }
   const authorsText = authors.map(author => author.full_name).join(', ');
@@ -317,19 +337,32 @@ export async function generatePublicationCoverPdf(article: Article, settings: Jo
   const cite = `${authorsText}${year ? ` (${year})` : ''}. ${title}. ${settings.journal_name}${article.issue ? `, ${article.issue.volume}(${article.issue.issue_number})` : ''}${article.page_first != null ? `, pp. ${article.page_first}${article.page_last && article.page_last !== article.page_first ? `–${article.page_last}` : ''}` : ''}.`;
   if (y < 110) newPage();
   y -= 7; page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.5, color: muted }); y -= 15;
-  page.drawText('HOW TO CITE', { x: M, y, size: 7, font: fontBold, color: teal }); y -= 13;
+  page.drawText(labels.cite, { x: M, y, size: 7, font: fontBold, color: teal }); y -= 13;
   for (const line of wrapped(cite, 7.5, fontRegular)) { if (y < 67) newPage(); page.drawText(line, { x: M, y, size: 7.5, font: fontRegular, color: ink }); y -= 11; }
   if (article.doi) {
     for (const line of wrapped(`DOI  https://doi.org/${article.doi}`, 7.5, fontRegular)) {
       if (y < 67) newPage();
       page.drawText(line, { x: M, y, size: 7.5, font: fontRegular, color: teal }); y -= 11;
+      addPublicationLink(doc, page, `https://doi.org/${article.doi}`, M, y + 9, fontRegular.widthOfTextAtSize(line, 7.5), 11);
     }
   }
   if (isValidIssn(settings.issn_online)) { if (y < 67) newPage(); page.drawText(`ISSN  ${settings.issn_online}`, { x: M, y, size: 7, font: fontRegular, color: muted }); }
+  // A quiet colophon fills genuine spare space; it never overlays flowing text.
+  if (doc.getPageCount() === 1 && y > 215) {
+    const top = Math.min(y - 28, 225);
+    page.drawLine({ start: { x: M, y: top }, end: { x: W - M, y: top }, thickness: 0.4, color: publicationGold, opacity: 0.5 });
+    page.drawText('AGM', { x: W - M - fontBold.widthOfTextAtSize('AGM', 68), y: 87, size: 68, font: fontBold, color: teal, opacity: 0.07 });
+    const signature = { uz: 'ILM. DALIL. MULOQOT.', en: 'KNOWLEDGE. EVIDENCE. DIALOGUE.', ru: 'ЗНАНИЯ. ДОКАЗАТЕЛЬСТВА. ДИАЛОГ.' }[language];
+    page.drawText(signature, { x: M, y: top - 23, size: fitFont(signature, fontBold, 8, W - M * 2), font: fontBold, color: teal });
+    const subject = subjectLabel(resolveSubjectId(article), language) || '';
+    page.drawText(subject, { x: M, y: top - 41, size: 8, font: fontRegular, color: muted });
+    drawResearchWeave(page, article, M, 69, 190, Math.max(35, top - 132));
+  }
   doc.getPages().forEach((sheet, index) => {
     sheet.drawLine({ start: { x: M, y: 43 }, end: { x: W - M, y: 43 }, thickness: 0.45, color: muted });
     const footer = `${article.license}  ·  ${siteUrlForPdf(article)}`;
     sheet.drawText(footer, { x: M, y: 28, size: fitFont(footer, fontRegular, 6.5, W - M * 2 - 40), font: fontRegular, color: muted });
+    addPublicationLink(doc, sheet, siteUrlForPdf(article), M, 25, W - M * 2 - 40, 11);
     sheet.drawText(`${index + 1} / ${doc.getPageCount()}`, { x: W - M - 30, y: 28, size: 6.5, font: fontRegular, color: muted });
   });
   doc.setTitle(title); doc.setAuthor(authorsText); doc.setSubject(issue); doc.setCreator(settings.journal_name); doc.setLanguage(language); doc.setKeywords(['AGM_METADATA_ONLY']);
@@ -355,16 +388,55 @@ export async function mergePdfs(pdfBuffers: Uint8Array[]): Promise<Uint8Array> {
 }
 
 /** Brand the original page artwork without extracting/reflowing scientific content. */
+export async function ensurePublicationLayout(article: Article, settings: JournalSettings, bytes: Uint8Array) {
+  const pdf = await PDFDocument.load(bytes);
+  if (pdf.getKeywords()?.includes('AGM_METADATA_ONLY')) throw new Error('Full manuscript PDF required');
+  if (!pdf.getKeywords()?.includes('AGM_FULL_ARTICLE_V2')) return assemblePublicationPdf(article, settings, bytes);
+  // Older Word publications have metadata pages before their marked body. Replace
+  // those pages; retain the typeset body itself without another nested frame.
+  const marked = Number(pdf.getKeywords()?.match(/(?:^|\s)AGM_BODY_PAGES:(\d+)(?:\s|$)/)?.[1]);
+  const count = Number.isSafeInteger(marked) && marked > 0 && marked <= pdf.getPageCount() ? marked : pdf.getPageCount();
+  if (pdf.getKeywords()?.includes(PUBLICATION_DESIGN) && pdf.getKeywords()?.includes(`AGM_COVER_HASH:${publicationCoverHash(article, settings, count)}`)) return bytes;
+  const body = await PDFDocument.create();
+  const pages = await body.copyPages(pdf, pdf.getPageIndices().slice(-count));
+  pages.forEach(page => body.addPage(page));
+  return attachPublicationCover(article, settings, await body.save());
+}
+
+/** Cover pages are physical PDF pages, never part of the journal's body range. */
+export async function attachPublicationCover(article: Article, settings: JournalSettings, bodyBytes: Uint8Array): Promise<Uint8Array> {
+  const body = await PDFDocument.load(bodyBytes);
+  if (!body.getPageCount()) throw new Error('Empty manuscript');
+  const first = article.page_first;
+  const prepared = first == null ? article : { ...article, page_last: first + body.getPageCount() - 1 };
+  const cover = await PDFDocument.load(await generatePublicationCoverPdf(prepared, settings));
+  const doc = await PDFDocument.create();
+  for (const source of [cover, body]) {
+    const copied = await doc.copyPages(source, source.getPageIndices());
+    copied.forEach(page => doc.addPage(page));
+  }
+  doc.setTitle(cover.getTitle() || article.title_uz);
+  doc.setAuthor(cover.getAuthor() || '');
+  doc.setSubject(cover.getSubject() || settings.journal_name);
+  doc.setCreator(settings.journal_name);
+  doc.setLanguage(article.original_language);
+  const bodyFirst = body.getKeywords()?.match(/(?:^|\s)AGM_BODY_FIRST:(\d+)(?:\s|$)/)?.[1] || String(article.page_first || 1);
+  doc.setKeywords(['AGM_FULL_ARTICLE_V2', PUBLICATION_DESIGN, `AGM_BODY_PAGES:${body.getPageCount()}`, `AGM_BODY_FIRST:${bodyFirst}`, `AGM_COVER_PAGES:${cover.getPageCount()}`, `AGM_COVER_HASH:${publicationCoverHash(prepared, settings, body.getPageCount())}`]);
+  return doc.save();
+}
+
 export async function assemblePublicationPdf(article: Article, settings: JournalSettings, original: Uint8Array): Promise<Uint8Array> {
   const source = await PDFDocument.load(original);
   if (!source.getPageCount()) throw new Error('Empty manuscript');
   const doc = await PDFDocument.create();
   const { fontRegular, fontBold } = await embedJournalFonts(doc);
+  const seal = await embedPublicationSeal(doc);
   const W = 595.28, H = 841.89, M = 32;
-  const articleId = `AGM-${article.id.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
   for (let i = 0; i < source.getPageCount(); i++) {
     // Retain the visible crop and rotation, including landscape manuscripts.
     const originalPage = source.getPage(i);
+    // pdf-lib cannot embed a blank page without a content stream.
+    if (!originalPage.node.Contents()) originalPage.drawText('');
     const crop = originalPage.getCropBox();
     const embedded = await doc.embedPage(originalPage, { left: crop.x, bottom: crop.y, right: crop.x + crop.width, top: crop.y + crop.height });
     const rotation = ((originalPage.getRotation().angle % 360) + 360) % 360;
@@ -375,23 +447,16 @@ export async function assemblePublicationPdf(article: Article, settings: Journal
     const w = visibleW * scale, h = visibleH * scale;
     const x = (W - w) / 2, y = 54 + (H - 112 - h) / 2;
     const page = doc.addPage([W, H]);
-    page.drawText(settings.journal_name.toUpperCase(), { x: M, y: H - 29, size: fitFont(settings.journal_name.toUpperCase(), fontBold, 10, W - M * 2 - 100), font: fontBold, color: navy });
-    page.drawText(articleId, { x: W - M - 88, y: H - 29, size: 8, font: fontRegular, color: muted });
-    const section = subjectLabel(resolveSubjectId(article), 'en') || '';
-    page.drawText(section.toUpperCase(), { x: M, y: H - 39, size: 6, font: fontRegular, color: teal });
-    page.drawLine({ start: { x: M, y: H - 41 }, end: { x: W - M, y: H - 41 }, thickness: 0.8, color: teal });
+    drawBodyIdentity(page, article, settings.journal_name, { fontRegular, fontBold }, i, source.getPageCount());
+    page.drawImage(seal, { x: M, y: H - 36, width: 18, height: 18 });
     // PDF rotation is clockwise, whereas drawPage angles are counterclockwise.
     const offsets = rotation === 90 ? [0, h] : rotation === 180 ? [w, h] : rotation === 270 ? [w, 0] : [0, 0];
     page.drawPage(embedded, { x: x + offsets[0], y: y + offsets[1], xScale: scale, yScale: scale, rotate: degrees(-rotation) });
-    page.drawLine({ start: { x: M, y: 42 }, end: { x: W - M, y: 42 }, thickness: 0.5, color: muted });
-    const range = article.page_first != null && article.page_last != null && article.page_last - article.page_first + 1 === source.getPageCount() ? ` | Journal page ${article.page_first + i}` : '';
-    page.drawText(`Manuscript ${i + 1} / ${source.getPageCount()}${range}`, { x: M, y: 26, size: 7, font: fontRegular, color: muted });
-    page.drawText(`PDF ${i + 1} / ${source.getPageCount()}`, { x: W - M - 65, y: 26, size: 7, font: fontRegular, color: muted });
   }
   doc.setTitle((article.original_language === 'en' ? article.title_en : article.original_language === 'ru' ? article.title_ru : article.title_uz) || article.title_uz);
   doc.setAuthor((article.authors || []).map(a => a.full_name).join(', '));
-  doc.setCreator(settings.journal_name); doc.setKeywords(['AGM_FULL_ARTICLE_V2']);
-  return doc.save();
+  doc.setCreator(settings.journal_name); doc.setKeywords(['AGM_FULL_ARTICLE_V2', `AGM_BODY_FIRST:${article.page_first || 1}`]);
+  return attachPublicationCover(article, settings, await doc.save());
 }
 
 // Paginated issue contents; page ranges are only printed when assigned.

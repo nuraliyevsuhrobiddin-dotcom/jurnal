@@ -5,17 +5,17 @@ import { Article, ArticleStatus } from '@/types/journal';
 import { articleSchema, articleUpdateSchema, articleClearFields } from '@/lib/article-validation';
 import { PublicationError } from '@/lib/publication-ready';
 import { queueArticleNotifications } from '@/lib/publication-notifications';
-import { deliverNotification } from '@/lib/notifications';
+import { drainNotificationQueue, mailConfigured } from '@/lib/notifications';
 
 export const maxDuration = 60;
 
 async function savedArticleResponse(previous: Article, updated: Article) {
   try {
-    const notifications = await queueArticleNotifications(previous, updated);
-    if (notifications.length) after(async () => {
-      for (const notification of notifications.slice(0, 3)) await deliverNotification(notification);
-    });
-    return NextResponse.json(updated);
+    await queueArticleNotifications(previous, updated);
+    // Retry due pending mail even when the event was already queued on a prior save.
+    // The worker preserves sent/unknown statuses and backoff, so saves cannot duplicate mail.
+    if (mailConfigured()) after(async () => { await drainNotificationQueue(30, 30000); });
+    return NextResponse.json({ ...updated, ...(!mailConfigured() ? { notification_warning: 'Maqola saqlandi. Email xizmati sozlanmagan; xatlar navbatda. Admin → Integratsiyalar bo‘limini tekshiring.' } : {}) });
   } catch {
     // The article is already saved: do not report a false save failure or repeat its transition.
     return NextResponse.json({ ...updated, notification_warning: 'Maqola saqlandi, lekin holat emailini navbatga qo‘shib bo‘lmadi. Muallifga alohida xabar bering.' });

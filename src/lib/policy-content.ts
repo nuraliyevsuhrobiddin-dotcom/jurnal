@@ -1,5 +1,6 @@
 import { policyIds, policySources, type PolicyContent, type PolicyDocument, type PolicyId, type PolicySection } from '../types/policies';
 import type { Language } from '../types/journal';
+import { manuscriptStandardCopy } from './manuscript-standard';
 
 type Entry = { title: string; summary: string; sections: [string, string][]; sources: (keyof typeof policySources)[] };
 
@@ -514,7 +515,11 @@ const uz: Record<PolicyId, Entry> = {
 };
 
 function buildDocument(id: PolicyId, entry: Entry, lang: Language): PolicyDocument {
-  const sections: PolicySection[] = [...entry.sections, ...common[lang]].map(([title, text], index) => ({
+  const standard = manuscriptStandardCopy[lang];
+  const main: [string, string][] = id === 'guidelines'
+    ? entry.sections.map((section, index) => index === 1 ? [section[0], standard.policy] : section)
+    : id === 'journal-charter' ? [...entry.sections, [standard.heading, standard.policy]] : entry.sections;
+  const sections: PolicySection[] = [...main, ...common[lang]].map(([title, text], index) => ({
     id: `section-${index + 1}`,
     title,
     paragraphs: [text],

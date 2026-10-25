@@ -9,14 +9,32 @@ export default function AdminCertificatesPage() {
   const [certs, setCerts] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [error, setError] = useState('');
+  const [downloading, setDownloading] = useState<string | null>(null);
+
+  async function downloadCertificate(cert: Certificate) {
+    setError(''); setDownloading(cert.id);
+    try {
+      const response = await fetch(`/api/certificates/${encodeURIComponent(cert.certificate_number)}/pdf`, { cache: 'no-store' });
+      if (!response.ok || !response.headers.get('content-type')?.includes('application/pdf')) {
+        throw new Error(response.status === 410 ? 'Bu sertifikat bekor qilingan.' : 'Sertifikatni yuklab bo‘lmadi. Qayta urinib ko‘ring.');
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = url; link.download = `${cert.certificate_number}.pdf`;
+      document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Sertifikat yuklanmadi.'); }
+    finally { setDownloading(null); }
+  }
 
   const loadCerts = () => {
     return fetch('/api/admin/certificates')
-      .then(res => res.json())
+      .then(res => { if (!res.ok) throw new Error('Sertifikatlar ro‘yxatini yuklab bo‘lmadi.'); return res.json(); })
       .then(data => {
         if (Array.isArray(data)) setCerts(data);
       })
-      .catch(console.error)
+      .catch(cause => setError(cause.message))
       .finally(() => setLoading(false));
   };
 
@@ -69,6 +87,8 @@ export default function AdminCertificatesPage() {
 
   return (
     <div className="space-y-6">
+      {error && <p role="alert" className="rounded-lg bg-red-50 p-4 text-sm text-red-800">{error}</p>}
+      {downloading && <p role="status" className="text-sm text-slate-600">Sertifikat PDF’i tayyorlanmoqda…</p>}
       <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-6 rounded-2xl academic-border academic-shadow">
         <div>
           <h1 className="text-2xl font-extrabold text-navy-900">
@@ -161,15 +181,16 @@ export default function AdminCertificatesPage() {
                           <ExternalLink className="w-4 h-4" />
                         </Link>
 
-                        <a
-                          href={`/api/certificates/${cert.certificate_number}/pdf`}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => void downloadCertificate(cert)}
+                          disabled={Boolean(downloading) || cert.status !== 'valid'}
+                          aria-label={`${cert.certificate_number} PDF yuklab olish`}
                           title="PDF yuklab olish"
-                          className="p-1.5 rounded text-gold-700 hover:text-gold-700 hover:bg-gold-50"
+                          className="p-1.5 rounded text-gold-700 hover:text-gold-700 hover:bg-gold-50 disabled:opacity-40"
                         >
                           <Download className="w-4 h-4" />
-                        </a>
+                        </button>
 
                         {cert.status === 'valid' && (
                           <button

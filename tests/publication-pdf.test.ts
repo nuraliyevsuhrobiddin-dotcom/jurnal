@@ -24,7 +24,8 @@ describe('Publication PDF layout', () => {
     const article = journalStore.articles[0];
     const cover = await PDFDocument.load(await generateArticleTitlePagePdf(article, journalStore.settings));
     const assembled = await PDFDocument.load(await assemblePublicationPdf(article, journalStore.settings, await original.save()));
-    expect(assembled.getPageCount()).toBe(2);
+    expect(assembled.getPageCount()).toBe(3); // Editorial cover + two original pages.
+    expect(assembled.getKeywords()).toContain('AGM_BODY_PAGES:2');
     for (const page of assembled.getPages()) {
       expect(page.getWidth()).toBeCloseTo(595.28);
       expect(page.getHeight()).toBeCloseTo(841.89);

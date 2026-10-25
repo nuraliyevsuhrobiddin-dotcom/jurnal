@@ -5,7 +5,7 @@ import { createCertificate, getAllCertificatesAdmin, getArticleById, getCertific
 import { queueNotificationOnce, type Notification } from './notifications';
 import { queueArticleStatusNotification } from './article-status-notifications';
 import { articleText, articleUrl } from './scholarly-feeds';
-import { generateCertificatePdf } from './pdf/generator';
+import { generateCertificatePdf, ensurePublicationLayout } from './pdf/generator';
 import { readArticlePdf } from './pdf/storage';
 import { trackingUrl } from './submission-tracking';
 
@@ -68,12 +68,13 @@ export async function publicationAttachments(publication: PublicationAttachment)
   if (!cert || cert.status !== 'valid' || cert.article_id !== article.id) throw new Error('Sertifikat bekor qilingan yoki topilmadi.');
   const bytes = await readArticlePdf(article.id);
   if (!bytes) throw new Error('Maqola PDF fayli topilmadi.');
+  const publicationPdf = await ensurePublicationLayout(article, settings, bytes);
   const base = (process.env.NEXT_PUBLIC_SITE_URL || 'https://agmjoural.uz').replace(/\/$/, '');
   const certificate = await generateCertificatePdf(cert, `${base}/certificate/${encodeURIComponent(cert.certificate_number)}`, settings);
   // Stay below provider message limits after base64/MIME expansion.
-  if (bytes.length + certificate.length > 17 * 1024 * 1024) throw new Error('Email PDF fayllari 17 MB dan oshdi. Fayl hajmini kamaytiring.');
+  if (publicationPdf.length + certificate.length > 17 * 1024 * 1024) throw new Error('Email PDF fayllari 17 MB dan oshdi. Fayl hajmini kamaytiring.');
   return [
-    { filename: `article-${article.id}.pdf`, content: Buffer.from(bytes).toString('base64') },
+    { filename: `article-${article.id}.pdf`, content: Buffer.from(publicationPdf).toString('base64') },
     { filename: `${cert.certificate_number}.pdf`, content: Buffer.from(certificate).toString('base64') },
   ];
 }

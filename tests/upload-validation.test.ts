@@ -10,7 +10,7 @@ import { POST as parseDocx } from '@/app/api/admin/docx/parse/route';
 import { POST as uploadPdf } from '@/app/api/admin/articles/[id]/pdf/route';
 
 vi.mock('@/lib/admin-access', () => ({ adminAccess: vi.fn(async () => null) }));
-vi.mock('@/lib/db', () => ({ getArticleById: vi.fn(async () => journalStore.articles[0]) }));
+vi.mock('@/lib/db', () => ({ getArticleById: vi.fn(async () => ({ ...journalStore.articles[0], status: 'draft' })) }));
 
 describe('Bounded upload parsing', () => {
   it('rejects an oversized stream without trusting Content-Length', async () => {

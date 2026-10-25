@@ -13,7 +13,8 @@ Oldin nashr qilingan maqolani qayta saqlash orqali ham bu jarayonni boshlash mum
 4. `/admin/notifications` orqali navbat va xatoliklarni kuzating.
 5. Scheduler `GET /api/cron/notifications` ni
    `Authorization: Bearer <CRON_SECRET>` bilan muntazam chaqirsin. Har safar
-   30 tagacha xat qayta ishlanadi; nashr so‘rovi tugagach dastlabki 3 tasi darhol yuboriladi.
+   30 tagacha xat qayta ishlanadi. Maqola saqlangach ham navbatdagi yuborish vaqti
+   kelgan 30 tagacha xat qayta ishlanadi; avval yuborilgan xatlar takrorlanmaydi.
 
 ## Kuzatish, tahririyat izohi va email tiklash
 

@@ -21,10 +21,10 @@ describe('Complete issue PDF', () => {
     const bytes = await buildIssueCollection({ ...issue, cover_image_url: undefined }, [b, makeArticle('draft', 2, 'draft'), { ...a, id: 'other', issue_id: 'other' }, a], settings, reader);
     const result = await PDFDocument.load(bytes);
     expect(reader.mock.calls.map(([id]) => id)).toEqual(['first', 'second']);
-    expect(result.getPageCount()).toBe(5);
+    expect(result.getPageCount()).toBe(7); // Issue cover, contents, two article covers, three source pages.
     expect(result.getPage(0).getWidth()).toBeCloseTo(595.28);
-    expect(result.getPage(2).getWidth()).toBe(401);
-    expect(result.getPage(4).getWidth()).toBe(403);
+    expect(result.getPage(2).getWidth()).toBeCloseTo(595.28);
+    expect(result.getPage(4).getWidth()).toBeCloseTo(595.28);
     expect(result.getTitle()).toContain(`Issue ${issue.issue_number}`);
   });
   it('fails rather than serving an incomplete collection when a PDF is missing or damaged', async () => {
@@ -43,13 +43,13 @@ describe('Complete issue PDF', () => {
     const bytes = await source.save();
     const reader = vi.fn(async () => bytes);
     const full = await PDFDocument.load(await buildIssueCollection({ ...issue, cover_image_url: undefined }, articles, settings, reader));
-    expect(full.getPageCount()).toBe(4); // One cover, one contents page, two manuscripts.
-    expect(full.getPage(2).getWidth()).toBe(401);
-    expect(full.getPage(3).getWidth()).toBe(401);
+    expect(full.getPageCount()).toBe(6); // Issue cover, contents, two article covers and two manuscripts.
+    expect(full.getPage(2).getWidth()).toBeCloseTo(595.28);
+    expect(full.getPage(3).getWidth()).toBeCloseTo(595.28);
     reader.mockClear();
     const subject = await PDFDocument.load(await buildIssueCollection(issue, articles, settings, reader, 'natural-sciences'));
-    expect(subject.getPageCount()).toBe(3);
-    expect(subject.getPage(2).getWidth()).toBe(401);
+    expect(subject.getPageCount()).toBe(4);
+    expect(subject.getPage(2).getWidth()).toBeCloseTo(595.28);
     expect(reader.mock.calls).toHaveLength(1);
   });
   it('supports uploaded WebP cover artwork and keeps a standard A4 cover', async () => {

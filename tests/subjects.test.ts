@@ -42,7 +42,7 @@ describe('Primary subject publishing', () => {
     ];
     const pdf = await PDFDocument.load(await buildIssueCollection(issue, papers, journalStore.settings, reader, 'medicine-life-sciences'));
     expect(reader.mock.calls).toHaveLength(1); expect(reader.mock.calls[0]).toEqual(['medicine']);
-    expect(pdf.getPageCount()).toBe(3); expect(pdf.getTitle()).toContain('Medicine & life sciences');
+    expect(pdf.getPageCount()).toBe(4); expect(pdf.getTitle()).toContain('Medicine & life sciences');
     await expect(buildIssueCollection(issue, papers, journalStore.settings, reader, 'social-sciences')).rejects.toMatchObject({ status: 404 });
   });
 });

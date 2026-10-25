@@ -14,6 +14,9 @@ import { orcidProofCookie, readOrcidProof } from '@/lib/orcid-auth';
 import mammoth from 'mammoth';
 import { submissionTranslator } from '@/lib/submission-copy';
 import { trackingUrl } from '@/lib/submission-tracking';
+import { manuscriptStandard } from '@/lib/manuscript-standard';
+
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   const origin = request.headers.get('origin');
@@ -39,7 +42,10 @@ export async function POST(request: NextRequest) {
       try { await PDFDocument.load(bytes); } catch { return NextResponse.json({ error: 'Upload a readable PDF without password protection.' }, { status: 400 }); }
     } else if (!isDocxArchive(bytes)) return NextResponse.json({ error: 'The DOCX file is not a valid unencrypted Word document within the size limits.' }, { status: 400 });
     if (extension === 'docx') {
-      try { await mammoth.extractRawText({ buffer: Buffer.from(bytes) }); }
+      try {
+        const text = (await mammoth.extractRawText({ buffer: Buffer.from(bytes) })).value;
+        if (/\{\{[A-Z_]+\}\}/.test(text)) return NextResponse.json({ error: 'Replace all template placeholders with your manuscript details before submitting.' }, { status: 400 });
+      }
       catch { return NextResponse.json({ error: 'The Word document could not be read. Upload a readable DOCX or PDF.' }, { status: 400 }); }
     }
     const now = Date.now();
@@ -49,6 +55,7 @@ export async function POST(request: NextRequest) {
     try {
       const data = result.data;
       const uuid = stored.id;
+      const reference = `AGM-SUB-${uuid.slice(0, 8).toUpperCase()}`;
       const orcid = readOrcidProof(request.cookies.get(orcidProofCookie)?.value);
       const keywords = data.keywords.split(/[,;]/).map(word => word.trim()).filter(Boolean);
       const article = await createArticle({
@@ -60,13 +67,12 @@ export async function POST(request: NextRequest) {
         ...(data.lang === 'ru' ? { title_ru: data.title, abstract_ru: data.abstract, keywords_ru: keywords } : {}),
         original_language: data.lang, article_type: 'original_research', status: 'draft', license: 'CC BY 4.0', references_list: [],
         manuscript_file_url: `/api/admin/manuscripts/${uuid}`,
-        submission_notes: `Public author submission; policy version ${POLICY_VERSION}; author confirms originality, all-author consent, no simultaneous submission and reviewed metadata. Declared manuscript language: ${data.lang}; editorial language verification required. ${extension === 'pdf' ? 'PDF requires manual editorial language review.' : 'Word document readability verified.'} Received ${new Date(now).toISOString()}.`,
+        submission_notes: `Public author submission; Submission reference: ${reference}; policy version ${POLICY_VERSION}; manuscript standard ${manuscriptStandard.version}; author confirms template compliance, originality, all-author consent, no simultaneous submission and reviewed metadata. Editorial format and scientific assessment required. Declared manuscript language: ${data.lang}; editorial language verification required. ${extension === 'pdf' ? 'PDF requires manual editorial language review.' : 'Word document readability verified.'} Received ${new Date(now).toISOString()}.`,
         authors: [
           { id: uuid, article_id: '', full_name: data.author_name, email: data.email, affiliation: data.affiliation, country: data.country, ...(orcid?.environment === 'production' ? { orcid: orcid.id } : {}), is_corresponding: true, order_index: 1 },
           ...data.coauthors.map((author, index) => ({ ...author, email: author.email || undefined, id: crypto.randomUUID(), article_id: '', is_corresponding: false, order_index: index + 2 })),
         ],
       });
-      const reference = `AGM-SUB-${uuid.slice(0, 8).toUpperCase()}`;
       let receiptQueued = false;
       let receiptTrackingUrl = '';
       try {

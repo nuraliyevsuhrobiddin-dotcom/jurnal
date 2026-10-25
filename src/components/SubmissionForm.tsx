@@ -9,6 +9,7 @@ import { manuscriptSubmissionSchema } from '@/lib/submission-validation';
 import type { ManuscriptMetadata } from '@/lib/manuscript-metadata';
 import type { Language } from '@/types/journal';
 import { submissionTranslator } from '@/lib/submission-copy';
+import { manuscriptStandard, manuscriptStandardCopy } from '@/lib/manuscript-standard';
 
 type Coauthor = { id: string; full_name: string; email: string; affiliation: string; country: string };
 const limits: Record<ManuscriptField, number> = { title: 500, abstract: 10000, keywords: 1000, author_name: 150, email: 254, affiliation: 500, country: 100 };
@@ -21,6 +22,7 @@ export function SubmissionForm({ lang, orcidEnabled = false, orcidFailed = false
   const [fields, setFields] = useState<TrackedFields>({ values: { ...emptyManuscriptFields }, automatic: {}, edited: {} });
   const [file, setFile] = useState<File | null>(null);
   const [manuscriptLanguage, setManuscriptLanguage] = useState<Language>(lang);
+  const [templateConfirmed, setTemplateConfirmed] = useState(false);
   const languageNames = { uz: t('Uzbek'), en: t('English'), ru: t('Russian') };
   const [coauthors, setCoauthors] = useState<Coauthor[]>([]);
   const [extracting, setExtracting] = useState(false);
@@ -52,7 +54,7 @@ export function SubmissionForm({ lang, orcidEnabled = false, orcidFailed = false
     const nextFile = event.target.files?.[0] || null;
     controller.current?.abort();
     const id = ++extractionId.current;
-    setFile(nextFile); setFields(clearAutomaticFields); setReport(null);
+    setFile(nextFile); setFields(clearAutomaticFields); setReport(null); setTemplateConfirmed(false);
     setExtractionNote(''); setExtracting(false); setError(''); setConfirmed(false);
     if (!nextFile) return;
     if (!/\.(pdf|docx)$/i.test(nextFile.name) || !nextFile.size || nextFile.size > MAX_UPLOAD_BYTES) { setError(invalidFile); return; }
@@ -76,7 +78,7 @@ export function SubmissionForm({ lang, orcidEnabled = false, orcidFailed = false
 
   function validate() {
     if (!file || !/\.(pdf|docx)$/i.test(file.name) || !file.size || file.size > MAX_UPLOAD_BYTES) { setError(invalidFile); return false; }
-    const result = manuscriptSubmissionSchema.safeParse({ ...values, coauthors, lang: manuscriptLanguage, consent: String(consent), original: String(original), reviewed: 'true' });
+    const result = manuscriptSubmissionSchema.safeParse({ ...values, coauthors, lang: manuscriptLanguage, consent: String(consent), original: String(original), reviewed: 'true', template_confirmed: String(templateConfirmed), template_version: manuscriptStandard.version });
     if (!result.success) {
       const fieldsWithErrors = [...new Set(result.error.issues.map(issue => String(issue.path[0] || 'submission')))];
       const reason = result.error.issues.some(issue => issue.message === 'Replace the template examples with your manuscript details.')
@@ -101,6 +103,7 @@ export function SubmissionForm({ lang, orcidEnabled = false, orcidFailed = false
       for (const field of manuscriptFieldNames) body.set(field, values[field]);
       body.set('coauthors', JSON.stringify(coauthors.map(({ full_name, email, affiliation, country }) => ({ full_name, email, affiliation, country }))));
       body.set('lang', manuscriptLanguage); body.set('consent', 'true'); body.set('original', 'true'); body.set('reviewed', 'true'); body.set('file', file);
+      body.set('template_confirmed', String(templateConfirmed)); body.set('template_version', manuscriptStandard.version);
       const response = await fetch('/api/submissions', { method: 'POST', body });
       const result = await response.json().catch(() => { throw new Error('Submission failed. Please try again.'); });
       if (!response.ok || !result.success) throw new Error(result.error || t("Submission failed. Please try again."));
@@ -132,8 +135,9 @@ export function SubmissionForm({ lang, orcidEnabled = false, orcidFailed = false
         </section>}
         <form onSubmit={review} className="submission-form" hidden={reviewing}>
           <p className="submission-note">{t("Prepare your manuscript in the selected language.")}{' '}<Link href={`/${lang}/guidelines`}>{t("Author guidelines")}</Link> | <a href={`/api/submissions/template?lang=${manuscriptLanguage}`} download>{t("Download the Word template")}</a></p>
+          <aside className="submission-note" aria-label={manuscriptStandardCopy[lang].heading}><strong>{manuscriptStandardCopy[lang].heading} · {manuscriptStandard.version}</strong><p>{manuscriptStandardCopy[lang].summary}</p><Link href={`/${lang}/guidelines#manuscript-standard-${lang}`}>{t('View the manuscript sample and requirements')}</Link></aside>
           <fieldset disabled={pending}><legend>{t("1. Manuscript file")}</legend>
-            <label>{t('Manuscript language')} *<select name="lang" value={manuscriptLanguage} onChange={event => { setManuscriptLanguage(event.target.value as Language); setConfirmed(false); }}>{(['uz', 'en', 'ru'] as const).map(code => <option key={code} value={code}>{languageNames[code]}</option>)}</select></label>
+            <label>{t('Manuscript language')} *<select name="lang" value={manuscriptLanguage} onChange={event => { setManuscriptLanguage(event.target.value as Language); setConfirmed(false); setTemplateConfirmed(false); }}>{(['uz', 'en', 'ru'] as const).map(code => <option key={code} value={code}>{languageNames[code]}</option>)}</select></label>
             <label className="submission-upload"><span><Upload size={18} />{t("Upload PDF or Word *")}</span><input required type="file" name="file" accept=".pdf,.docx" onChange={selectFile} /><small>{t("PDF or DOCX, up to 4 MB. Include all authors and affiliations. Use the template in your manuscript language.")}</small>{file && <p>{file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)</p>}</label>
             <div aria-live="polite">{extracting ? <p>{t("Reading the Word file...")}</p> : <>
               {extractionNote && <p>{extractionNote}</p>}
@@ -149,6 +153,7 @@ export function SubmissionForm({ lang, orcidEnabled = false, orcidFailed = false
           </fieldset>
           <fieldset><legend>{t("4. Manuscript details")} — {languageNames[manuscriptLanguage]}</legend>{(['title', 'abstract', 'keywords'] as const).map(input)}<small>{t("Separate keywords with commas or semicolons.")}</small></fieldset>
           <fieldset className="submission-declarations"><legend>{t("5. Declarations")}</legend>
+            <label><input type="checkbox" required checked={templateConfirmed} onChange={event => setTemplateConfirmed(event.target.checked)} /><span>{manuscriptStandardCopy[lang].confirmation}</span></label>
             <label><input type="checkbox" required checked={original} onChange={event => setOriginal(event.target.checked)} /><span>{t("I confirm that this work is original, all authors agree to this submission, and it is not simultaneously submitted to another journal.")}</span></label>
             <label><input type="checkbox" required checked={consent} onChange={event => setConsent(event.target.checked)} /><span>{t("I have read the")}{' '}<Link href={`/${lang}/privacy`}>{t("privacy policy")}</Link> {' '}{t("and consent to the editorial office processing this submission for review.")}</span></label>
           </fieldset>

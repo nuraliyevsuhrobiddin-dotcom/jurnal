@@ -1,4 +1,3 @@
-import { checkManuscriptLanguage } from '@/lib/manuscript-language';
 import { MAX_UPLOAD_BYTES } from '@/lib/upload-limits';
 import { adminAccess } from '@/lib/admin-access';
 import { NextRequest, NextResponse } from 'next/server';
@@ -43,7 +42,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       metadata,
       report: metadataReport(metadata),
-      language: checkManuscriptLanguage(parsed.rawText),
+      language: { status: 'uncertain', message: 'Maqolalar o‘zbek, rus va ingliz tillarida qabul qilinadi. Maqola tilini tanlang va ajratilgan ma’lumotlarni tekshiring.' },
       success: parsed.success,
       fileName: file.name,
       fileSize: file.size,

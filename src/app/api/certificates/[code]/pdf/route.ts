@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCertificateByCode, getJournalSettings } from '@/lib/db';
 import { generateCertificatePdf } from '@/lib/pdf/generator';
+import { streamPdf } from '@/lib/pdf/stream';
+
+export const maxDuration = 60;
 
 export async function GET(
   request: NextRequest,
@@ -20,7 +23,7 @@ export async function GET(
 
     const pdfBytes = await generateCertificatePdf(cert, verificationUrl, await getJournalSettings());
 
-    return new NextResponse(Buffer.from(pdfBytes), {
+    return new NextResponse(streamPdf(pdfBytes), {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',

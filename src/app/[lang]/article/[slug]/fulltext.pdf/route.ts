@@ -3,6 +3,8 @@ import { getArticleBySlug } from '@/lib/db';
 import { GET as servePdf } from '@/app/api/articles/[id]/pdf/route';
 import { siteUrl } from '@/lib/site-url';
 
+export const maxDuration = 60;
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ lang: string; slug: string }> }) {
   const { lang, slug } = await params;
   if (!['en', 'uz', 'ru'].includes(lang)) return new NextResponse(null, { status: 404 });

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import JSZip from 'jszip';
-import { PDFDocument } from 'pdf-lib';
-import { manuscriptToPdf, manuscriptBodyBlocks, publicationBodyPageCount } from '@/lib/pdf/manuscript-conversion';
+import { PDFDocument, PDFDict, PDFName } from 'pdf-lib';
+import sharp from 'sharp';
+import { manuscriptToPdf, manuscriptBodyBlocks, publicationBodyPageCount, linearizeWordEquations } from '@/lib/pdf/manuscript-conversion';
 import { generateArticleTitlePagePdf, assemblePublicationPdf } from '@/lib/pdf/generator';
 import { generatePolicyPdf } from '@/lib/pdf/policy-generator';
 import { getPolicyDocument } from '@/lib/policies';
@@ -23,11 +24,12 @@ describe('Full manuscript conversion', () => {
     expect(parsed.extractedKeywords).toEqual(['pedagogika', 'ta’lim']);
     expect(parsed.extractedAbstract).toBe('Research summary and evidence.');
   });
-  it('keeps all source PDF pages and never prepends an abstract sheet', async () => {
+  it('keeps the full source PDF after its separate journal cover', async () => {
     const source = await PDFDocument.create(); source.addPage().drawText('Full research body');
     const bytes = await manuscriptToPdf(await source.save(), 'pdf', settings);
     const result = await PDFDocument.load(await assemblePublicationPdf(journalStore.articles[0], settings, bytes));
-    expect(result.getPageCount()).toBe(1);
+    expect(result.getPageCount()).toBe(2);
+    expect(publicationBodyPageCount(result)).toBe(1);
     expect(result.getKeywords()).toContain('AGM_FULL_ARTICLE_V2');
   });
   it('rejects a metadata-only PDF and the actual journal author guidelines', async () => {
@@ -48,8 +50,32 @@ describe('Full manuscript conversion', () => {
     const pdf = await PDFDocument.load(await manuscriptToPdf(await docx(body), 'docx', settings));
     expect(pdf.getPageCount()).toBeGreaterThan(3);
   });
-  it.each(['<w:tbl/>', '<w:drawing/>', '<w:rPr><w:vertAlign w:val="superscript"/></w:rPr>', '<w:sym w:font="Symbol" w:char="F061"/>', '<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"/>'])('refuses to silently lose scientific content: %s', async element => {
+  it.each(['<w:object/>', '<w:sym w:font="Symbol" w:char="F061"/>'])('refuses to silently lose unsupported embedded objects: %s', async element => {
     await expect(manuscriptToPdf(await docx(`<w:p><w:r><w:t>Research</w:t></w:r></w:p>${element}`), 'docx', settings)).rejects.toThrow('Word’dan PDF');
+  });
+  it('accepts a Word table and superscript without asking for a PDF', async () => {
+    const body = '<w:p><w:r><w:t>Research table</w:t></w:r></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:t>Group A</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Result 42</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:r><w:t>E = mc</w:t></w:r><w:r><w:rPr><w:vertAlign w:val="superscript"/></w:rPr><w:t>2</w:t></w:r></w:p>';
+    const bytes = await manuscriptToPdf(await docx(body), 'docx', settings);
+    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(1);
+  });
+  it('preserves common Word equation operands and fraction structure', async () => {
+    const equation = '<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><m:f><m:num><m:r><m:t>x+1</m:t></m:r></m:num><m:den><m:r><m:t>y</m:t></m:r></m:den></m:f></m:oMath>';
+    const body = `<w:p><w:r><w:t>Research formula</w:t></w:r>${equation}</w:p>`;
+    expect(linearizeWordEquations(`<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}</w:body></w:document>`)).toContain('(x+1)/(y)');
+    expect((await PDFDocument.load(await manuscriptToPdf(await docx(body), 'docx', settings))).getPageCount()).toBe(1);
+  });
+  it('embeds a Word figure into the downloadable PDF', async () => {
+    const body = '<w:p><w:r><w:t>Scientific figure and findings</w:t></w:r></w:p><w:p><w:r><w:drawing><wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="rIdFigure"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>';
+    const zip = await JSZip.loadAsync(await docx(body));
+    zip.file('word/media/figure.png', await sharp({ create: { width: 120, height: 80, channels: 3, background: '#0d6163' } }).png().toBuffer());
+    const rels = 'word/_rels/document.xml.rels';
+    const existing = await zip.file(rels)?.async('string') || '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>';
+    zip.file(rels, existing.replace('</Relationships>', '<Relationship Id="rIdFigure" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/figure.png"/></Relationships>'));
+    const types = await zip.file('[Content_Types].xml')!.async('string');
+    zip.file('[Content_Types].xml', types.replace('</Types>', '<Default Extension="png" ContentType="image/png"/></Types>'));
+    const pdf = await PDFDocument.load(await manuscriptToPdf(await zip.generateAsync({ type: 'uint8array' }), 'docx', settings));
+    const images = pdf.getPage(0).node.Resources()?.lookup(PDFName.of('XObject'), PDFDict);
+    expect(images?.keys().length).toBeGreaterThanOrEqual(1);
   });
   it('retains the research preceding a Results paragraph and unmatched abstract text', () => {
     const article = journalStore.articles[0];

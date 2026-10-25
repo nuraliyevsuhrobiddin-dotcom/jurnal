@@ -4,11 +4,14 @@ import { adminAccess } from '@/lib/admin-access';
 import { getArticleById, getJournalSettings, updateArticle } from '@/lib/db';
 import { PDFDocument } from 'pdf-lib';
 import { manuscriptToPdf, ManuscriptFileError, publicationBodyPageCount } from '@/lib/pdf/manuscript-conversion';
-import { readManuscript, saveManuscript } from '@/lib/manuscript-storage';
-import { readArticlePdf, saveArticlePdf } from '@/lib/pdf/storage';
+import { readManuscript, removeManuscript, saveManuscript } from '@/lib/manuscript-storage';
+import { readArticlePdf, removeArticlePdf, saveArticlePdf } from '@/lib/pdf/storage';
 import { streamPdf } from '@/lib/pdf/stream';
 import { readUploadForm, UploadFormError } from '@/lib/upload-form';
 import { BodyLimitError } from '@/lib/bounded-body';
+import { assemblePublicationPdf, ensurePublicationLayout } from '@/lib/pdf/generator';
+
+export const maxDuration = 60;
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const denied = await adminAccess(); if (denied) return denied;
@@ -18,7 +21,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   if (!article.pdf_url || !article.pdf_file_size) return NextResponse.json({ error: 'To‘liq maqola PDF’i tayyor emas. Maqola faylini tanlab saqlang.' }, { status: 404 });
   const bytes = await readArticlePdf(id);
   if (!bytes) return NextResponse.json({ error: 'To‘liq maqola fayli hali saqlanmagan. Maqola tahririda PDF yoki DOCX faylini tanlab saqlang.' }, { status: 404 });
-  return new NextResponse(streamPdf(bytes), { headers: { 'Content-Type': 'application/pdf', 'Cache-Control': 'private, no-store' } });
+  const publication = await ensurePublicationLayout(article, await getJournalSettings(), bytes);
+  return new NextResponse(streamPdf(publication), { headers: { 'Content-Type': 'application/pdf', 'Cache-Control': 'private, no-store' } });
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -27,6 +31,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { id } = await params;
     const article = await getArticleById(id);
     if (!article) return NextResponse.json({ error: 'Maqola topilmadi' }, { status: 404 });
+    if (article.status === 'published') return NextResponse.json({ error: 'Nashrdagi faylni almashtirishdan oldin maqolani qoralama holatida saqlang. So‘ng faylni tekshirib qayta nashr qiling.' }, { status: 409 });
     const form = await readUploadForm(request);
     let file = form.get('file');
     let reusedManuscript = false;
@@ -42,17 +47,30 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (extension !== 'pdf' && extension !== 'docx') return NextResponse.json({ error: 'PDF yoki DOCX faylini tanlang.' }, { status: 400 });
     const sourceBytes = new Uint8Array(await file.arrayBuffer());
     const settings = await getJournalSettings();
-    const original = await manuscriptToPdf(sourceBytes, extension, settings, article);
-    const pageCount = publicationBodyPageCount(await PDFDocument.load(original));
     const first = article.page_first || 1;
+    const original = await manuscriptToPdf(sourceBytes, extension, settings, { ...article, page_first: first });
+    const pageCount = publicationBodyPageCount(await PDFDocument.load(original));
     const prepared = { ...article, page_first: first, page_last: first + pageCount - 1 };
-    // Uploaded PDFs are already laid out by the author. Keep their page geometry,
-    // typography, and pagination intact; Word files receive journal typesetting above.
-    const merged = original;
+    // Frame source PDFs without reflowing their figures, equations or text.
+    // DOCX conversion already applies the journal's cover and body layout.
+    const merged = extension === 'pdf' ? await assemblePublicationPdf(prepared, settings, original) : original;
     const stored = reusedManuscript ? null : await saveManuscript(file, sourceBytes, extension);
-    await saveArticlePdf(id, merged);
-    await updateArticle(id, { pdf_url: `/api/articles/${id}/pdf`, pdf_file_size: merged.length, page_first: first, page_last: prepared.page_last,
-      ...(stored ? { manuscript_file_url: `/api/admin/manuscripts/${stored.id}` } : {}) });
+    let previousPdf: Uint8Array | null = null;
+    let pdfWritten = false;
+    try {
+      previousPdf = await readArticlePdf(id);
+      await saveArticlePdf(id, merged); pdfWritten = true;
+      const updated = await updateArticle(id, { pdf_url: `/api/articles/${id}/pdf`, pdf_file_size: merged.length, page_first: first, page_last: prepared.page_last,
+        ...(stored ? { manuscript_file_url: `/api/admin/manuscripts/${stored.id}` } : {}) });
+      if (!updated) throw new Error('Maqola saqlash vaqtida topilmadi. Sahifani yangilang.');
+    } catch (cause) {
+      if (pdfWritten) {
+        try { if (previousPdf) await saveArticlePdf(id, previousPdf); else await removeArticlePdf(id); }
+        catch { console.error('Article PDF rollback failed:', id); }
+      }
+      if (stored) { try { await removeManuscript(stored); } catch { console.error('Unused manuscript cleanup failed:', stored.id); } }
+      throw cause;
+    }
     return NextResponse.json({ success: true, url: `/api/admin/articles/${id}/pdf`, page_count: pageCount, page_first: first, page_last: prepared.page_last });
   } catch (cause) {
     if (cause instanceof BodyLimitError) return NextResponse.json({ error: 'Fayl hajmi 4 MB dan oshmasligi kerak.' }, { status: 413 });

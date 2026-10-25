@@ -1,13 +1,12 @@
 import { adminAccess } from '@/lib/admin-access';
 import { after, NextRequest, NextResponse } from 'next/server';
 import { queueArticleNotifications } from '@/lib/publication-notifications';
-import { deliverNotification } from '@/lib/notifications';
+import { drainNotificationQueue, mailConfigured } from '@/lib/notifications';
 import { getAllArticlesAdmin, createArticle } from '@/lib/db';
 import { z } from 'zod';
 import { articleSchema } from '@/lib/article-validation';
 import { PublicationError } from '@/lib/publication-ready';
 import { getAdminArticlePage } from '@/lib/article-page';
-import { checkManuscriptLanguage } from '@/lib/manuscript-language';
 
 export const maxDuration = 60;
 
@@ -42,9 +41,6 @@ export async function POST(request: NextRequest) {
   if (denied) return denied;
   try {
     const body = await request.json();
-    const english = z.object({ original_language: z.literal('en'), title_en: z.string().trim().min(5).max(500), abstract_en: z.string().trim().min(50).max(10000), keywords_en: z.array(z.string().trim().min(1)).min(1) }).parse(body);
-    const language = checkManuscriptLanguage(`${english.title_en}\n${english.abstract_en}\n${english.keywords_en.join(', ')}`);
-    if (language.status === 'non_english') return NextResponse.json({ error: language.message }, { status: 400 });
     const validated = articleSchema.parse(body);
 
     const slug = slugify(validated.title_en || validated.title_uz);
@@ -57,10 +53,8 @@ export async function POST(request: NextRequest) {
 
     if (created.status === 'published') {
       try {
-        const notifications = await queueArticleNotifications({ ...created, status: 'draft' }, created);
-        if (notifications.length) after(async () => {
-          for (const notification of notifications.slice(0, 3)) await deliverNotification(notification);
-        });
+        await queueArticleNotifications({ ...created, status: 'draft' }, created);
+        if (mailConfigured()) after(async () => { await drainNotificationQueue(30, 30000); });
       } catch {
         return NextResponse.json({ ...created, notification_warning: 'Maqola saqlandi. Sertifikat va email navbatini yaratish uchun maqolani qayta saqlang.' }, { status: 201 });
       }

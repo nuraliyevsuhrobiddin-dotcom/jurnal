@@ -627,8 +627,14 @@ export async function logAudit(
     ip_address: '127.0.0.1',
     created_at: new Date().toISOString(),
   };
-  if (!(await remoteSave('audit_logs', log))) {
-    journalStore.auditLogs.unshift(log);
-    journalStore.persist();
+  try {
+    if (!(await remoteSave('audit_logs', log))) {
+      journalStore.auditLogs.unshift(log);
+      journalStore.persist();
+    }
+  } catch {
+    // Business writes have already committed. Returning a false save failure can
+    // make callers delete their manuscript or retry a successful publication.
+    console.error('Audit record could not be persisted:', { id: log.id, action, entityType, entityId });
   }
 }

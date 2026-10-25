@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { manuscriptStandard } from './manuscript-standard';
 
 export const coauthorSchema = z.object({
   full_name: z.string().trim().min(2).max(150),
@@ -19,6 +20,8 @@ export const manuscriptSubmissionSchema = z.object({
   consent: z.literal('true'),
   original: z.literal('true'),
   reviewed: z.literal('true', { error: 'Review the submission and confirm its language.' }),
+  template_confirmed: z.literal('true', { error: 'Confirm that the manuscript follows the journal template.' }),
+  template_version: z.literal(manuscriptStandard.version),
   coauthors: z.array(coauthorSchema).max(30).default([]),
 }).superRefine((data, context) => {
   // A downloaded template is a starting point, not a completed submission.
