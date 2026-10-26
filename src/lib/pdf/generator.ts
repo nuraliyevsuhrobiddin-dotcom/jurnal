@@ -117,7 +117,13 @@ export async function generateCertificatePdf(
       const logo = logos[serviceIndex];
       const logoSize = logo.scaleToFit(service.name === 'ORCID' ? 23 : 110, 23);
       sheet.drawRectangle({ x, y: 145, width: cellWidth - 10, height: 31, color: rgb(1, 1, 1) });
-      sheet.drawImage(logo, { x: x + 5, y: 149 + (23 - logoSize.height) / 2, ...logoSize });
+      if (service.name === 'Google Scholar') {
+        // Keep the service name as PDF text: SVG text can disappear or become
+        // unreadably small in some PDF viewers after rasterization.
+        sheet.drawText(service.name, { x: x + 5, y: 156, size: 8, font: fontBold, color: navy });
+      } else {
+        sheet.drawImage(logo, { x: x + 5, y: 149 + (23 - logoSize.height) / 2, ...logoSize });
+      }
       if (service.name === 'ORCID') sheet.drawText('ORCID', { x: x + 34, y: 156, size: 12, font: fontBold, color: navy });
       sheet.drawText(service.caption, { x: x + 5, y: 132, size: 6.5, font: fontRegular, color: muted });
     });
