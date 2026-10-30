@@ -10,6 +10,7 @@ import { getPolicyDocument } from '@/lib/policies';
 import type { Article } from '@/types/journal';
 import sharp from 'sharp';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
+import { publicationStandard } from '@/lib/manuscript-standard';
 
 export class ManuscriptFileError extends Error {}
 
@@ -176,7 +177,8 @@ async function typesetDocx(html: string, settings: JournalSettings, article?: Ar
   const pdf = await PDFDocument.create();
   const { fontRegular, fontBold } = await embedJournalFonts(pdf);
   const seal = article ? await embedPublicationSeal(pdf) : null;
-  const W = 595.28, H = 841.89, M = 54, top = H - 83, bottom = 62;
+  const W = 595.28, H = 841.89, M = publicationStandard.marginMm / 25.4 * 72;
+  const top = H - M, bottom = M;
   const articleId = article ? `AGM-${article.id.replace(/-/g, '').slice(0, 8).toUpperCase()}` : '';
   let page = pdf.addPage([W, H]);
   let y = top;
@@ -192,25 +194,28 @@ async function typesetDocx(html: string, settings: JournalSettings, article?: Ar
   function drawBlock(block: ManuscriptBlock, index: number) {
     const heading = /^h[1-6]$/.test(block.tag);
     const firstTitle = !article && index === 0 && block.tag === 'p';
-    const size = firstTitle ? 17 : block.tag === 'h1' ? 15 : block.tag === 'h2' ? 13 : block.tag === 'h3' ? 12 : heading ? 11 : 10.5;
-    const lineHeight = firstTitle ? 22 : size * 1.55;
+    const size = firstTitle ? 17 : block.tag === 'h1' ? 15 : block.tag === 'h2' ? 13 : publicationStandard.fontSize;
+    const lineHeight = firstTitle ? 22 : size * publicationStandard.lineSpacing;
     if (heading && y - lineHeight * 3 < bottom) nextPage();
     if (heading && article) page.drawRectangle({ x: M - 10, y: y - 3, width: 3, height: size + 3, color: publicationAccent(article) });
     const blockRuns = block.runs;
-    const maxWidth = W - M * 2;
+    const indent = !heading && !firstTitle && block.tag === 'p' ? publicationStandard.firstLineMm / 25.4 * 72 : 0;
+    let firstLine = true;
+    const maxWidth = () => W - M * 2 - (firstLine ? indent : 0);
     let lineRuns: ManuscriptRun[] = [];
     let lineWidth = 0;
     const flushLine = () => {
       if (!lineRuns.length) return;
       if (y - lineHeight < bottom) nextPage();
       const alignCenter = firstTitle;
-      let x = alignCenter ? (W - lineWidth) / 2 : M;
+      let x = alignCenter ? (W - lineWidth) / 2 : M + (firstLine ? indent : 0);
       for (const run of lineRuns) {
         const font = run.bold || heading || firstTitle ? fontBold : fontRegular;
         page.drawText(run.text, { x, y: y + (run.script === 'sup' ? size * 0.35 : run.script === 'sub' ? -size * 0.2 : 0), size: run.script ? size * 0.7 : size, font, color: heading || firstTitle ? rgb(0.063, 0.169, 0.247) : rgb(0.13, 0.17, 0.2) });
         x += font.widthOfTextAtSize(run.text, size);
       }
       y -= lineHeight;
+      firstLine = false;
       lineRuns = []; lineWidth = 0;
     };
     for (const run of blockRuns) {
@@ -226,16 +231,16 @@ async function typesetDocx(html: string, settings: JournalSettings, article?: Ar
         }
         const font = run.bold || heading || firstTitle ? fontBold : fontRegular;
         const wordWidth = font.widthOfTextAtSize(part, size);
-        if (lineWidth + wordWidth > maxWidth && lineRuns.length) {
+        if (lineWidth + wordWidth > maxWidth() && lineRuns.length) {
           if (lineRuns.at(-1)?.text === ' ') { lineRuns.pop(); lineWidth -= font.widthOfTextAtSize(' ', size); }
           flushLine();
         }
-        if (wordWidth <= maxWidth) {
+        if (wordWidth <= maxWidth()) {
           lineRuns.push({ ...run, text: part, bold: run.bold || heading || firstTitle }); lineWidth += wordWidth;
         } else {
           for (const char of part) {
             const charWidth = font.widthOfTextAtSize(char, size);
-            if (lineWidth + charWidth > maxWidth && lineRuns.length) flushLine();
+            if (lineWidth + charWidth > maxWidth() && lineRuns.length) flushLine();
             lineRuns.push({ ...run, text: char, bold: run.bold || heading || firstTitle }); lineWidth += charWidth;
           }
         }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAccess } from '@/lib/admin-access';
 import { createServerClient } from '@/lib/supabase/server';
-import { runContentBackup } from '@/lib/content-backup';
+import { backupWarnings, runContentBackup } from '@/lib/content-backup';
 import { protectRequest } from '@/lib/request-limit';
 import { logAudit } from '@/lib/db';
 export const maxDuration = 60;
@@ -18,7 +18,9 @@ export async function GET(request: NextRequest) {
   }
   const { data, error } = await db.from('backup_runs').select('*').order('created_at', { ascending: false }).limit(1).maybeSingle();
   if (error) return NextResponse.json({ error: 'Migration 014 kerak.' }, { status: 503 });
-  return NextResponse.json({ configured: true, latest: data }, { headers: { 'Cache-Control': 'private, no-store' } });
+  const lastFailure = await db.from('journal_settings').select('value').eq('key','backup_last_failure').maybeSingle();
+  const failed = lastFailure.data?.value?.at && (!data || Date.parse(lastFailure.data.value.at) > Date.parse(data.created_at));
+  return NextResponse.json({ configured: true, latest: data, warnings: [...backupWarnings(data), ...(failed ? ['Oxirgi zaxiralash urinishi muvaffaqiyatsiz. Ombor, hajm va avtomatik jadvalni tekshiring.'] : [])] }, { headers: { 'Cache-Control': 'private, no-store' } });
 }
 export async function POST(request: NextRequest) {
   const denied = await adminAccess(['owner']); if (denied) return denied;

@@ -66,7 +66,7 @@ export function getArticleMetadata(
   }
 
   const pdfUrl = `${canonicalUrl}/fulltext.pdf`;
-  otherMeta['citation_pdf_url'] = pdfUrl;
+  if (article.status === 'published') otherMeta['citation_pdf_url'] = pdfUrl;
   otherMeta['citation_language'] = article.original_language;
   otherMeta['citation_abstract_html_url'] = canonicalUrl;
   otherMeta['citation_author_institution'] = authors.map(author => author.affiliation);
@@ -128,7 +128,9 @@ export function generateArticleJsonLd(article: Article, settings: JournalSetting
     'dateModified': article.updated_at,
     'isAccessibleForFree': true,
     ...(article.license === 'CC BY 4.0' ? { license: 'https://creativecommons.org/licenses/by/4.0/' } : {}),
-    'encoding': { '@type': 'MediaObject', contentUrl: `${url}/fulltext.pdf`, encodingFormat: 'application/pdf' },
+    ...(article.status === 'published' ? { encoding: { '@type': 'MediaObject', contentUrl: `${url}/fulltext.pdf`, encodingFormat: 'application/pdf' } } : {}),
+    'creativeWorkStatus': article.status,
+    'version': article.revision || 1,
     'datePublished': article.publication_date || article.created_at,
     'inLanguage': article.original_language,
     ...(article.page_first != null ? { pageStart: article.page_first } : {}),

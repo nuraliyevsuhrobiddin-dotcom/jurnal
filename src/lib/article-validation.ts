@@ -15,6 +15,8 @@ export const articleBaseSchema = z.object({
   original_language: z.enum(['uz', 'en', 'ru']).default('uz'),
   article_type: z.enum(['original_research', 'review', 'short_communication', 'case_study']).default('original_research'),
   status: z.enum(['draft', 'under_review', 'approved', 'published', 'rejected', 'withdrawn', 'archived']).default('draft'),
+  revision: z.number().int().positive().optional(),
+  change_note: z.string().trim().max(2000).optional(),
   issue_id: z.string().optional(),
   subject_id: z.string().refine(value => value === 'auto' || Boolean(findSubject(value)), 'Noto‘g‘ri fan yo‘nalishi').optional(),
   page_first: z.number().int().positive().optional(),

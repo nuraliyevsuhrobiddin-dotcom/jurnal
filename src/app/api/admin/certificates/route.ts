@@ -4,6 +4,7 @@ import { getAllCertificatesAdmin, createCertificate, revokeCertificate, getArtic
 import { generateQrDataUrl } from '@/lib/pdf/qr';
 import { randomUUID } from 'node:crypto';
 import { articleText } from '@/lib/scholarly-feeds';
+import { certificatePublicationState } from '@/lib/publication-state';
 
 export async function GET() {
   const denied = await adminAccess();
@@ -51,7 +52,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Maqola muallifini tanlang' }, { status: 400 });
     }
     const existing = (await getAllCertificatesAdmin()).find(cert => cert.article_id === article.id && cert.author_name === name && cert.status === 'valid');
-    if (existing) return NextResponse.json(existing);
+    if (existing && certificatePublicationState(existing, article).valid) return NextResponse.json(existing);
+    if (existing) await revokeCertificate(existing.id, 'Nashr ma’lumotlari yangilangan. Yangi sertifikat bilan almashtirildi.');
 
     if (!article.issue || !article.publication_date) return NextResponse.json({ error: 'Avval jurnal soni va nashr sanasini belgilang.' }, { status: 400 });
     const author = article.authors.find(author => author.full_name === name)!;

@@ -9,7 +9,10 @@ import { readArticlePdf, removeArticlePdf, saveArticlePdf } from '@/lib/pdf/stor
 import { streamPdf } from '@/lib/pdf/stream';
 import { readUploadForm, UploadFormError } from '@/lib/upload-form';
 import { BodyLimitError } from '@/lib/bounded-body';
-import { assemblePublicationPdf, ensurePublicationLayout } from '@/lib/pdf/generator';
+import { assemblePublicationPdf } from '@/lib/pdf/generator';
+import { prepareCurrentPublicationPdf } from '@/lib/pdf/current-publication';
+import { PublicationError } from '@/lib/publication-ready';
+import { ArticleConflictError } from '@/lib/remote-db';
 
 export const maxDuration = 60;
 
@@ -21,7 +24,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   if (!article.pdf_url || !article.pdf_file_size) return NextResponse.json({ error: 'To‘liq maqola PDF’i tayyor emas. Maqola faylini tanlab saqlang.' }, { status: 404 });
   const bytes = await readArticlePdf(id);
   if (!bytes) return NextResponse.json({ error: 'To‘liq maqola fayli hali saqlanmagan. Maqola tahririda PDF yoki DOCX faylini tanlab saqlang.' }, { status: 404 });
-  const publication = await ensurePublicationLayout(article, await getJournalSettings(), bytes);
+  const publication = await prepareCurrentPublicationPdf(article, await getJournalSettings(), bytes);
   return new NextResponse(streamPdf(publication), { headers: { 'Content-Type': 'application/pdf', 'Cache-Control': 'private, no-store' } });
 }
 
@@ -55,27 +58,33 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // DOCX conversion already applies the journal's cover and body layout.
     const merged = extension === 'pdf' ? await assemblePublicationPdf(prepared, settings, original) : original;
     const stored = reusedManuscript ? null : await saveManuscript(file, sourceBytes, extension);
-    let previousPdf: Uint8Array | null = null;
-    let pdfWritten = false;
+    let savedPath: string | undefined;
+    let savedRevision: number | undefined;
     try {
-      previousPdf = await readArticlePdf(id);
-      await saveArticlePdf(id, merged); pdfWritten = true;
+      savedPath = await saveArticlePdf(id, merged);
       const updated = await updateArticle(id, { pdf_url: `/api/articles/${id}/pdf`, pdf_file_size: merged.length, page_first: first, page_last: prepared.page_last,
+        pdf_storage_path: savedPath, revision: article.revision || 1, change_note: 'Maqola PDF fayli yangilandi',
         ...(stored ? { manuscript_file_url: `/api/admin/manuscripts/${stored.id}` } : {}) });
       if (!updated) throw new Error('Maqola saqlash vaqtida topilmadi. Sahifani yangilang.');
+      savedRevision = updated.revision;
     } catch (cause) {
-      if (pdfWritten) {
-        try { if (previousPdf) await saveArticlePdf(id, previousPdf); else await removeArticlePdf(id); }
+      // A lost network reply may follow a committed write. Retain immutable
+      // objects on ambiguous failures; deleting them could erase a saved version.
+      const rejected = cause instanceof PublicationError || cause instanceof ArticleConflictError;
+      if (savedPath && rejected) {
+        try { await removeArticlePdf(id, savedPath); }
         catch { console.error('Article PDF rollback failed:', id); }
       }
-      if (stored) { try { await removeManuscript(stored); } catch { console.error('Unused manuscript cleanup failed:', stored.id); } }
+      if (stored && rejected) { try { await removeManuscript(stored); } catch { console.error('Unused manuscript cleanup failed:', stored.id); } }
       throw cause;
     }
-    return NextResponse.json({ success: true, url: `/api/admin/articles/${id}/pdf`, page_count: pageCount, page_first: first, page_last: prepared.page_last });
+    return NextResponse.json({ success: true, url: `/api/admin/articles/${id}/pdf`, page_count: pageCount, page_first: first, page_last: prepared.page_last, revision: savedRevision });
   } catch (cause) {
     if (cause instanceof BodyLimitError) return NextResponse.json({ error: 'Fayl hajmi 4 MB dan oshmasligi kerak.' }, { status: 413 });
     if (cause instanceof UploadFormError) return NextResponse.json({ error: cause.message }, { status: 400 });
     if (cause instanceof ManuscriptFileError) return NextResponse.json({ error: cause.message }, { status: 400 });
+    if (cause instanceof PublicationError) return NextResponse.json({ error: cause.message }, { status: 400 });
+    if (cause instanceof ArticleConflictError) return NextResponse.json({ error: cause.message }, { status: 409 });
     return NextResponse.json({ error: cause instanceof Error ? cause.message : 'PDF saqlanmadi.' }, { status: 500 });
   }
 }

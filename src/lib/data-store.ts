@@ -285,7 +285,7 @@ export class JournalStore {
     if (process.env.VITEST || isServerSupabaseConfigured || !existsSync(this.filePath)) return;
     try {
       const saved = JSON.parse(readFileSync(this.filePath, 'utf8'));
-      for (const key of ['settings', 'issues', 'articles', 'editorialBoard', 'certificates', 'auditLogs', 'contactMessages'] as const) {
+      for (const key of ['settings', 'issues', 'articles', 'editorialBoard', 'certificates', 'auditLogs', 'contactMessages', 'collectionReleases', 'articleVersions'] as const) {
         if (saved[key] !== undefined) Object.assign(this, { [key]: saved[key] });
       }
     } catch {
@@ -301,6 +301,7 @@ export class JournalStore {
       settings: this.settings, issues: this.issues, articles: this.articles,
       editorialBoard: this.editorialBoard, certificates: this.certificates,
       auditLogs: this.auditLogs, contactMessages: this.contactMessages,
+      collectionReleases: this.collectionReleases, articleVersions: this.articleVersions,
     }, null, 2), 'utf8');
     renameSync(temporaryPath, this.filePath);
   }
@@ -322,6 +323,8 @@ export class JournalStore {
   articles: Article[] = process.env.VITEST ? [...TEST_ARTICLES] : [];
   certificates: Certificate[] = process.env.VITEST ? [...TEST_CERTIFICATES] : [];
   auditLogs: AuditLog[] = [];
+  collectionReleases: Record<string, string> = {};
+  articleVersions: import('@/types/journal').ArticleVersion[] = [];
 
   editorialBoard: EditorialBoardMember[] = [
     {

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getCertificateByCode } from '@/lib/db';
+import { getArticleById, getCertificateByCode } from '@/lib/db';
+import { certificatePublicationState } from '@/lib/publication-state';
 import { Search, CheckCircle2, XCircle, AlertTriangle, Download, ExternalLink } from 'lucide-react';
 import type { Language } from '@/types/journal';
 import { publicPageMetadata } from '@/lib/page-metadata';
@@ -113,6 +114,8 @@ export default async function VerifyCertificatePage({
   const { code } = await searchParams;
   const trimmedCode = code?.trim();
   const cert = trimmedCode ? await getCertificateByCode(trimmedCode) : null;
+  const state = cert ? certificatePublicationState(cert, await getArticleById(cert.article_id), currentLang) : null;
+  const pendingTitle = currentLang === 'en' ? 'Publication not currently verified' : currentLang === 'ru' ? 'Публикация сейчас не подтверждена' : 'Nashr holati hozir tasdiqlanmagan';
 
   return (
     <div className={styles.page}>
@@ -145,7 +148,7 @@ export default async function VerifyCertificatePage({
 
         {trimmedCode ? (
           cert ? (
-            cert.status === 'valid' ? (
+            state?.valid ? (
               <section className={styles.result} aria-label={t.resultAria}>
                 <div className={styles.status}>
                   <CheckCircle2 size={23} />
@@ -204,8 +207,8 @@ export default async function VerifyCertificatePage({
                 <div className={`${styles.status} ${styles.revoked}`}>
                   <XCircle size={23} />
                   <div>
-                    <h2>{t.revokedTitle}</h2>
-                    <p>{t.revokedSubtitle}</p>
+                    <h2>{cert.status === 'revoked' ? t.revokedTitle : pendingTitle}</h2>
+                    <p>{cert.status === 'revoked' ? t.revokedSubtitle : pendingTitle}</p>
                   </div>
                 </div>
                 <dl className={styles.details}>
@@ -219,7 +222,7 @@ export default async function VerifyCertificatePage({
                   </div>
                   <div className={styles.full}>
                     <dt>{t.revocationReason}</dt>
-                    <dd>{cert.revoked_reason || t.revokedDefaultReason}</dd>
+                    <dd>{state?.reason || t.revokedDefaultReason}</dd>
                   </div>
                 </dl>
               </section>

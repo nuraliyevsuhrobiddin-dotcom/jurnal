@@ -1,4 +1,5 @@
 import { publicPageMetadata } from '@/lib/page-metadata';
+import { collectionVisibilityMessage } from '@/lib/issues/collection-policy';
 import React from 'react';
 import { findSubject } from '@/lib/subjects';
 import { getArticlePage } from '@/lib/article-page';
@@ -45,7 +46,7 @@ export default async function ArticlesCatalogPage({
           {dict.nav.articles}
         </h1>
         <p className="text-sm text-slate-500">
-          {t.description}
+          {t.description} {collectionVisibilityMessage(currentLang)}
         </p>
 
         {/* Search & Issue Filter Form */}

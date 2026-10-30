@@ -12,6 +12,7 @@ import { CitationBox } from '@/components/article/CitationBox';
 import { isValidIssn } from '@/lib/identifiers';
 import { Download, ArrowUpRight, ShieldCheck } from 'lucide-react';
 import styles from './publication.module.css';
+import { ArticleHistory } from '@/components/article/ArticleHistory';
 
 export async function generateMetadata({ params }: { params: Promise<{ lang: string; slug: string }> }) {
   const { lang, slug } = await params;
@@ -43,7 +44,7 @@ export default async function ArticleDetailPage({ params }: { params: Promise<{ 
 
   return (
     <div className={`journal-container ${styles.publication}`}>
-      <ArticleView id={article.id} />
+      {article.status === 'published' && <ArticleView id={article.id} />}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />
       <nav className={styles.breadcrumb} aria-label={text.contents}>
         <Link href={`/${currentLang}`}>{text.home}</Link><span aria-hidden="true">/</span>
@@ -66,7 +67,7 @@ export default async function ArticleDetailPage({ params }: { params: Promise<{ 
             <div className={styles.authorNames}>{(article.authors || []).map((author, index) => <span key={author.id || index}>{author.full_name}<sup>{index + 1}{author.is_corresponding ? '*' : ''}</sup>{index < (article.authors || []).length - 1 ? ',' : ''}</span>)}</div>
             {(article.authors || []).length > 0 && <div className={styles.affiliations} aria-label={text.authors}>{(article.authors || []).map((author, index) => <div key={author.id || index}><p><sup>{index + 1}</sup> {[author.affiliation, author.country].filter(Boolean).join(', ')}</p>{author.orcid && <a href={`https://orcid.org/${author.orcid}`} target="_blank" rel="noopener noreferrer">ORCID {author.orcid}<ArrowUpRight size={12} /></a>}{author.is_corresponding && <p className={styles.corresponding}>* {dict.article.corresponding}</p>}</div>)}</div>}
             {article.doi && <a className={styles.doi} href={`https://doi.org/${article.doi}`} target="_blank" rel="noopener noreferrer">https://doi.org/{article.doi}<ArrowUpRight size={14} /></a>}
-            <Link href={`/${currentLang}/article/${article.slug}/fulltext.pdf`} target="_blank" rel="noopener noreferrer" className={`${styles.download} ${styles.mobileDownload}`}><Download size={18} />{dict.article.downloadPdf}<ArrowUpRight size={16} /></Link>
+            {article.status === 'published' && <Link href={`/${currentLang}/article/${article.slug}/fulltext.pdf`} target="_blank" rel="noopener noreferrer" className={`${styles.download} ${styles.mobileDownload}`}><Download size={18} />{dict.article.downloadPdf}<ArrowUpRight size={16} /></Link>}
           </header>
           <section id="abstract" className={styles.section}><h2>{dict.article.abstract}</h2><p className={styles.abstract}>{abstract}</p>{keywords.length > 0 && <div className={styles.keywords}><strong>{dict.article.keywords}</strong><p>{keywords.join(' · ')}</p></div>}</section>
           <section id="citation" className={styles.citation}><CitationBox article={article} lang={currentLang} /></section>
@@ -75,7 +76,7 @@ export default async function ArticleDetailPage({ params }: { params: Promise<{ 
         <aside className={styles.sidebar}>
           <div className={styles.sidebarInner}>
             <Link href={`/${currentLang}/subjects/${resolveSubjectId(article)}${article.issue_id ? `?issue=${article.issue_id}` : ''}`} className="block max-w-40 mx-auto mb-5"><SubjectCover subjectId={resolveSubjectId(article)} issueId={article.issue_id} alt={`AGM Journal — ${subjectLabel(resolveSubjectId(article), 'en')}`} /></Link>
-            <Link href={`/${currentLang}/article/${article.slug}/fulltext.pdf`} target="_blank" rel="noopener noreferrer" className={styles.download}><Download size={18} />{dict.article.downloadPdf}<ArrowUpRight size={16} /></Link>
+            {article.status === 'published' && <Link href={`/${currentLang}/article/${article.slug}/fulltext.pdf`} target="_blank" rel="noopener noreferrer" className={styles.download}><Download size={18} />{dict.article.downloadPdf}<ArrowUpRight size={16} /></Link>}
             <section className={styles.sideSection}><h2>{text.details}</h2><dl>
               <div><dt>{text.id}</dt><dd className={styles.identifier}>{articleId}</dd></div>
               {article.issue && <><div><dt>{text.volume} / {text.issue}</dt><dd>{article.issue.volume} / {article.issue.issue_number}</dd></div><div><dt>{text.year}</dt><dd>{article.issue.year}</dd></div></>}
@@ -89,6 +90,7 @@ export default async function ArticleDetailPage({ params }: { params: Promise<{ 
           </div>
         </aside>
       </div>
+      <ArticleHistory article={article} lang={currentLang} />
     </div>
   );
 }

@@ -26,14 +26,14 @@ describe('Hosted persistence safeguards', () => {
     const paper = { ...journalStore.articles[0], subject_id: 'economics-business', submission_notes: 'Original author notes' };
     await remoteSaveArticle(paper);
     const saved = rpc.mock.calls[0][1].article_data;
-    expect(saved.subject_id).toBeUndefined();
+    expect(saved.subject_id).toBe('economics-business');
     expect(saved.submission_notes).toContain('[AGM_SUBJECT:economics-business]');
     const restored = normalizeRemoteArticle({ ...saved, authors: paper.authors });
     expect(restored.subject_id).toBe('economics-business'); expect(restored.submission_notes).toBe('Original author notes');
   });
 
   it('propagates permission errors instead of switching storage', async () => {
-    from.mockReturnValue({ select: () => Promise.resolve({ error: { message: 'permission denied for relation articles' } }) });
+    from.mockReturnValue({ select: () => ({ order: () => ({ range: () => Promise.resolve({ error: { message: 'permission denied for relation articles' } }) }) }) });
     await expect(remoteRows('articles')).rejects.toThrow('permission denied');
   });
 

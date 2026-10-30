@@ -1,4 +1,8 @@
 import { journalStore } from './data-store';
+import { catalogArticles } from './issues/collection-policy';
+import { isPublicArticle } from './publication-state';
+import { rememberLocalReleases } from './issues/collections';
+import { archiveLocalVersion } from './article-versions';
 import { randomUUID } from 'node:crypto';
 import { isValidIssn } from './identifiers';
 import { assertPublicationReady, assertIssuePageRangeAvailable, PublicationError } from './publication-ready';
@@ -97,6 +101,22 @@ export async function getPublishedArticles(params?: {
   return results;
 }
 
+export async function getCatalogArticles(params?: { query?: string; issueId?: string; limit?: number }): Promise<Article[]> {
+  const client = createServerClient();
+  if (client) {
+    const { data, error } = await client.rpc('catalog_article_page', { search_query: params?.query || '', selected_issue: params?.issueId || null, selected_subject: null, page_number: 1, page_size: params?.limit || 12 });
+    if (error) throw new Error('Katalog uchun 015 migratsiyasini qo‘llang.');
+    return (data.items as Article[]).map(normalizeRemoteArticle);
+  }
+  // Count complete issue/subject groups before applying search or pagination.
+  const published = await getPublishedArticles({ issueId: params?.issueId });
+  rememberLocalReleases(published);
+  journalStore.persist();
+  let articles = catalogArticles(published, journalStore.collectionReleases);
+  if (params?.query) articles = articles.filter(article => matchesArticle(article, params.query!));
+  return params?.limit ? articles.slice(0, params.limit) : articles;
+}
+
 export async function getArticleBySlug(slug: string): Promise<Article | null> {
   journalStore.refresh();
   const supabase = createServerClient();
@@ -105,20 +125,36 @@ export async function getArticleBySlug(slug: string): Promise<Article | null> {
       .from('articles')
       .select('*, authors:article_authors(*), issue:issues(*)')
       .eq('slug', slug)
-      .eq('status', 'published')
+      .or('status.eq.published,and(status.in.(withdrawn,archived),first_published_at.not.is.null)')
       .maybeSingle();
 
     if (error) throw new Error(error.message);
     else return data ? normalizeRemoteArticle(data as Article) : null;
   }
 
-  const article = journalStore.articles.find(a => a.slug === slug && a.status === 'published');
+  const article = journalStore.articles.find(a => a.slug === slug && isPublicArticle(a));
   if (!article) return null;
 
   return {
     ...article,
     issue: journalStore.issues.find(i => i.id === article.issue_id),
   };
+}
+
+/** Lightweight public record list for sitemaps, including withdrawal notices. */
+export async function getPublicArticleRecords(): Promise<Pick<Article,'id'|'slug'|'updated_at'|'publication_date'>[]> {
+  const client = createServerClient();
+  if (client) {
+    const records: Pick<Article,'id'|'slug'|'updated_at'|'publication_date'>[] = [];
+    for (let offset = 0; ; offset += 500) {
+      const { data, error } = await client.from('articles').select('id,slug,updated_at,publication_date').or('status.eq.published,and(status.in.(withdrawn,archived),first_published_at.not.is.null)').order('id').range(offset,offset+499);
+      if (error) throw new Error(error.message);
+      records.push(...data);
+      if (data.length < 500) return records;
+    }
+  }
+  journalStore.refresh();
+  return journalStore.articles.filter(isPublicArticle);
 }
 
 export async function getArticleById(id: string): Promise<Article | null> {
@@ -198,6 +234,8 @@ export async function createArticle(data: Omit<Article, 'id' | 'created_at' | 'u
 export async function updateArticle(id: string, updates: Partial<Article>): Promise<Article | null> {
   const previous = await getArticleById(id);
   if (!previous) return null;
+  if ((updates.status || previous.status) === 'withdrawn' && !(updates.retraction_reason || previous.retraction_reason)?.trim()) throw new PublicationError('Qaytarib olish sababini yozing.');
+  if (updates.revision !== undefined && updates.revision !== (previous.revision || 1)) throw new PublicationError('Maqola boshqa muharrir tomonidan yangilangan. Sahifani yangilang.');
   if ((updates.status || previous.status) === 'published') {
     const issueId = Object.hasOwn(updates, 'issue_id') ? updates.issue_id : previous.issue_id;
     const issue = issueId ? await getIssueById(issueId) : undefined;
@@ -211,56 +249,45 @@ export async function updateArticle(id: string, updates: Partial<Article>): Prom
   journalStore.refresh();
   if (createServerClient()) {
     const updated = { ...previous, ...updates, id, created_at: previous.created_at, updated_at: new Date().toISOString() };
-    await remoteSaveArticle(updated);
+    const saved = await remoteSaveArticle(updated);
     await logAudit('ARTICLE_UPDATE', 'article', id, { updates });
-    return updated;
+    return saved || updated;
   }
   const index = journalStore.articles.findIndex(a => a.id === id);
   if (index === -1) return null;
 
   const current = journalStore.articles[index];
+  rememberLocalReleases(journalStore.articles);
+  const changed = Object.entries(updates).some(([key, value]) => !['revision','updated_at'].includes(key) && JSON.stringify(current[key as keyof Article]) !== JSON.stringify(value));
+  if (changed) await archiveLocalVersion(current, updates.change_note || 'Tahririyat yangilanishi');
   const updated: Article = {
     ...current,
     ...updates,
     id: current.id,
     created_at: current.created_at,
     updated_at: new Date().toISOString(),
+    revision: (current.revision || 1) + (changed ? 1 : 0),
+    first_published_at: current.first_published_at || (current.status === 'published' || updates.status === 'published' ? new Date().toISOString() : undefined),
   };
 
   journalStore.articles[index] = updated;
+  rememberLocalReleases(journalStore.articles);
   journalStore.persist();
   await logAudit('ARTICLE_UPDATE', 'article', id, { updates });
   return updated;
 }
 
 export async function updateArticleStatus(id: string, newStatus: ArticleStatus, retractionReason?: string): Promise<Article | null> {
+  if (newStatus === 'withdrawn' && !retractionReason?.trim()) throw new PublicationError('Qaytarib olish sababini yozing.');
   if (newStatus === 'published') return updateArticle(id, { status: newStatus, publication_date: (await getArticleById(id))?.publication_date || new Date().toISOString().slice(0, 10) });
-  journalStore.refresh();
-  if (createServerClient()) {
-    const current = await getArticleById(id);
-    if (!current) return null;
-    return updateArticle(id, { status: newStatus, retraction_reason: retractionReason || current.retraction_reason,
-      publication_date: current.publication_date });
-  }
-  const index = journalStore.articles.findIndex(a => a.id === id);
-  if (index === -1) return null;
-
-  const current = journalStore.articles[index];
-  const updated: Article = {
-    ...current,
-    status: newStatus,
-    retraction_reason: retractionReason || current.retraction_reason,
-    publication_date: current.publication_date,
-    updated_at: new Date().toISOString(),
-  };
-
-  journalStore.articles[index] = updated;
-  journalStore.persist();
-  await logAudit('ARTICLE_STATUS_CHANGE', 'article', id, { oldStatus: current.status, newStatus });
-  return updated;
+  const current = await getArticleById(id);
+  if (!current) return null;
+  return updateArticle(id, { status: newStatus, retraction_reason: retractionReason || current.retraction_reason, change_note: retractionReason || 'Maqola holati yangilandi' });
 }
 
 export async function deleteArticle(id: string): Promise<boolean> {
+  const current = await getArticleById(id);
+  if (current?.first_published_at || current?.status === 'published') throw new PublicationError('Nashr tarixiga ega maqolani o‘chirib bo‘lmaydi. Qaytarib olish holatidan foydalaning.');
   journalStore.refresh();
   const supabase = createServerClient();
   if (isServerSupabaseConfigured && supabase) {
@@ -273,6 +300,7 @@ export async function deleteArticle(id: string): Promise<boolean> {
   const index = journalStore.articles.findIndex(a => a.id === id);
   if (index !== -1) {
     const [removed] = journalStore.articles.splice(index, 1);
+    journalStore.articleVersions = journalStore.articleVersions.filter(version => version.article_id !== id);
     journalStore.persist();
     await logAudit('ARTICLE_DELETE', 'article', id, { title: removed.title_uz });
     return true;
@@ -448,6 +476,13 @@ export async function deleteEditorialBoardMember(id: string): Promise<EditorialB
 export async function getCertificateByCode(code: string): Promise<Certificate | null> {
   journalStore.refresh();
   const normalized = code.trim().toUpperCase();
+  if (!/^[A-Z0-9-]{3,150}$/.test(normalized)) return null;
+  const client = createServerClient();
+  if (client) {
+    const { data, error } = await client.from('certificates').select('*').or(`certificate_number.eq.${normalized},verification_code.eq.${normalized}`).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data as Certificate | null;
+  }
   const certificates = await remoteRows<Certificate>('certificates') || journalStore.certificates;
   const cert = certificates.find(
     c => c.certificate_number.toUpperCase() === normalized || c.verification_code.toUpperCase() === normalized

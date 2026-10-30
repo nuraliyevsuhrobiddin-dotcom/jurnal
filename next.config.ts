@@ -14,7 +14,7 @@ const nextConfig: NextConfig = {
     }));
   },
   outputFileTracingIncludes: {
-    '/api/**': ['./public/fonts/*.ttf', './public/images/issues/*.png', './public/images/agm-journal-seal.png', './public/brands/google-scholar.svg', './public/brands/crossref.svg', './public/brands/zenodo.png', './public/brands/orcid.png'],
+    '/api/**': ['./public/fonts/*.ttf', './public/images/issues/*.png', './public/images/agm-journal-seal.png', './public/brands/google-scholar.svg', './public/brands/google-scholar-mark.svg', './public/brands/crossref.svg', './public/brands/zenodo.png', './public/brands/orcid.png'],
     '/*/article/*/fulltext.pdf': ['./public/fonts/*.ttf', './public/images/agm-journal-seal.png'],
   },
   turbopack: {

@@ -53,6 +53,10 @@ export interface Article {
   article_type: ArticleType;
   status: ArticleStatus;
   publication_date?: string;
+  first_published_at?: string;
+  revision?: number;
+  change_note?: string;
+  pdf_storage_path?: string;
   page_first?: number;
   page_last?: number;
   doi?: string;
@@ -96,6 +100,23 @@ export interface Issue {
   articles_count?: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface CollectionSummary {
+  issue_id: string;
+  subject_id: string;
+  published_count: number;
+  released_at: string | null;
+}
+
+export interface ArticleVersion {
+  id: string;
+  article_id: string;
+  revision: number;
+  created_at: string;
+  change_note: string;
+  snapshot: Article;
+  pdf_storage_path?: string;
 }
 
 export interface EditorialBoardMember {

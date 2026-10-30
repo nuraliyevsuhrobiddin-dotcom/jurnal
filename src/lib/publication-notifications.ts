@@ -1,11 +1,13 @@
 import { z } from 'zod';
 import { createHash } from 'node:crypto';
 import type { Article } from '@/types/journal';
-import { createCertificate, getAllCertificatesAdmin, getArticleById, getCertificateByCode, getJournalSettings } from './db';
+import { createCertificate, getAllCertificatesAdmin, getArticleById, getCertificateByCode, getJournalSettings, revokeCertificate } from './db';
+import { certificatePublicationState } from './publication-state';
 import { queueNotificationOnce, type Notification } from './notifications';
 import { queueArticleStatusNotification } from './article-status-notifications';
 import { articleText, articleUrl } from './scholarly-feeds';
-import { generateCertificatePdf, ensurePublicationLayout } from './pdf/generator';
+import { generateCertificatePdf } from './pdf/generator';
+import { prepareCurrentPublicationPdf } from './pdf/current-publication';
 import { readArticlePdf } from './pdf/storage';
 import { trackingUrl } from './submission-tracking';
 
@@ -25,8 +27,14 @@ export async function queueArticleNotifications(previous: Article, article: Arti
   const queued: Notification[] = [];
   for (const author of authors) {
     let cert = certificates.find(item => item.article_id === article.id && item.author_name === author.full_name && item.status === 'valid');
+    const replacing = !!cert && !certificatePublicationState(cert, article).valid;
+    if (cert && replacing) {
+      await revokeCertificate(cert.id, 'Nashr ma’lumotlari yangilangan. Yangi sertifikat chiqarilgan.');
+      cert.status = 'revoked';
+      cert = undefined;
+    }
     // Revocation is an editorial decision; a routine article save must respect it.
-    if (!cert && certificates.some(item => item.article_id === article.id && item.author_name === author.full_name && item.status === 'revoked')) continue;
+    if (!cert && !replacing && certificates.some(item => item.article_id === article.id && item.author_name === author.full_name && item.status === 'revoked')) continue;
     if (!cert) {
       const generation = certificates.filter(item => item.article_id === article.id && item.author_name === author.full_name).length;
       const hash = createHash('sha256').update(`${article.id}:${author.full_name}:${generation}`).digest('hex');
@@ -66,9 +74,10 @@ export async function publicationAttachments(publication: PublicationAttachment)
   ]);
   if (!article || article.status !== 'published') throw new Error('Maqola hozir nashr holatida emas.');
   if (!cert || cert.status !== 'valid' || cert.article_id !== article.id) throw new Error('Sertifikat bekor qilingan yoki topilmadi.');
+  if (!certificatePublicationState(cert, article).valid) throw new Error('Sertifikat nashr ma’lumotlariga mos emas. Uni qayta chiqaring.');
   const bytes = await readArticlePdf(article.id);
   if (!bytes) throw new Error('Maqola PDF fayli topilmadi.');
-  const publicationPdf = await ensurePublicationLayout(article, settings, bytes);
+  const publicationPdf = await prepareCurrentPublicationPdf(article, settings, bytes);
   const base = (process.env.NEXT_PUBLIC_SITE_URL || 'https://agmjoural.uz').replace(/\/$/, '');
   const certificate = await generateCertificatePdf(cert, `${base}/certificate/${encodeURIComponent(cert.certificate_number)}`, settings);
   // Stay below provider message limits after base64/MIME expansion.

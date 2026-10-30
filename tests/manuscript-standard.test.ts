@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import JSZip from 'jszip';
 import { PDFDocument } from 'pdf-lib';
 import { generateManuscriptTemplate } from '@/lib/manuscript-template';
-import { manuscriptStandard } from '@/lib/manuscript-standard';
+import { manuscriptStandard, publicationStandardCopy } from '@/lib/manuscript-standard';
 import { manuscriptToPdf } from '@/lib/pdf/manuscript-conversion';
 import { parseDocxFile } from '@/lib/pdf/docx-parser';
 import { journalStore } from '@/lib/data-store';
@@ -30,6 +30,7 @@ describe('Unified manuscript standard', () => {
     expect(publication.getKeywords()).toContain('AGM_FULL_ARTICLE_V2');
     const policy = getPolicyDocument('guidelines', lang, journalStore.settings);
     expect(JSON.stringify(policy)).toContain(manuscriptStandard.font);
+    expect(JSON.stringify(policy)).toContain(publicationStandardCopy[lang]);
     expect(JSON.stringify(getPolicyDocument('journal-charter', lang, journalStore.settings))).toContain(manuscriptStandard.font);
   });
   it('defaults to Uzbek and identifies the standard version in downloads', async () => {

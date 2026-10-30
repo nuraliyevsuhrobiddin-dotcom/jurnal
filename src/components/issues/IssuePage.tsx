@@ -1,4 +1,4 @@
-import { collectionPendingMessage } from '@/lib/issues/collection-policy';
+import { collectionPendingMessage, collectionVisibilityMessage } from '@/lib/issues/collection-policy';
 import { notFound } from 'next/navigation';
 import { orderIssueArticles } from '@/lib/issues/article-order';
 import React from 'react';
@@ -9,6 +9,7 @@ import { Language } from '@/types/journal';
 import { getDictionary } from '@/lib/i18n/dictionaries';
 import { getCurrentIssue, getIssueById, getPublishedArticles } from '@/lib/db';
 import { IssueSubjectSections } from '@/components/subjects/IssueSubjectSections';
+import { getCollectionSummaries } from '@/lib/issues/collections';
 import { BookOpen, Calendar, CheckCircle2 } from 'lucide-react';
 
 export async function IssuePage({ lang: currentLang, issueId }: { lang: Language; issueId?: string }) {
@@ -19,6 +20,7 @@ export async function IssuePage({ lang: currentLang, issueId }: { lang: Language
   if (!issue) return <div className="journal-container interior-page current-page py-10 space-y-8"><header><p className="interior-kicker">AGM JOURNAL</p><h1>{dict.nav.current}</h1></header><section className="interior-empty"><BookOpen size={32} /><h2>{currentLang === 'en' ? 'The next issue is in preparation' : currentLang === 'ru' ? 'Новый выпуск готовится к публикации' : 'Navbatdagi son nashrga tayyorlanmoqda'}</h2><p>{currentLang === 'en' ? 'Published research is available in the article catalog and archive.' : currentLang === 'ru' ? 'Опубликованные исследования доступны в каталоге статей и архиве.' : 'Chop etilgan tadqiqotlarni maqolalar katalogi va arxivdan topishingiz mumkin.'}</p><Link href={`/${currentLang}/articles`}>{dict.nav.articles} →</Link></section></div>;
 
   const articles = orderIssueArticles(await getPublishedArticles({ issueId: issue.id }));
+  const releases = (await getCollectionSummaries(issue.id)).filter(item => item.released_at).map(item => item.subject_id);
 
   const title = currentLang === 'en' && issue.title_en
     ? issue.title_en
@@ -76,7 +78,7 @@ export async function IssuePage({ lang: currentLang, issueId }: { lang: Language
 
       {articles.length > 0 ? <IssueDownloadLink id={issue.id} lang={currentLang} articleCount={articles.length} /> : <section className="rounded-lg border border-teal-200 bg-teal-50 p-5 space-y-3">
         <h2 className="font-semibold text-navy-900">{currentLang === 'en' ? 'Submissions are open for this issue' : currentLang === 'ru' ? 'Приём статей в этот выпуск открыт' : 'Ushbu songa maqolalar qabul qilinmoqda'}</h2>
-        <p className="text-sm text-slate-700">{currentLang === 'en' ? 'Accepted articles will appear here after editorial review and publication. ' : currentLang === 'ru' ? 'Принятые статьи появятся после редакционной проверки и публикации. ' : 'Qabul qilingan maqolalar tahririy tekshiruv va nashrdan so‘ng shu yerda ko‘rinadi. '}</p>
+        <p className="text-sm text-slate-700">{collectionVisibilityMessage(currentLang)}</p>
         <p className="text-sm text-slate-700">{collectionPendingMessage(currentLang, 0)}</p>
         <Link className="inline-flex text-sm font-semibold text-teal-800 underline" href={`/${currentLang}/submit`}>{currentLang === 'en' ? 'Submit a manuscript' : currentLang === 'ru' ? 'Отправить рукопись' : 'Maqola yuborish'} &rarr;</Link>
       </section>}
@@ -92,7 +94,7 @@ export async function IssuePage({ lang: currentLang, issueId }: { lang: Language
         </div>
 
         {articles.length > 0 ? (
-          <IssueSubjectSections articles={articles} issue={issue} lang={currentLang} />
+          <IssueSubjectSections articles={articles} issue={issue} lang={currentLang} releasedSubjectIds={releases} />
         ) : (
           <p className="text-sm text-slate-500 text-center py-10 bg-white rounded-xl border border-slate-200">
             {dict.common.noResults}

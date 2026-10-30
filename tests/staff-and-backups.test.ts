@@ -46,7 +46,7 @@ describe('Portable content backup', () => {
     const tables = empty(); tables.articles = [{ id: 'article', title_uz: 'Scientific research' }];
     const { bytes } = await createBackupArchive(tables, [{ path: 'storage/journal-pdfs/article.pdf', bytes: new Uint8Array([0, 1, 255]) }]);
     const verified = await verifyBackupArchive(bytes);
-    expect(verified.restored).toEqual(tables); expect(verified.manifest.files).toHaveLength(15);
+    expect(verified.restored).toEqual(tables); expect(verified.manifest.files).toHaveLength(backupTables.length + 1);
   });
   it('detects altered data, missing files, omitted tables and path traversal', async () => {
     const { bytes } = await createBackupArchive(empty(), []);

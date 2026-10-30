@@ -1,4 +1,4 @@
-import { getPublishedArticles } from './db';
+import { getCatalogArticles } from './db';
 import { createServerClient } from './supabase/server';
 import { findSubject, matchesSubject } from './subjects';
 import type { Article } from '@/types/journal';
@@ -9,24 +9,14 @@ export async function getArticlePage(options: { query?: string; issueId?: string
   const page = Number.isSafeInteger(requested) && requested > 0 ? Math.min(requested, 100000) : 1;
   const size = 12;
   const subject = findSubject(options.subject);
-  if (subject) {
-    const all = await getPublishedArticles({ query: options.query, issueId: options.issueId });
-    const filtered = all.filter(article => matchesSubject(article, subject));
-    return { articles: filtered.slice((page - 1) * size, page * size), total: filtered.length, page, size };
-  }
   const client = createServerClient();
   if (client) {
-    const { data, error } = await client.rpc('published_article_page', {
-      search_query: (options.query || '').trim().slice(0, 300),
-      selected_issue: options.issueId || null,
-      subject_terms: [],
-      page_number: page, page_size: size,
-    });
-    if (error) throw new Error('Article catalog unavailable. Apply migration 008.');
+    const { data, error } = await client.rpc('catalog_article_page', { search_query: (options.query || '').trim().slice(0, 300), selected_issue: options.issueId || null, selected_subject: subject?.id || null, page_number: page, page_size: size });
+    if (error) throw new Error('Katalog uchun 015 migratsiyasini qo‘llang.');
     return { articles: (data.items as Article[]).map(normalizeRemoteArticle), total: Number(data.total), page, size };
   }
-  const all = await getPublishedArticles({ query: options.query, issueId: options.issueId });
-  const filtered = all;
+  const all = await getCatalogArticles({ query: options.query, issueId: options.issueId });
+  const filtered = subject ? all.filter(article => matchesSubject(article, subject)) : all;
   return { articles: filtered.slice((page - 1) * size, page * size), total: filtered.length, page, size };
 }
 

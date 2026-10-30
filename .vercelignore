@@ -1,11 +1,12 @@
+node_modules
+.next
 .git
 .data
 artifacts
-.env*
 .agents
+.agent-cache
 .codex
 .aws
-*.pem
-node_modules
-.next
-coverage
+.env*
+src/app/prev_page.txt
+*.tsbuildinfo

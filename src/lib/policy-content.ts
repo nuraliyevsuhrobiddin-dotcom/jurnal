@@ -1,6 +1,7 @@
 import { policyIds, policySources, type PolicyContent, type PolicyDocument, type PolicyId, type PolicySection } from '../types/policies';
 import type { Language } from '../types/journal';
-import { manuscriptStandardCopy } from './manuscript-standard';
+import { manuscriptStandardCopy, publicationStandardCopy } from './manuscript-standard';
+import { collectionVisibilityMessage } from './issues/collection-policy';
 
 type Entry = { title: string; summary: string; sections: [string, string][]; sources: (keyof typeof policySources)[] };
 
@@ -519,7 +520,14 @@ function buildDocument(id: PolicyId, entry: Entry, lang: Language): PolicyDocume
   const main: [string, string][] = id === 'guidelines'
     ? entry.sections.map((section, index) => index === 1 ? [section[0], standard.policy] : section)
     : id === 'journal-charter' ? [...entry.sections, [standard.heading, standard.policy]] : entry.sections;
-  const sections: PolicySection[] = [...main, ...common[lang]].map(([title, text], index) => ({
+  const publication: [string, string][] = id === 'journal-charter' || id === 'guidelines'
+    ? [[lang === 'uz' ? 'Tayyor nashr formati' : lang === 'ru' ? 'Оформление публикации' : 'Publication formatting', publicationStandardCopy[lang]]]
+    : [];
+  if (id === 'journal-charter') publication.push([
+    lang === 'uz' ? 'Yo‘nalish to‘plamlarining ko‘rinishi' : lang === 'ru' ? 'Отображение тематических коллекций' : 'Subject collection visibility',
+    collectionVisibilityMessage(lang) + ' ' + (lang === 'uz' ? 'Nashr etilgan maqolaning bevosita havolasi, PDF fayli va indekslash metama’lumotlari ochiq qoladi.' : lang === 'ru' ? 'Прямые ссылки, PDF и метаданные опубликованных статей остаются доступны для индексации.' : 'Direct links, PDFs and metadata for published articles remain available for indexing.'),
+  ]);
+  const sections: PolicySection[] = [...main, ...publication, ...common[lang]].map(([title, text], index) => ({
     id: `section-${index + 1}`,
     title,
     paragraphs: [text],

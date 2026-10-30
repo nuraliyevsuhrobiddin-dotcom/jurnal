@@ -46,8 +46,8 @@ describe('Research discovery', () => {
     const article = { ...journalStore.articles[0], title_ru: 'Научная статья', abstract_ru: 'Аннотация исследования' };
     const data = generateArticleJsonLd(article, journalStore.settings, 'ru');
     expect(data.headline).toBe(article.title_ru);
-    expect(data.encoding.contentUrl).toContain('/ru/article/');
-    expect(data.encoding.contentUrl).toMatch(/\/fulltext.pdf$/);
+    expect(data.encoding?.contentUrl).toContain('/ru/article/');
+    expect(data.encoding?.contentUrl).toMatch(/\/fulltext.pdf$/);
     expect(data.isAccessibleForFree).toBe(true);
   });
   it('publishes a crawlable sitemap with actual modification dates and no draft records', async () => {

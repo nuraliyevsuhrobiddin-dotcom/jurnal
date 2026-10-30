@@ -4,6 +4,18 @@ export const manuscriptStandard = {
   lineSpacing: 1.5, marginMm: 20, firstLineMm: 12.5,
 } as const;
 
+/** Automatic DOCX publication layout; uploaded PDFs retain their source typography. */
+export const publicationStandard = {
+  ...manuscriptStandard,
+  font: 'Noto Sans',
+} as const;
+
+export const publicationStandardCopy = {
+  uz: 'Avtomatik DOCX nashrida asosiy matn Noto Sans 12 shriftida, 1,5 interval, 20 mm hoshiya va 12,5 mm birinchi qator chekinishi bilan joylashtiriladi. Times New Roman qo‘lyozma shabloniga tegishli; nashr sarlavhalari, jadval, muqova va kolontitullar alohida bezatiladi. Yuklangan tayyor PDFning asl matni va shrifti saqlanadi, jurnal muqovasi va nashr ma’lumotlari qo‘shiladi.',
+  en: 'Automatic DOCX publication uses Noto Sans 12 pt body text, 1.5 line spacing, 20 mm margins and 12.5 mm first-line indentation. Times New Roman applies to the manuscript template; publication headings, tables, covers and running furniture have separate styling. Uploaded PDFs retain their original text and typography, with journal cover and publication information added.',
+  ru: 'При автоматической подготовке DOCX основной текст набирается Noto Sans 12 пт с интервалом 1,5, полями 20 мм и отступом первой строки 12,5 мм. Times New Roman относится к шаблону рукописи; заголовки, таблицы, обложка и колонтитулы оформляются отдельно. Загруженные PDF сохраняют исходный текст и шрифты; добавляются обложка журнала и сведения о публикации.',
+} as const;
+
 export const manuscriptStandardCopy = {
   uz: {
     summary: 'Yagona maqola shabloni: A4, Times New Roman 12, 1,5 interval, har tomondan 2 sm hoshiya. Maqolani o‘zbek, rus yoki ingliz tilida tayyorlang.',

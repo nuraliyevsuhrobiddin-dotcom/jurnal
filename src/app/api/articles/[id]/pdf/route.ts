@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getArticleById, getJournalSettings } from '@/lib/db';
-import { ensurePublicationLayout } from '@/lib/pdf/generator';
+import { prepareCurrentPublicationPdf } from '@/lib/pdf/current-publication';
 import { recordArticleMetric } from '@/lib/article-metrics';
 import { readArticlePdf } from '@/lib/pdf/storage';
 import { siteUrl } from '@/lib/site-url';
@@ -24,7 +24,7 @@ export async function GET(
     if (!pdfBytes) return new NextResponse('Full article PDF is not available. Please contact the editorial office.', { status: 404 });
     await recordArticleMetric(request, id, 'downloads_count');
 
-    const publication = await ensurePublicationLayout(article, await getJournalSettings(), pdfBytes);
+    const publication = await prepareCurrentPublicationPdf(article, await getJournalSettings(), pdfBytes);
     return new NextResponse(streamPdf(publication), {
       status: 200,
       headers: {

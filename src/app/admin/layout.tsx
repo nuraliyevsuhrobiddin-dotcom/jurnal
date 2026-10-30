@@ -43,6 +43,7 @@ export default function AdminLayout({
   }
 
   const menuItems = [
+    { href: '/admin/collections', label: 'Yo‘nalish to‘plamlari', icon: BookMarked },
     { href: '/admin/staff', label: 'Tahririyat hisoblari', icon: ShieldCheck },
     { href: '/admin/reviews', label: 'Taqrizlar', icon: FileText },
     { href: '/admin/backups', label: 'Zaxira nusxalari', icon: History },

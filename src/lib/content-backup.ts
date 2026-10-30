@@ -2,9 +2,16 @@ import JSZip from 'jszip';
 import { createHash, randomUUID } from 'node:crypto';
 import { createServerClient } from './supabase/server';
 
-export const backupTables = ['journal_settings','issues','articles','article_authors','article_files','editorial_board','certificates','audit_logs','contact_messages','integration_jobs','editorial_messages','staff_accounts','staff_security','review_assignments'] as const;
+export const backupTables = ['journal_settings','issues','articles','article_authors','article_files','editorial_board','certificates','audit_logs','contact_messages','integration_jobs','editorial_messages','staff_accounts','staff_security','review_assignments','collection_releases','article_versions'] as const;
 const buckets = ['journal-pdfs','journal-manuscripts','journal-covers'];
 const maxBytes = 48 * 1024 * 1024;
+export function backupWarnings(latest: { created_at: string; verified: boolean; bytes: number } | null, now = Date.now()) {
+  const warnings: string[] = [];
+  if (!latest || !latest.verified) warnings.push('Tekshirilgan zaxira nusxasi mavjud emas. Nusxa yarating.');
+  else if (now - Date.parse(latest.created_at) > 36 * 3600000) warnings.push('Oxirgi tekshirilgan nusxa 36 soatdan eski. Avtomatik zaxiralashni tekshiring.');
+  if (latest && latest.bytes >= maxBytes * 0.75) warnings.push('Arxiv 48 MB chegarasiga yaqinlashmoqda. Provayderning katta hajmli zaxiralash xizmatini sozlang.');
+  return warnings;
+}
 const hash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 export interface BackupManifest { version: 1; id: string; created_at: string; rows: Record<string, number>; files: { path: string; bytes: number; sha256: string }[] }
 export function safeBackupPath(name: string) { return !name.includes('\\') && !name.startsWith('/') && !name.split('/').some(p => !p || p === '.' || p === '..') && !/[\x00-\x1f:]/.test(name); }

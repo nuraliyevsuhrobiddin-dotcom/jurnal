@@ -6,6 +6,7 @@ import { articleSchema, articleUpdateSchema, articleClearFields } from '@/lib/ar
 import { PublicationError } from '@/lib/publication-ready';
 import { queueArticleNotifications } from '@/lib/publication-notifications';
 import { drainNotificationQueue, mailConfigured } from '@/lib/notifications';
+import { ArticleConflictError } from '@/lib/remote-db';
 
 export const maxDuration = 60;
 
@@ -70,6 +71,26 @@ export async function PATCH(
     const updates = Object.fromEntries(Object.entries(parsed.data).filter(([key]) => Object.hasOwn(payload, key))) as Partial<Article>;
     for (const key of cleared.data) Object.assign(updates, { [key]: undefined });
     const candidate = { ...current, ...updates };
+    const manuscriptFields: (keyof Article)[] = [
+      'title_uz', 'title_en', 'title_ru', 'abstract_uz', 'abstract_en', 'abstract_ru',
+      'keywords_uz', 'keywords_en', 'keywords_ru', 'authors', 'original_language',
+    ];
+    const manuscriptChanged = manuscriptFields.some(field => {
+      const before = current[field], after = candidate[field];
+      if (field === 'authors' || field.startsWith('keywords_')) return JSON.stringify(before || []) !== JSON.stringify(after || []);
+      if (field === 'original_language') return before !== after;
+      return String(before ?? '') !== String(after ?? '');
+    });
+    if (manuscriptChanged && current.pdf_url) {
+      // The PDF body is the source of visible manuscript metadata. Require a new
+      // source file before this edited record can be published again.
+      updates.status = 'draft';
+      updates.pdf_url = undefined;
+      updates.pdf_file_size = undefined;
+      updates.pdf_storage_path = undefined;
+      updates.change_note ||= 'Maqola metadata yangilandi; yangi PDF kutilmoqda';
+      Object.assign(candidate, updates);
+    }
     if (candidate.status === 'published' && !candidate.publication_date) {
       candidate.publication_date = current.publication_date || new Date().toISOString().slice(0, 10);
       updates.publication_date = candidate.publication_date;
@@ -80,6 +101,7 @@ export async function PATCH(
     if (!updated) return NextResponse.json({ error: 'Article not found' }, { status: 404 });
     return savedArticleResponse(current, updated);
   } catch (error: unknown) {
+    if (error instanceof ArticleConflictError) return NextResponse.json({ error: error.message }, { status: 409 });
     if (error instanceof PublicationError) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ error: (error instanceof Error ? error.message : null) || 'Server error' }, { status: 500 });
   }

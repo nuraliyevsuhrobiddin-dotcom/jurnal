@@ -63,7 +63,8 @@ export async function generateCertificatePdf(
   const navy = rgb(0.063, 0.169, 0.247), teal = rgb(0.06, 0.38, 0.39);
   const gold = rgb(0.72, 0.61, 0.40), muted = rgb(0.32, 0.38, 0.42);
   const logos = await Promise.all(certificateServices.map(async service => {
-    const bytes = await readFile(path.join(process.cwd(), 'public', service.asset));
+    const asset = service.name === 'Google Scholar' ? '/brands/google-scholar-mark.svg' : service.asset;
+    const bytes = await readFile(path.join(process.cwd(), 'public', asset));
     const png = await sharp(bytes, { density: 192 }).resize({ width: 570, height: 192, fit: 'inside' }).png().toBuffer();
     return doc.embedPng(png);
   }));
@@ -118,9 +119,10 @@ export async function generateCertificatePdf(
       const logoSize = logo.scaleToFit(service.name === 'ORCID' ? 23 : 110, 23);
       sheet.drawRectangle({ x, y: 145, width: cellWidth - 10, height: 31, color: rgb(1, 1, 1) });
       if (service.name === 'Google Scholar') {
-        // Keep the service name as PDF text: SVG text can disappear or become
-        // unreadably small in some PDF viewers after rasterization.
-        sheet.drawText(service.name, { x: x + 5, y: 156, size: 8, font: fontBold, color: navy });
+        // Embed the actual mark and retain readable text independent of SVG fonts.
+        const mark = logo.scaleToFit(23, 23);
+        sheet.drawImage(logo, { x: x + 5, y: 149, ...mark });
+        sheet.drawText(service.name, { x: x + 33, y: 156, size: 8, font: fontBold, color: navy });
       } else {
         sheet.drawImage(logo, { x: x + 5, y: 149 + (23 - logoSize.height) / 2, ...logoSize });
       }
@@ -406,6 +408,17 @@ export async function ensurePublicationLayout(article: Article, settings: Journa
   const body = await PDFDocument.create();
   const pages = await body.copyPages(pdf, pdf.getPageIndices().slice(-count));
   pages.forEach(page => body.addPage(page));
+  if (pdf.getKeywords()?.includes('AGM_COVER_PAGES:0')) {
+    const title = (article.original_language === 'en' ? article.title_en : article.original_language === 'ru' ? article.title_ru : article.title_uz) || article.title_uz;
+    body.setTitle(title);
+    body.setAuthor((article.authors || []).map(author => author.full_name).join(', '));
+    body.setSubject(article.doi ? `https://doi.org/${article.doi}` : settings.journal_name);
+    body.setCreator(settings.journal_name);
+    body.setLanguage(article.original_language);
+    const bodyFirst = pdf.getKeywords()?.match(/(?:^|\s)AGM_BODY_FIRST:(\d+)(?:\s|$)/)?.[1] || String(article.page_first || 1);
+    body.setKeywords(['AGM_FULL_ARTICLE_V2', PUBLICATION_DESIGN, `AGM_BODY_PAGES:${count}`, `AGM_BODY_FIRST:${bodyFirst}`, 'AGM_COVER_PAGES:0', `AGM_COVER_HASH:${publicationCoverHash(article, settings, count)}`]);
+    return body.save();
+  }
   return attachPublicationCover(article, settings, await body.save());
 }
 
@@ -461,8 +474,19 @@ export async function assemblePublicationPdf(article: Article, settings: Journal
   }
   doc.setTitle((article.original_language === 'en' ? article.title_en : article.original_language === 'ru' ? article.title_ru : article.title_uz) || article.title_uz);
   doc.setAuthor((article.authors || []).map(a => a.full_name).join(', '));
-  doc.setCreator(settings.journal_name); doc.setKeywords(['AGM_FULL_ARTICLE_V2', `AGM_BODY_FIRST:${article.page_first || 1}`]);
-  return attachPublicationCover(article, settings, await doc.save());
+  doc.setCreator(settings.journal_name);
+  doc.setLanguage(article.original_language);
+  doc.setKeywords([
+    'AGM_FULL_ARTICLE_V2', PUBLICATION_DESIGN,
+    `AGM_BODY_PAGES:${source.getPageCount()}`,
+    `AGM_BODY_FIRST:${article.page_first || 1}`,
+    'AGM_COVER_PAGES:0',
+    `AGM_COVER_HASH:${publicationCoverHash(article, settings, source.getPageCount())}`,
+  ]);
+  // Uploaded PDFs already carry their own title, abstract, keywords and author
+  // block. Keep their pages and add the journal identity without duplicating that
+  // metadata on a second generated title page.
+  return doc.save();
 }
 
 // Paginated issue contents; page ranges are only printed when assigned.

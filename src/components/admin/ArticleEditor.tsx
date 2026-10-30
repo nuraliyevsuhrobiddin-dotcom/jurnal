@@ -37,6 +37,9 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [docxParsing, setDocxParsing] = useState(false);
   const [savedArticleId, setSavedArticleId] = useState(initialArticle?.id || '');
+  const [revision, setRevision] = useState(initialArticle?.revision || 1);
+  const [changeNote, setChangeNote] = useState('');
+  const [english, setEnglish] = useState({ title: initialArticle?.title_en || '', abstract: initialArticle?.abstract_en || '', keywords: (initialArticle?.keywords_en || []).join(', ') });
   const [publicationFile, setPublicationFile] = useState<File | null>(null);
   const [regenerateFromManuscript, setRegenerateFromManuscript] = useState(false);
   const [pdfReady, setPdfReady] = useState(Boolean(initialArticle?.pdf_url));
@@ -228,14 +231,33 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
       return;
     }
 
+    const manuscriptMetadataChanged = Boolean(initialArticle && (
+      initialArticle.original_language !== manuscriptLanguage
+      || (manuscriptLanguage === 'uz' && (initialArticle.title_uz !== title.trim() || initialArticle.abstract_uz !== abstract.trim() || JSON.stringify(initialArticle.keywords_uz || []) !== JSON.stringify(keywords.split(',').map(k => k.trim()).filter(Boolean))))
+      || (manuscriptLanguage === 'en' && (initialArticle.title_en !== title.trim() || initialArticle.abstract_en !== abstract.trim() || JSON.stringify(initialArticle.keywords_en || []) !== JSON.stringify(keywords.split(',').map(k => k.trim()).filter(Boolean))))
+      || (manuscriptLanguage === 'ru' && (initialArticle.title_ru !== title.trim() || initialArticle.abstract_ru !== abstract.trim() || JSON.stringify(initialArticle.keywords_ru || []) !== JSON.stringify(keywords.split(',').map(k => k.trim()).filter(Boolean))))
+      || (initialArticle.title_en || '') !== english.title.trim()
+      || (initialArticle.abstract_en || '') !== english.abstract.trim()
+      || JSON.stringify(initialArticle.keywords_en || []) !== JSON.stringify(english.keywords.split(',').map(value => value.trim()).filter(Boolean))
+      || JSON.stringify((initialArticle.authors || []).map(author => [author.full_name, author.email || '', author.affiliation, author.country, author.orcid || '', author.is_corresponding, author.order_index]))
+        !== JSON.stringify(authors.map((author, index) => [author.full_name, author.email || '', author.affiliation, author.country, author.orcid || '', author.is_corresponding, index + 1]))
+    ));
+    if (manuscriptMetadataChanged && regenerateFromManuscript && !publicationFile) {
+      setErrorMsg('Maqola matni yoki metadata o‘zgardi. Eski qo‘lyozmani qayta ishlatish o‘rniga tuzatilgan PDF yoki DOCX faylini yuklang.');
+      setLoading(false);
+      return;
+    }
+
     const payload = {
       ...(initialArticle ? { clear_fields: Object.entries({ issue_id: issueId, page_first: pageFirst, page_last: pageLast, doi, publication_date: publicationDate }).filter(([, value]) => !value.trim()).map(([field]) => field) } : {}),
       title_uz: manuscriptLanguage === 'uz' ? title.trim() : initialArticle?.title_uz || title.trim(),
       abstract_uz: manuscriptLanguage === 'uz' ? abstract.trim() : initialArticle?.abstract_uz || abstract.trim(),
       keywords_uz: manuscriptLanguage === 'uz' ? keywords.split(',').map(k => k.trim()).filter(Boolean) : initialArticle?.keywords_uz || keywords.split(',').map(k => k.trim()).filter(Boolean),
-      title_en: initialArticle?.title_en,
-      abstract_en: initialArticle?.abstract_en,
-      keywords_en: initialArticle?.keywords_en || [],
+      title_en: english.title.trim(),
+      abstract_en: english.abstract.trim(),
+      keywords_en: english.keywords.split(',').map(value => value.trim()).filter(Boolean),
+      ...(savedArticleId ? { revision } : {}),
+      change_note: changeNote,
       title_ru: initialArticle?.title_ru,
       abstract_ru: initialArticle?.abstract_ru,
       keywords_ru: initialArticle?.keywords_ru || [],
@@ -271,6 +293,9 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
         throw new Error(data.error || 'Maqolani saqlashda xatolik yuz berdi');
       }
       setSavedArticleId(data.id);
+      setRevision(data.revision || 1);
+      setPdfReady(Boolean(data.pdf_url && data.pdf_file_size));
+      if (!data.pdf_url) setPreparedPdfUrl('');
       let notificationWarning = data.notification_warning;
       let ready = pdfReady;
       if (publicationFile || regenerateFromManuscript || (!pdfReady && initialArticle?.manuscript_file_url)) {
@@ -279,6 +304,7 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
         const upload = await fetch(`/api/admin/articles/${data.id}/pdf`, { method: 'POST', body: form });
         const uploaded = await upload.json();
         if (!upload.ok) throw new Error(`Qoralama saqlandi. ${uploaded.error || 'To‘liq fayl tayyorlanmadi.'}`);
+        setRevision(uploaded.revision || data.revision || 1);
         ready = true; setPdfReady(true); setPublicationFile(null); setPreparedPdfUrl(uploaded.url);
         setRegenerateFromManuscript(false);
         setPageFirst(String(uploaded.page_first)); setPageLast(String(uploaded.page_last));
@@ -288,6 +314,7 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
         const publish = await fetch(`/api/admin/articles/${data.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'change_status', status: 'published' }) });
         const published = await publish.json();
         if (!publish.ok) throw new Error(published.error || 'Nashr qilib bo‘lmadi.');
+        setRevision(published.revision || data.revision || 1);
         notificationWarning = published.notification_warning || notificationWarning;
       }
       setSuccessMsg(ready ? 'Maqola va to‘liq fayl saqlandi. PDF’ni quyidagi havoladan tekshiring.' : 'Qoralama saqlandi. To‘liq maqola faylini shu oynada tanlashingiz mumkin.');
@@ -375,12 +402,24 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
       {/* Main Creation Form */}
       <form onSubmit={handleSubmit} className="space-y-8">
         <section className="rounded-xl border border-teal-200 bg-teal-50 p-5 space-y-3">
+          <h2 className="font-semibold text-navy-900">Nashr oldi tekshiruvi</h2>
+          <ul className="grid gap-2 text-sm sm:grid-cols-2">{[
+            ['Jurnal soni tanlangan', !!issueId], ['To‘liq PDF tayyor', pdfReady],
+            ['Sahifalar belgilangan', Number(pageFirst) > 0 && Number(pageLast) >= Number(pageFirst)],
+            ['Mualliflar kiritilgan', authors.length > 0 && authors.every(author => author.full_name.trim() && author.affiliation.trim())],
+            ['Inglizcha bibliografik ma’lumot', manuscriptLanguage === 'en' ? !!(title.trim() && abstract.trim() && keywords.trim()) : !!(english.title.trim() && english.abstract.trim() && english.keywords.trim())],
+          ].map(([label, ready]) => <li key={String(label)}>{ready ? '✓' : '○'} {label}</li>)}</ul>
+          <p className="text-xs text-slate-600">Yakuniy saqlashda PDF betlari va sahifa bandligi serverda tekshiriladi. DOI ro‘yxati va taqriz qarorini ham tekshiring.</p>
+          {manuscriptLanguage !== 'en' && <fieldset className="grid gap-3"><legend className="font-semibold">Inglizcha metama’lumotlar</legend><label className="text-sm">English title<input className="mt-1 block w-full rounded border p-2" value={english.title} onChange={e => setEnglish({ ...english, title: e.target.value })} /></label><label className="text-sm">English abstract<textarea className="mt-1 block w-full rounded border p-2" value={english.abstract} onChange={e => setEnglish({ ...english, abstract: e.target.value })} /></label><label className="text-sm">English keywords<input className="mt-1 block w-full rounded border p-2" value={english.keywords} onChange={e => setEnglish({ ...english, keywords: e.target.value })} /></label></fieldset>}
+          <label className="block text-sm">O‘zgarish yoki tuzatish izohi<textarea className="mt-1 block w-full rounded border p-2" maxLength={2000} value={changeNote} onChange={e => setChangeNote(e.target.value)} /><span className="text-xs text-slate-600">Nashr tarixida ko‘rinadigan qisqa izoh yozing. Maxfiy taqriz ma’lumotlarini kiritmang.</span></label>
+        </section>
+        <section className="rounded-xl border border-teal-200 bg-teal-50 p-5 space-y-3">
           <label htmlFor="article-subject" className="block text-sm font-semibold text-navy-900">Fan yo‘nalishi va nashr muqovasi</label>
           <select id="article-subject" value={subjectId} onChange={e => setSubjectId(e.target.value)} className="w-full rounded-lg border border-slate-300 bg-white p-3 text-sm">
             <option value="auto">Avtomatik — maqola mazmuniga qarab</option>
             {subjectCollections.map(subject => <option key={subject.id} value={subject.id}>{subject.labels.uz}</option>)}
           </select>
-          <p className="text-sm text-slate-700">{subjectId === 'auto' ? `Aniqlangan yo‘nalish: ${subjectLabel(resolveSubjectId({ title_en: title, abstract_en: abstract, keywords_en: keywords.split(',') } as Article), 'uz')}.` : `Tanlangan yo‘nalish: ${subjectLabel(subjectId, 'uz')}.`} Nashrdan so‘ng maqola shu yo‘nalish sahifasida va uning muqovali to‘plamida ko‘rinadi.</p>
+          <p className="text-sm text-slate-700">{subjectId === 'auto' ? `Aniqlangan yo‘nalish: ${subjectLabel(resolveSubjectId({ title_en: title, abstract_en: abstract, keywords_en: keywords.split(',') } as Article), 'uz')}.` : `Tanlangan yo‘nalish: ${subjectLabel(subjectId, 'uz')}.`} Maqola katalogda shu sonning yo‘nalish to‘plami to‘lgach ko‘rinadi. Nashrdan so‘ng bevosita havola va indekslash ochiq qoladi.</p>
         </section>
         <section className="bg-white rounded-2xl academic-border academic-shadow p-6 sm:p-8 space-y-5">
           <h2 className="text-base font-bold text-navy-900 flex items-center gap-2"><FileText className="w-4 h-4" />1. Maqola nomi</h2>

@@ -24,11 +24,12 @@ describe('Full manuscript conversion', () => {
     expect(parsed.extractedKeywords).toEqual(['pedagogika', 'ta’lim']);
     expect(parsed.extractedAbstract).toBe('Research summary and evidence.');
   });
-  it('keeps the full source PDF after its separate journal cover', async () => {
+  it('keeps the full source PDF without duplicating its metadata on a journal cover', async () => {
     const source = await PDFDocument.create(); source.addPage().drawText('Full research body');
     const bytes = await manuscriptToPdf(await source.save(), 'pdf', settings);
     const result = await PDFDocument.load(await assemblePublicationPdf(journalStore.articles[0], settings, bytes));
-    expect(result.getPageCount()).toBe(2);
+    expect(result.getPageCount()).toBe(1);
+    expect(result.getKeywords()).toContain('AGM_COVER_PAGES:0');
     expect(publicationBodyPageCount(result)).toBe(1);
     expect(result.getKeywords()).toContain('AGM_FULL_ARTICLE_V2');
   });

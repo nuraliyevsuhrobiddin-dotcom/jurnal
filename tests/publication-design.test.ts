@@ -9,18 +9,18 @@ const settings = journalStore.settings;
 const article = { ...journalStore.articles[0], issue: journalStore.issues[0], page_first: 21, page_last: 22 };
 
 describe('Atlas publication design', () => {
-  it('adds a linked seal/QR cover while retaining all source content and journal body page counts', async () => {
+  it('brands source PDF pages without duplicating the manuscript metadata', async () => {
     const source = await PDFDocument.create();
     source.addPage().drawText('First original page');
     source.addPage().drawText('Second original page');
     const bytes = await assemblePublicationPdf(article, settings, await source.save());
     const doc = await PDFDocument.load(bytes);
-    expect(doc.getPageCount()).toBeGreaterThan(2);
+    expect(doc.getPageCount()).toBe(2);
     expect(doc.getKeywords()).toContain(PUBLICATION_DESIGN);
+    expect(doc.getKeywords()).toContain('AGM_COVER_PAGES:0');
     expect(publicationBodyPageCount(doc)).toBe(2);
     const images = doc.getPage(0).node.Resources()?.lookup(PDFName.of('XObject'), PDFDict);
-    expect(images?.keys().length).toBeGreaterThanOrEqual(2);
-    expect(doc.getPage(0).node.Annots()?.size()).toBeGreaterThanOrEqual(2);
+    expect(images?.keys().length).toBeGreaterThanOrEqual(1);
     const body = doc.getPage(doc.getPageCount() - 1);
     expect(body.node.Resources()?.lookup(PDFName.of('XObject'), PDFDict).keys().length).toBeGreaterThanOrEqual(2); // Source artwork plus logo.
     expect(await ensurePublicationLayout(article, settings, bytes)).toBe(bytes);
@@ -48,7 +48,7 @@ describe('Atlas publication design', () => {
     const doc = await PDFDocument.load(updated);
     expect(doc.getTitle()).toBe(changed.title_uz);
     expect(publicationBodyPageCount(doc)).toBe(1);
-    expect(doc.getPageCount()).toBe(2);
+    expect(doc.getPageCount()).toBe(1);
     expect(await ensurePublicationLayout(changed, settings, updated)).toBe(updated);
     expect(await ensurePublicationLayout({ ...changed, views_count: 100 }, settings, updated)).toBe(updated);
   });

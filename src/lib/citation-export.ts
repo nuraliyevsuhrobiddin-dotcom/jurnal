@@ -9,13 +9,15 @@ export function exportCitation(article: Article, journal: string, lang: Language
   const url = siteUrl(`/${lang}/article/${article.slug}`);
   const authors = (article.authors || []).map(author => scholarlyAuthorName(author.full_name));
   const year = article.publication_date?.slice(0, 4) || String(article.issue?.year || '');
+  const note = article.status === 'withdrawn' ? `Withdrawn: ${article.retraction_reason || 'See publication record'}` : '';
   if (format === 'ris') {
     return ['TY  - JOUR', `TI  - ${plain(title)}`, ...authors.map(name => `AU  - ${plain(name)}`), `JO  - ${plain(journal)}`,
       ...(year ? [`PY  - ${year}`] : []), ...(article.issue ? [`VL  - ${article.issue.volume}`, `IS  - ${article.issue.issue_number}`] : []),
       ...(article.page_first ? [`SP  - ${article.page_first}`] : []), ...(article.page_last ? [`EP  - ${article.page_last}`] : []),
-      ...(article.doi ? [`DO  - ${plain(article.doi)}`] : []), `UR  - ${url}`, 'ER  -', ''].join('\r\n');
+      ...(article.doi ? [`DO  - ${plain(article.doi)}`] : []), ...(note ? [`N1  - ${plain(note)}`] : []), `UR  - ${url}`, 'ER  -', ''].join('\r\n');
   }
   const fields: Record<string, string> = { title, author: authors.join(' and '), journal, year, url };
+  if (note) fields.note = note;
   if (article.issue) { fields.volume = String(article.issue.volume); fields.number = String(article.issue.issue_number); }
   if (article.doi) fields.doi = article.doi;
   if (article.page_first) fields.pages = `${article.page_first}${article.page_last ? '--' + article.page_last : ''}`;

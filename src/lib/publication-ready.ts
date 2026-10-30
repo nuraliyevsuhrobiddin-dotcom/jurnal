@@ -19,7 +19,7 @@ export function assertIssuePageRangeAvailable(article: Article, published: Artic
 export async function assertPublicationReady(article: Article) {
   const parsed = articleSchema.safeParse(article);
   if (!parsed.success) throw new PublicationError('Nashr uchun sarlavha, annotatsiya, kalit so‘zlar va muallif ma’lumotlarini to‘ldiring.');
-  const metadataGaps = internationalMetadataGaps(article, article.original_language === 'en');
+  const metadataGaps = internationalMetadataGaps(article);
   if (metadataGaps.length) throw new PublicationError(`Nashrdan oldin xalqaro metama’lumotlarni to‘ldiring: ${metadataGaps.join(', ')}.`);
   if (!article.issue_id || !article.issue || !article.page_first || !article.page_last) {
     throw new PublicationError('Nashrdan oldin jurnal soni va maqola sahifalarini belgilang.');

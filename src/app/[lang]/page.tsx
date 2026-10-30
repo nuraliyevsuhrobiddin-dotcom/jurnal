@@ -1,9 +1,10 @@
 import { IssueCoverImage } from '@/components/issues/IssueCoverImage';
+import { collectionVisibilityMessage } from '@/lib/issues/collection-policy';
 import Link from 'next/link';
 import { ArrowUpRight, Search, ArrowRight, BookOpen } from 'lucide-react';
 import { Language } from '@/types/journal';
 import { getDictionary } from '@/lib/i18n/dictionaries';
-import { getPublishedArticles, getCurrentIssue } from '@/lib/db';
+import { getCatalogArticles, getCurrentIssue } from '@/lib/db';
 import { ArticleCard } from '@/components/article/ArticleCard';
 import './catalog.css';
 import { subjectCollections, subjectLabel } from '@/lib/subjects';
@@ -30,7 +31,7 @@ export default async function HomePage({ params }: { params: Promise<{ lang: str
   const currentLang = (['uz', 'en', 'ru'].includes(lang) ? lang : 'uz') as Language;
   const t = copy[currentLang];
   const dict = getDictionary(currentLang);
-  const [articles, issue] = await Promise.all([getPublishedArticles({ limit: 4 }), getCurrentIssue()]);
+  const [articles, issue] = await Promise.all([getCatalogArticles({ limit: 4 }), getCurrentIssue()]);
   return <div className="research-catalog">
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ '@context': 'https://schema.org', '@type': 'WebSite', '@id': siteUrl('/#website'), name: 'AGM Journal', alternateName: 'AGM International Scientific Journal', url: siteUrl('/en'), inLanguage: ['en', 'uz', 'ru'] }).replace(/</g, '\\u003c') }} />
     <section className="catalog-intro"><div className="journal-container catalog-intro-grid">
@@ -45,7 +46,7 @@ export default async function HomePage({ params }: { params: Promise<{ lang: str
         <div className="subject-info"><span>{t.section} / {String(i + 1).padStart(2, '0')}</span><h3><Link href={`/${currentLang}/subjects/${subject.id}`}>{subjectLabel(subject.id, currentLang)}</Link></h3><p>{t.descriptions[i] || (currentLang === 'en' ? 'Research connecting disciplines and emerging fields.' : currentLang === 'ru' ? '\u0418\u0441\u0441\u043b\u0435\u0434\u043e\u0432\u0430\u043d\u0438\u044f \u043d\u0430 \u0441\u0442\u044b\u043a\u0435 \u043d\u0430\u0443\u0447\u043d\u044b\u0445 \u0434\u0438\u0441\u0446\u0438\u043f\u043b\u0438\u043d.' : 'Fanlararo va yangi ilmiy sohalardagi tadqiqotlar.')}</p><Link className="catalog-text-link" href={`/${currentLang}/subjects/${subject.id}`}>{t.explore}<ArrowUpRight size={15} /></Link></div>
       </article>)}</div>
     </section>
-    <section className="catalog-publications"><div className="journal-container"><div className="catalog-section-heading"><div><p className="catalog-eyebrow">AGM JOURNAL</p><h2>{t.latest}</h2></div><Link className="catalog-text-link" href={`/${currentLang}/articles`}>{t.all}<ArrowRight size={16} /></Link></div>{articles.length ? <div className="catalog-article-grid">{articles.map(article => <ArticleCard key={article.id} article={article} lang={currentLang} />)}</div> : <div className="catalog-empty"><BookOpen size={25} /><p>{t.empty}</p></div>}</div></section>
+    <section className="catalog-publications"><div className="journal-container"><div className="catalog-section-heading"><div><p className="catalog-eyebrow">AGM JOURNAL</p><h2>{t.latest}</h2></div><Link className="catalog-text-link" href={`/${currentLang}/articles`}>{t.all}<ArrowRight size={16} /></Link></div>{articles.length ? <div className="catalog-article-grid">{articles.map(article => <ArticleCard key={article.id} article={article} lang={currentLang} />)}</div> : <div className="catalog-empty"><BookOpen size={25} /><p>{collectionVisibilityMessage(currentLang)}</p></div>}</div></section>
     <IntegrationLogos lang={currentLang} />
     <section className="journal-container catalog-author"><h2>{t.author}</h2>{[['guidelines', t.guidelines], ['peer-review', t.review], ['policies', t.policies]].map(([path, label]) => <Link key={path} href={`/${currentLang}/${path}`}>{label}<ArrowUpRight size={17} /></Link>)}</section>
   </div>;

@@ -5,6 +5,7 @@ import { buildIssueCollection, IssueCollectionError } from '@/lib/pdf/issue-coll
 import { protectRequest } from '@/lib/request-limit';
 import { streamPdf } from '@/lib/pdf/stream';
 import { findSubject, matchesSubject } from '@/lib/subjects';
+import { getCollectionSummaries } from '@/lib/issues/collections';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -21,7 +22,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const subject = findSubject(requestedSubject || undefined);
     if (requestedSubject && !subject) return new NextResponse('Subject not found', { status: 404 });
     const selected = subject ? articles.filter(article => matchesSubject(article, subject)) : articles;
-    if (selected.length < MIN_COLLECTION_ARTICLES) return new NextResponse(collectionPendingMessage('uz', selected.length), { status: 409, headers: { 'Cache-Control': 'no-store' } });
+    const released = subject && (await getCollectionSummaries(id)).some(item => item.subject_id === subject.id && item.released_at);
+    if (!released && selected.length < MIN_COLLECTION_ARTICLES) return new NextResponse(collectionPendingMessage('uz', selected.length), { status: 409, headers: { 'Cache-Control': 'no-store' } });
     const bytes = await buildIssueCollection(issue, selected, settings, undefined, subject?.id);
     return new NextResponse(streamPdf(bytes), { headers: {
       'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="agm-volume-${issue.volume}-issue-${issue.issue_number}-${issue.year}${subject ? '-' + subject.id : ''}.pdf"`,

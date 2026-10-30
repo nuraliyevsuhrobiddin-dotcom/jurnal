@@ -1,5 +1,5 @@
 import { MetadataRoute } from 'next';
-import { getPublishedArticles, getAllIssues } from '@/lib/db';
+import { getPublicArticleRecords, getAllIssues } from '@/lib/db';
 import { connection } from 'next/server';
 import { policyIds } from '@/types/policies';
 import { SITE_URL } from '@/lib/site-url';
@@ -9,7 +9,7 @@ const BASE_URL = SITE_URL;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   await connection();
-  const [articles, issues] = await Promise.all([getPublishedArticles(), getAllIssues()]);
+  const [articles, issues] = await Promise.all([getPublicArticleRecords(), getAllIssues()]);
   const locales = ['uz', 'en', 'ru'] as const;
 
   const staticRoutes = [

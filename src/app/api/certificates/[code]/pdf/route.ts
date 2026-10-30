@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCertificateByCode, getJournalSettings } from '@/lib/db';
+import { getArticleById, getCertificateByCode, getJournalSettings } from '@/lib/db';
+import { certificatePublicationState } from '@/lib/publication-state';
 import { generateCertificatePdf } from '@/lib/pdf/generator';
 import { streamPdf } from '@/lib/pdf/stream';
 
@@ -17,6 +18,8 @@ export async function GET(
       return new NextResponse('Certificate not found', { status: 404 });
     }
     if (cert.status === 'revoked') return new NextResponse('Certificate revoked', { status: 410 });
+    const state = certificatePublicationState(cert, await getArticleById(cert.article_id));
+    if (!state.valid) return new NextResponse(state.reason, { status: 409, headers: { 'Cache-Control': 'no-store' } });
 
     const baseUrl = new URL(process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin).origin;
     const verificationUrl = `${baseUrl}/certificate/${cert.certificate_number}`;

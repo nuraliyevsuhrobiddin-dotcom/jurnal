@@ -21,7 +21,7 @@ describe('Complete issue PDF', () => {
     const bytes = await buildIssueCollection({ ...issue, cover_image_url: undefined }, [b, makeArticle('draft', 2, 'draft'), { ...a, id: 'other', issue_id: 'other' }, a], settings, reader);
     const result = await PDFDocument.load(bytes);
     expect(reader.mock.calls.map(([id]) => id)).toEqual(['first', 'second']);
-    expect(result.getPageCount()).toBe(7); // Issue cover, contents, two article covers, three source pages.
+    expect(result.getPageCount()).toBe(5); // Issue cover, contents and three source pages.
     expect(result.getPage(0).getWidth()).toBeCloseTo(595.28);
     expect(result.getPage(2).getWidth()).toBeCloseTo(595.28);
     expect(result.getPage(4).getWidth()).toBeCloseTo(595.28);
@@ -41,14 +41,14 @@ describe('Complete issue PDF', () => {
     const source = await PDFDocument.create();
     source.addPage([401, 601]).drawText('Original manuscript');
     const bytes = await source.save();
-    const reader = vi.fn(async () => bytes);
+    const reader = vi.fn<(id: string) => Promise<Uint8Array>>(async () => bytes);
     const full = await PDFDocument.load(await buildIssueCollection({ ...issue, cover_image_url: undefined }, articles, settings, reader));
-    expect(full.getPageCount()).toBe(6); // Issue cover, contents, two article covers and two manuscripts.
+    expect(full.getPageCount()).toBe(4); // Issue cover, contents and two manuscripts.
     expect(full.getPage(2).getWidth()).toBeCloseTo(595.28);
     expect(full.getPage(3).getWidth()).toBeCloseTo(595.28);
     reader.mockClear();
     const subject = await PDFDocument.load(await buildIssueCollection(issue, articles, settings, reader, 'natural-sciences'));
-    expect(subject.getPageCount()).toBe(4);
+    expect(subject.getPageCount()).toBe(3);
     expect(subject.getPage(2).getWidth()).toBeCloseTo(595.28);
     expect(reader.mock.calls).toHaveLength(1);
   });
@@ -65,5 +65,17 @@ describe('Complete issue PDF', () => {
     const articles = [makeArticle('b', 5), { ...makeArticle('c', 2), page_first: undefined }, makeArticle('a', 1)];
     expect(orderIssueArticles(articles).map(a => a.id)).toEqual(['a', 'b', 'c']);
     expect(articles[0].id).toBe('b');
+  });
+  it('keeps a complete issue in page order across different subjects', async () => {
+    const articles = [
+      { ...makeArticle('third', 30), subject_id: 'economics-business' },
+      { ...makeArticle('first', 1), subject_id: 'natural-sciences' },
+      { ...makeArticle('second', 12), subject_id: 'education-humanities' },
+    ];
+    const source = await PDFDocument.create(); source.addPage();
+    const bytes = await source.save();
+    const reader = vi.fn<(id: string) => Promise<Uint8Array>>(async () => bytes);
+    await buildIssueCollection({ ...issue, cover_image_url: undefined }, articles, settings, reader);
+    expect(reader.mock.calls.map(([id]) => id)).toEqual(['first', 'second', 'third']);
   });
 });

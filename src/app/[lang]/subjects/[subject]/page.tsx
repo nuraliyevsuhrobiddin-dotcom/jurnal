@@ -1,16 +1,18 @@
-import { MIN_COLLECTION_ARTICLES, collectionPendingMessage } from '@/lib/issues/collection-policy';
+import { collectionPendingMessage, collectionVisibilityMessage } from '@/lib/issues/collection-policy';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Download, ArrowUpRight } from 'lucide-react';
 import type { Language } from '@/types/journal';
-import { findSubject, resolveSubjectId, subjectLabel } from '@/lib/subjects';
-import { getAllIssues, getPublishedArticles } from '@/lib/db';
+import { findSubject, subjectLabel } from '@/lib/subjects';
+import { getAllIssues } from '@/lib/db';
+import { getArticlePage } from '@/lib/article-page';
+import { getCollectionSummaries } from '@/lib/issues/collections';
 import { publicPageMetadata } from '@/lib/page-metadata';
 import { SubjectCover } from '@/components/subjects/SubjectCover';
 import { ArticleCard } from '@/components/article/ArticleCard';
 import styles from '@/components/subjects/subjects.module.css';
 
-type Props = { params: Promise<{ lang: string; subject: string }>; searchParams: Promise<{ issue?: string | string[] }> };
+type Props = { params: Promise<{ lang: string; subject: string }>; searchParams: Promise<{ issue?: string | string[]; page?: string }> };
 export async function generateMetadata({ params }: Props) {
   const { lang, subject: id } = await params;
   if (!['en', 'uz', 'ru'].includes(lang) || !findSubject(id)) notFound();
@@ -36,12 +38,19 @@ export default async function SubjectCollectionPage({ params, searchParams }: Pr
   const issues = await getAllIssues();
   const issue = issueId ? issues.find(item => item.id === issueId) : undefined;
   if (issueId && !issue) notFound();
-  const articles = (await getPublishedArticles(issue ? { issueId: issue.id } : undefined)).filter(article => resolveSubjectId(article) === id);
+  const [result, summaries] = await Promise.all([getArticlePage({ issueId, subject: id, page: query.page }), getCollectionSummaries(issueId)]);
+  const { articles, total, page, size } = result;
+  const summary = summaries.find(item => item.subject_id === id && item.issue_id === issueId);
   const t = copy[language];
   return <div className={`journal-container ${styles.page}`}>
     <nav className={styles.breadcrumb} aria-label={t.home}><Link href={`/${lang}`}>{t.home}</Link><span aria-hidden="true">/</span><span>{subjectLabel(id, language)}</span></nav>
-    <header className={styles.hero}><SubjectCover subjectId={id} issueId={issue?.id} alt={`AGM Journal — ${subjectLabel(id, 'en')}`} priority /><div className={styles.heroCopy}><p className={styles.eyebrow}>{t.section}</p><h1>{subjectLabel(id, language)}</h1><p className={styles.intro}>{t.intro}</p><div className={styles.edition}><strong>{articles.length} {language === 'en' && articles.length === 1 ? 'article' : t.count}</strong><span>{issue ? `Vol. ${issue.volume} · No. ${issue.issue_number} · ${issue.year}` : t.all}</span></div>{issue && <div className={styles.actions}>{articles.length >= MIN_COLLECTION_ARTICLES ? <a href={`/api/issues/${issue.id}/pdf?subject=${id}`} className={styles.download}><Download size={16} />{t.download}</a> : <span role="status">{collectionPendingMessage(language, articles.length)}</span>}<Link href={`/${lang}/issue/${issue.id}`} className={styles.download}>{t.issue}<ArrowUpRight size={16} /></Link></div>}</div></header>
+    <header className={styles.hero}><SubjectCover subjectId={id} issueId={issue?.id} alt={`AGM Journal — ${subjectLabel(id, 'en')}`} priority /><div className={styles.heroCopy}><p className={styles.eyebrow}>{t.section}</p><h1>{subjectLabel(id, language)}</h1><p className={styles.intro}>{t.intro}</p><div className={styles.edition}><strong>{total} {language === 'en' && total === 1 ? 'article' : t.count}</strong><span>{issue ? `Vol. ${issue.volume} · No. ${issue.issue_number} · ${issue.year}` : t.all}</span></div>{issue && <div className={styles.actions}>{summary?.released_at ? <a href={`/api/issues/${issue.id}/pdf?subject=${id}`} className={styles.download}><Download size={16} />{t.download}</a> : <span role="status">{collectionPendingMessage(language, summary?.published_count || 0)}</span>}<Link href={`/${lang}/issue/${issue.id}`} className={styles.download}>{t.issue}<ArrowUpRight size={16} /></Link></div>}</div></header>
     <nav className={styles.editions} aria-label={t.editions}><strong>{t.editions}</strong><Link href={`/${lang}/subjects/${id}`} aria-current={!issue ? 'page' : undefined}>{t.all}</Link>{issues.map(edition => <Link key={edition.id} href={`/${lang}/subjects/${id}?issue=${edition.id}`} aria-current={issue?.id === edition.id ? 'page' : undefined}>{edition.year} / {edition.volume}.{edition.issue_number}</Link>)}</nav>
-    <section className={styles.research}><div className={styles.heading}><h2>{t.papers}</h2><span>{articles.length} {language === 'en' && articles.length === 1 ? 'article' : t.count}</span></div>{articles.length ? <div className={styles.articles}>{articles.map(article => <ArticleCard key={article.id} article={article} lang={language} />)}</div> : <div className={styles.empty}><h3>{t.empty}</h3><p>{t.emptyText}</p><Link href={`/${lang}/submit`}>{t.submit} &rarr;</Link></div>}</section>
+    <section className={styles.research}><div className={styles.heading}><h2>{t.papers}</h2><span>{total} {language === 'en' && total === 1 ? 'article' : t.count}</span></div>{articles.length ? <div className={styles.articles}>{articles.map(article => <ArticleCard key={article.id} article={article} lang={language} />)}</div> : <div className={styles.empty}><h3>{t.empty}</h3><p>{collectionVisibilityMessage(language)}</p><Link href={`/${lang}/submit`}>{t.submit} &rarr;</Link></div>}</section>
+    {(total > size || page > 1) && <nav aria-label={language === 'uz' ? 'Sahifalar' : language === 'ru' ? 'Страницы' : 'Pages'} className={styles.editions}>
+      {page > 1 && <Link rel="prev" href={`/${lang}/subjects/${id}?${new URLSearchParams({ ...(issueId ? { issue: issueId } : {}), page: String(page - 1) })}`}>{language === 'uz' ? 'Oldingi' : language === 'ru' ? 'Назад' : 'Previous'}</Link>}
+      <span>{page} / {Math.max(1, Math.ceil(total / size))}</span>
+      {page * size < total && <Link rel="next" href={`/${lang}/subjects/${id}?${new URLSearchParams({ ...(issueId ? { issue: issueId } : {}), page: String(page + 1) })}`}>{language === 'uz' ? 'Keyingi' : language === 'ru' ? 'Далее' : 'Next'}</Link>}
+    </nav>}
   </div>;
 }

@@ -3,12 +3,13 @@ import path from 'node:path';
 import sharp from 'sharp';
 import { PDFDocument, rgb } from 'pdf-lib';
 import type { Article, Issue, JournalSettings } from '@/types/journal';
-import { embedJournalFonts, generateIssueTocPdf, wrapPublicationText, ensurePublicationLayout } from './generator';
+import { embedJournalFonts, generateIssueTocPdf, wrapPublicationText } from './generator';
+import { prepareCurrentPublicationPdf } from './current-publication';
 import { readArticlePdf } from './storage';
 import { createServerClient } from '@/lib/supabase/server';
 import { orderIssueArticles } from '@/lib/issues/article-order';
 import { subjectCoverSvg } from '@/lib/issues/subject-cover-art';
-import { findSubject, subjectCollections, resolveSubjectId } from '@/lib/subjects';
+import { findSubject, resolveSubjectId } from '@/lib/subjects';
 export { orderIssueArticles } from '@/lib/issues/article-order';
 
 const MAX_BYTES = 100 * 1024 * 1024;
@@ -95,19 +96,19 @@ export async function buildIssueCollection(issue: Issue, articles: Article[], se
   }
   try { await append(await generateIssueCoverPdf(issue, settings, cover)); }
   catch { throw new IssueCollectionError('The issue cover cannot be read. Upload a valid JPG, PNG or WebP cover in issue settings.', 409); }
-  const groups = subject ? [{ subject, articles: published }] : subjectCollections.map(section => ({ subject: section, articles: published.filter(a => resolveSubjectId(a) === section.id) })).filter(group => group.articles.length);
-  await append(await generateIssueTocPdf(issue, groups.flatMap(group => group.articles), settings.journal_name, subject?.labels.en));
+  // A complete issue follows its assigned page sequence across subjects. Grouping
+  // the articles by subject here can move later pages ahead of earlier ones.
+  await append(await generateIssueTocPdf(issue, published, settings.journal_name, subject?.labels.en));
   let total = 0;
-  for (const group of groups) {
-    for (const article of group.articles) {
-      const bytes = await readPdf(article.id);
-      if (!bytes) throw new IssueCollectionError('A published article PDF is missing. The editorial office must restore it before downloading the complete issue.', 409);
-      total += bytes.byteLength;
-      if (total > MAX_BYTES) throw new IssueCollectionError('This issue exceeds the 100 MB automatic collection limit.', 413);
-      try { await append(await ensurePublicationLayout(article, settings, bytes)); } catch (error) {
-        if (error instanceof IssueCollectionError) throw error;
-        throw new IssueCollectionError('An article PDF cannot be read. Please contact the editorial office.', 409);
-      }
+  // `published` is already page ordered and subject-filtered when requested.
+  for (const article of published) {
+    const bytes = await readPdf(article.id);
+    if (!bytes) throw new IssueCollectionError('A published article PDF is missing. The editorial office must restore it before downloading the complete issue.', 409);
+    total += bytes.byteLength;
+    if (total > MAX_BYTES) throw new IssueCollectionError('This issue exceeds the 100 MB automatic collection limit.', 413);
+    try { await append(await prepareCurrentPublicationPdf(article, settings, bytes)); } catch (error) {
+      if (error instanceof IssueCollectionError) throw error;
+      throw new IssueCollectionError('An article PDF cannot be read. Please contact the editorial office.', 409);
     }
   }
   result.setTitle(`${settings.journal_name}${subject ? ' — ' + subject.labels.en : ''} — Volume ${issue.volume}, Issue ${issue.issue_number} (${issue.year})`);

@@ -25,7 +25,9 @@ export function publicArticleMetadata(article: Article, settings: JournalSetting
   return {
     id: article.id, ...text, language: article.original_language, type: article.article_type,
     url: articleUrl(article, lang),
-    pdf_url: article.pdf_url ? `${articleUrl(article, lang)}/fulltext.pdf` : null,
+    pdf_url: article.status === 'published' && article.pdf_url ? `${articleUrl(article, lang)}/fulltext.pdf` : null,
+    status: article.status, revision: article.revision || 1,
+    ...(article.status === 'withdrawn' ? { withdrawal_reason: article.retraction_reason || null } : {}),
     doi: article.doi && isValidDoi(article.doi) ? normalizeDoi(article.doi) : null,
     published: article.publication_date || null, updated: article.updated_at, license: article.license,
     journal: settings.journal_name, publisher: settings.publisher,
