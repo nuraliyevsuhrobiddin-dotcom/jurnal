@@ -92,6 +92,36 @@ describe('Full manuscript conversion', () => {
     const body = { tag: 'h1', runs: [{ text: 'Introduction', bold: true }] };
     expect(manuscriptBodyBlocks([title, abstract, body], article)).toEqual([body]);
   });
+  it('strips author name variants, emails, institutions, countries, abstract and keywords before body heading', () => {
+    const article = {
+      ...journalStore.articles[0],
+      authors: [{
+        id: 'a1',
+        article_id: journalStore.articles[0].id,
+        full_name: "NORBEKOV JASURBEK OTABEK UG'LI",
+        email: 'jasurnorbekov77@gmail.com',
+        affiliation: 'SHDPI',
+        country: 'UZBEKISTON',
+        is_corresponding: true,
+        order_index: 1,
+      }],
+      keywords_uz: ['Islom Karimov', 'Singapur', 'MDIS Tashkent'],
+    };
+    const block = (text: string, bold = false) => ({ tag: 'p', runs: [{ text, bold }] });
+    const blocks = [
+      block(article.title_uz, true),
+      block("Norbekov Jasurbek Otabek o'g'il.", true),
+      block('jasurnorbekov77@gmail.com'),
+      block('SHDPI'),
+      block('O‘zbekiston'),
+      block('Annotatsiya', true),
+      block(article.abstract_uz),
+      block('Kalit so‘zlar: Islom Karimov, Singapur, MDIS Tashkent.'),
+      block('1. Kirish', true),
+      block('Research body paragraph text.'),
+    ];
+    expect(manuscriptBodyBlocks(blocks, article)).toEqual(blocks.slice(8));
+  });
   it('does not trust a body-page marker exceeding the actual document', async () => {
     const pdf = await PDFDocument.create(); pdf.addPage();
     pdf.setKeywords(['AGM_BODY_PAGES:999']);

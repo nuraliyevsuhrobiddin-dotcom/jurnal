@@ -74,7 +74,7 @@ function decodeHtml(value: string) {
   });
 }
 
-function manuscriptBlocks(html: string): ManuscriptBlock[] {
+export function manuscriptBlocks(html: string): ManuscriptBlock[] {
   const blocks: ManuscriptBlock[] = [];
   const tables: ManuscriptBlock[][] = [];
   html = html.replace(/<table\b[^>]*>[\s\S]*?<\/table>/gi, table => {
@@ -147,21 +147,58 @@ export function manuscriptBodyBlocks(blocks: ManuscriptBlock[], article?: Articl
   if (!article) return blocks;
   const textOf = (block: ManuscriptBlock) => block.runs.map(run => run.text).join('').replace(/\s+/g, ' ').trim();
   const normalized = (value: string) => value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-  // Remove only metadata reproduced verbatim on the cover. A later "Results"
-  // paragraph or a structured abstract must never erase earlier research text.
-  const labels = /^(?:abstract|summary|keywords?|key words|index terms?|corresponding author|authors?|affiliations?|annotatsiya|аннотация|ключевые слова|kalit so[‘’ʻʼ'`]?zlar)\s*[:：]\s*/i;
+  const canonicalName = (value: string) => normalized(value).replace(/\b(?:o\s*g\s*(?:li|il)|u\s*g\s*li|qizi|kizi)\b/g, '').replace(/\s+/g, ' ').trim();
+
+  // Remove metadata reproduced on the cover (title, authors, affiliation, email,
+  // country, abstract, keywords, UDC). Research headings and body text must be retained.
+  const labels = /^(?:abstract|summary|keywords?|key\s*words|index\s*terms?|corresponding\s*author|authors?|affiliations?|annotatsiya|аннотация|ключевые\s*слова|kalit\s*so[‘’ʻʼ'`]?zlar|mas['’ʻʼ`]?ul\s*muallif|ish\s*joyi|tashkilot|muallif(?:lar)?)\s*[:：.\-–—]?\s*/i;
+
+  const countryVariants = (country?: string) => {
+    if (!country) return [];
+    const n = normalized(country);
+    return /\b[uo]zbek/i.test(n) ? ['ozbekiston', 'uzbekiston', 'uzbekistan', 'узбекистан', 'ўзбекистон', 'o zbekiston'] : [n];
+  };
+
   const metadata = new Set([
     article.title_en, article.title_uz, article.title_ru,
     article.abstract_en, article.abstract_uz, article.abstract_ru,
-    ...(article.authors || []).flatMap(author => [author.full_name, author.affiliation, author.email, author.orcid]),
+    ...(article.authors || []).flatMap(author => [author.full_name, author.affiliation, author.email, author.orcid, author.country, ...countryVariants(author.country)]),
     ...(article.keywords_en || []), ...(article.keywords_uz || []), ...(article.keywords_ru || []),
     article.keywords_en?.join(' '), article.keywords_uz?.join(' '), article.keywords_ru?.join(' '),
+    article.keywords_en?.join(', '), article.keywords_uz?.join(', '), article.keywords_ru?.join(', '),
+    'annotatsiya', 'abstract', 'аннотация', 'резюме', 'summary',
+    'kalit so‘zlar', 'kalit sozlar', 'keywords', 'ключевые слова',
+    'ozbekiston', 'uzbekiston', 'uzbekistan', 'o zbekiston'
   ].filter(Boolean).map(value => normalized(String(value))));
+
+  const authorCanonicals = new Set(
+    (article.authors || []).map(a => canonicalName(a.full_name)).filter(Boolean)
+  );
+
+  function isMetadata(text: string): boolean {
+    if (!text) return true;
+    const norm = normalized(text);
+    const withoutLabel = normalized(text.replace(labels, ''));
+    if (metadata.has(norm) || metadata.has(withoutLabel)) return true;
+    if (authorCanonicals.has(canonicalName(text))) return true;
+    if (/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(text.replace(labels, '').trim())) return true;
+    if (/^(?:uo[‘'ʻʼ`]?k|удк|udc|bbk|ббк|jel|pacs|doi)\b/i.test(text)) return true;
+    const subParts = text.split(/[,;]/).map(p => normalized(p)).filter(Boolean);
+    if (subParts.length > 1 && subParts.every(p => metadata.has(p) || authorCanonicals.has(canonicalName(p)))) return true;
+    if (labels.test(text)) {
+      const stripped = text.replace(labels, '');
+      const parts = stripped.split(/[,;]/).map(p => normalized(p)).filter(Boolean);
+      if (parts.length > 0 && parts.some(p => metadata.has(p))) return true;
+    }
+    return false;
+  }
+
   let start = 0;
-  while (start < Math.min(blocks.length, 20)) {
-    const value = textOf(blocks[start]);
-    if (blocks[start].image || blocks[start].cells) break;
-    if (!value || metadata.has(normalized(value.replace(labels, '')))) start++;
+  while (start < Math.min(blocks.length, 30)) {
+    const block = blocks[start];
+    if (block.image || block.cells) break;
+    const value = textOf(block);
+    if (isMetadata(value)) start++;
     else break;
   }
   return blocks.slice(start);
@@ -192,9 +229,13 @@ async function typesetDocx(html: string, settings: JournalSettings, article?: Ar
   }
   function nextPage() { page = pdf.addPage([W, H]); frame(); y = top; }
   function drawBlock(block: ManuscriptBlock, index: number) {
-    const heading = /^h[1-6]$/.test(block.tag);
+    const isHeadingTag = /^h[1-6]$/.test(block.tag);
+    const isHeadingParagraph = block.tag === 'p' && block.runs.length > 0
+      && block.runs.every(r => r.bold || !r.text.trim())
+      && /^(?:(?:\d+|[IVXLCDM]+)[\.\) -]|kirish|введение|introduction|xulosa|adabiyotlar|natijalar|muhokama|metod|tadqiqot|manbalar|references|declarations|acknowledg|tahlil)/i.test(block.runs.map(r => r.text).join('').trim());
+    const heading = isHeadingTag || isHeadingParagraph;
     const firstTitle = !article && index === 0 && block.tag === 'p';
-    const size = firstTitle ? 17 : block.tag === 'h1' ? 15 : block.tag === 'h2' ? 13 : publicationStandard.fontSize;
+    const size = firstTitle ? 17 : block.tag === 'h1' ? 15 : (block.tag === 'h2' || isHeadingParagraph) ? 13 : publicationStandard.fontSize;
     const lineHeight = firstTitle ? 22 : size * publicationStandard.lineSpacing;
     if (heading && y - lineHeight * 3 < bottom) nextPage();
     if (heading && article) page.drawRectangle({ x: M - 10, y: y - 3, width: 3, height: size + 3, color: publicationAccent(article) });
