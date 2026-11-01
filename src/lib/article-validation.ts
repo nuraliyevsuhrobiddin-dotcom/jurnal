@@ -1,6 +1,17 @@
 import { z } from 'zod';
 import { normalizeDoi, isValidDoi } from './identifiers';
 import { findSubject } from './subjects';
+import type { ArticleAuthor } from '@/types/journal';
+
+/** Compare author content, excluding database IDs and insertion timestamps. */
+export function authorMetadata(authors: ArticleAuthor[] = []) {
+  return [...authors].sort((a, b) => a.order_index - b.order_index).map(author => ({
+    full_name: author.full_name.trim(), email: author.email || '',
+    affiliation: author.affiliation.trim(), country: author.country,
+    orcid: author.orcid || '', is_corresponding: author.is_corresponding,
+    order_index: author.order_index,
+  }));
+}
 
 export const articleBaseSchema = z.object({
   title_uz: z.string().trim().min(5, 'O‘zbekcha sarlavha kamida 5 ta belgidan iborat bo‘lishi kerak'),

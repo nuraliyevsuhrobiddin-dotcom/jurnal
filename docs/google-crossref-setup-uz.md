@@ -1,5 +1,13 @@
 # Google qidiruvi va Crossref DOI’ni ishga tushirish
 
+## 2026-10-31 yangilanishi
+
+Search Console hisobini OAuth orqali ulash, sitemap topshirish va haqiqiy indeks holatini o‘qish qo‘shildi: [API ulanishi](search-console-api-uz.md). Gmail’ning mavjud yuborish ruxsati buning o‘rnini bosmaydi.
+
+Saqlangan Crossref ariza yozuvi `submitted_confirmation_page_reached_pending_crossref_review` holatida. Bu ariza yuborilganini bildiradi; DOI prefiksi va depozit hisobi hali mavjud sozlamalarda yo‘q. Oldingi “ariza olinmagan” bayonoti joriy holatni ifodalamaydi. Crossref’dan berilmagan DOI prefiksi yaratilmaydi.
+
+Zenodo tokeni `.env` va `.env.local` da bir xil: sandbox hisobida ishlaydi, production hisobida HTTP 403 qaytaradi. Nashrdagi maqola PDF’i va metama’lumotlari sandbox qoralamasiga yuklanib tekshirildi. Bu haqiqiy DOI ro‘yxati yoki production arxiv nashri emas.
+
 ## 2026-10-24 tekshiruvi
 
 `https://agmjoural.uz` ochildi. Domen Vercel’da tasdiqlangan va DNS sozlamasi mos. `/robots.txt` va `/sitemap.xml` HTTP 200 qaytardi; sitemap’da 114 ta manzil, jumladan 3 ta maqolaning inglizcha manzili bor. Tekshirilgan sahifalarda `noindex` yo‘q, canonical manzillari to‘g‘ri. Maqola nomi, muallif, nashr sanasi va PDF havolasi JavaScriptsiz HTML’da ko‘rinadi.

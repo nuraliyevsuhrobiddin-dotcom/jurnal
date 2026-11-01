@@ -6,6 +6,7 @@ import { isServerSupabaseConfigured } from '@/lib/supabase/server';
 import { IntegrationControls, DepositActions } from '@/components/admin/IntegrationControls';
 import { configured, crossrefConfig, zenodoConfig, orcidConfig } from '@/lib/integration-config';
 import { DiscoverySetup } from '@/components/admin/DiscoverySetup';
+import { searchConsoleConfigured } from '@/lib/search-console';
 
 export default async function IntegrationsPage() {
   const [articles, settings] = await Promise.all([getAllArticlesAdmin(), getJournalSettings()]);
@@ -13,6 +14,7 @@ export default async function IntegrationsPage() {
   const orcidReady = configured(orcidConfig);
   const zenodoReady = configured(zenodoConfig);
   const services = [
+    { name: 'Google Search Console', state: searchConsoleConfigured() ? 'Google roziligi sozlangan' : 'Google roziligi kerak', detail: 'Yuqoridagi tugmalar orqali sitemap topshiriladi va Google indeksidagi haqiqiy holat o‘qiladi. Gmail yuborish ruxsatining o‘zi yetmaydi.', href: 'https://search.google.com/search-console', action: 'Google hisobini ochish' },
     { name: 'OAI-PMH', state: 'Ishlaydi', detail: 'Dublin Core metama’lumotlari; sana filtri va sahifalangan yig‘ish.', href: '/api/oai?verb=Identify', action: 'Repozitoriyni tekshirish' },
     { name: 'RSS', state: 'Ishlaydi', detail: 'Yangi nashrlar tasmasi. O‘zbek, ingliz va rus tillari.', href: '/feed.xml?lang=uz', action: 'RSS tasmasini ochish' },
     { name: 'Google Scholar', state: 'Metama’lumot mavjud', detail: 'Indekslashni Google hal qiladi. ' + (process.env.GOOGLE_SITE_VERIFICATION ? 'Search Console HTML tokeni sozlangan; indeks holati hisobda tekshiriladi.' : 'HTML tokeni yo‘q; DNS yoki boshqa usulda tasdiqlangan saytga bu token shart emas. Indeks holatini Search Console’da tekshiring.'), href: '/sitemap.xml', action: 'Sayt xaritasi' },

@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import JSZip from 'jszip';
 import { PDFDocument } from 'pdf-lib';
 import { generateManuscriptTemplate } from '@/lib/manuscript-template';
-import { manuscriptStandard, publicationStandardCopy } from '@/lib/manuscript-standard';
+import { manuscriptStandard, manuscriptStandardCopy, publicationStandardCopy } from '@/lib/manuscript-standard';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { createElement } from 'react';
+import { ManuscriptStandardPanel } from '@/components/submissions/ManuscriptStandardPanel';
 import { manuscriptToPdf } from '@/lib/pdf/manuscript-conversion';
 import { parseDocxFile } from '@/lib/pdf/docx-parser';
 import { journalStore } from '@/lib/data-store';
@@ -13,6 +16,8 @@ describe('Unified manuscript standard', () => {
   it.each(['uz', 'ru', 'en'] as const)('provides a styled, numbered %s template that can be converted after completion', async lang => {
     const zip = await JSZip.loadAsync(await generateManuscriptTemplate(lang));
     const document = await zip.file('word/document.xml')!.async('string');
+    expect(document).toContain(manuscriptStandardCopy[lang].language);
+    expect(renderToStaticMarkup(createElement(ManuscriptStandardPanel, { lang }))).toContain(manuscriptStandardCopy[lang].language);
     const styles = await zip.file('word/styles.xml')!.async('string');
     expect(document).toContain('<w:pgSz w:w="11906" w:h="16838"/>');
     expect(document).toContain('w:top="1134"');

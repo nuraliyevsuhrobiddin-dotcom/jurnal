@@ -14,6 +14,7 @@ describe('Publication database constraints and transactions', () => {
     const schema=(await readFile('supabase/migrations/001_initial_schema.sql','utf8')).split('-- ROW LEVEL SECURITY')[0];
     await db.exec(schema);
     await db.exec(await readFile('supabase/migrations/015_publication_integrity.sql','utf8'));
+    await db.exec(await readFile('supabase/migrations/017_issue_deletion_guard.sql','utf8'));
     await db.query("INSERT INTO issues(id,volume,issue_number,year,publication_date) VALUES($1,1,1,2026,'2026-10-30')",[issue]);
   },30000);
   afterAll(async () => { await db.close(); });
@@ -50,6 +51,16 @@ describe('Publication database constraints and transactions', () => {
 
   it('preserves previously published records against deletion',async () => {
     await expect(db.query("DELETE FROM articles WHERE slug='paper-1'")).rejects.toMatchObject({code:'23514'});
+  });
+
+  it('blocks deleting linked issues, preserving publication and release metadata', async () => {
+    await expect(db.query('DELETE FROM issues WHERE id=$1', [issue])).rejects.toMatchObject({ code: '23001' });
+    const article = await db.query<{ issue_id: string }>("SELECT issue_id FROM articles WHERE slug='paper-2'");
+    expect(article.rows[0].issue_id).toBe(issue);
+    expect((await db.query('SELECT * FROM collection_releases WHERE issue_id=$1', [issue])).rows).toHaveLength(1);
+    const empty = '22222222-2222-4222-8222-222222222222';
+    await db.query("INSERT INTO issues(id,volume,issue_number,year,publication_date) VALUES($1,1,2,2026,'2026-10-31')", [empty]);
+    expect((await db.query('DELETE FROM issues WHERE id=$1 RETURNING id', [empty])).rows).toHaveLength(1);
   });
 
   it('archives author-only edits and treats blank optional fields as unchanged',async () => {

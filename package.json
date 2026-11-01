@@ -10,7 +10,9 @@
     "test": "vitest run",
     "check:setup": "node scripts/check-setup.mjs",
     "check:discovery": "node scripts/check-discovery.mjs",
-    "connect:gmail": "node scripts/connect-gmail.mjs"
+    "check:search-console": "node scripts/check-search-console.mjs",
+    "connect:gmail": "node scripts/connect-gmail.mjs",
+    "connect:search-console": "node scripts/connect-gmail.mjs --search-console"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

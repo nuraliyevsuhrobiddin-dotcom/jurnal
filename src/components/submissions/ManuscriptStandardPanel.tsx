@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { ArrowDownToLine, ArrowUpRight } from 'lucide-react';
 import type { Language } from '@/types/journal';
-import { manuscriptStandard } from '@/lib/manuscript-standard';
+import { manuscriptStandard, manuscriptStandardCopy } from '@/lib/manuscript-standard';
 import styles from './ManuscriptStandardPanel.module.css';
 
 const copy = {
@@ -16,7 +16,6 @@ const copy = {
     structure: 'Maqola tarkibi', body: 'Kirish → metodlar → natijalar → muhokama → xulosa',
     structureNote: 'So‘ng deklaratsiyalar va adabiyotlar. Sharh, nazariy ish va holat tavsifida asosiy bo‘limlar tadqiqot turiga moslashtiriladi.',
     declarations: 'Ilmiy shaffoflik', disclosures: 'Mualliflar hissasi · moliyalashtirish · manfaatlar to‘qnashuvi · ma’lumotlar mavjudligi · etika va rozilik · generativ SI yordami.',
-    language: 'Asosiy matn uch tildan birida qabul qilinadi. Xalqaro topish imkoniyati uchun inglizcha sarlavha va annotatsiya nashrdan oldin tahririyat bilan tayyorlanib tekshiriladi.',
     file: 'PDF yoki DOCX · 4 MB gacha', note: 'Formatni tahririyat tekshiradi. Shablonni to‘ldirish nashrga qabul qilinishini kafolatlamaydi.',
     submit: 'Maqola yuborish', charter: 'Jurnal nizomi', ethics: 'Nashr etikasi',
   },
@@ -31,7 +30,6 @@ const copy = {
     structure: 'Article structure', body: 'Introduction → methods → results → discussion → conclusion',
     structureNote: 'Follow with declarations and references. Adapt the body sections to reviews, theoretical work and case studies.',
     declarations: 'Research transparency', disclosures: 'Author contributions · funding · competing interests · data availability · ethics and consent · generative AI assistance.',
-    language: 'The full text may be in any of the three languages. An English title and abstract are prepared and checked with the editors before publication for international discoverability.',
     file: 'PDF or DOCX · up to 4 MB', note: 'Editors check the format. Completing the template does not guarantee acceptance for publication.',
     submit: 'Submit a manuscript', charter: 'Journal charter', ethics: 'Publication ethics',
   },
@@ -46,7 +44,6 @@ const copy = {
     structure: 'Структура статьи', body: 'Введение → методы → результаты → обсуждение → заключение',
     structureNote: 'Затем декларации и литература. Основные разделы адаптируются к обзорам, теоретическим работам и описаниям случаев.',
     declarations: 'Прозрачность исследования', disclosures: 'Вклад авторов · финансирование · конфликт интересов · доступность данных · этика и согласие · помощь генеративного ИИ.',
-    language: 'Основной текст принимается на одном из трёх языков. Английское название и аннотация готовятся и проверяются с редакцией до публикации для международной доступности.',
     file: 'PDF или DOCX · до 4 МБ', note: 'Редакция проверяет оформление. Заполнение шаблона не гарантирует принятия к публикации.',
     submit: 'Отправить рукопись', charter: 'Устав журнала', ethics: 'Публикационная этика',
   },
@@ -86,7 +83,7 @@ export function ManuscriptStandardPanel({ lang }: { lang: Language }) {
         <div className={styles.detail}><span className={styles.number}>02</span><div><h3>{t.declarations}</h3><p>{t.disclosures}</p></div></div>
       </div>
     </div>
-    <div className={styles.editorial}><p>{t.language}</p><p className={styles.note}>{t.note}</p></div>
+    <div className={styles.editorial}><p>{manuscriptStandardCopy[lang].language}</p><p className={styles.note}>{t.note}</p></div>
     <nav className={styles.links} aria-label={t.eyebrow}>
       <Link href={`/${lang}/submit`}>{t.submit}<ArrowUpRight size={15} aria-hidden="true" /></Link>
       <Link href={`/${lang}/journal-charter`}>{t.charter}</Link><Link href={`/${lang}/ethics`}>{t.ethics}</Link>

@@ -2,11 +2,19 @@ import { createServerClient } from './supabase/server';
 import { configured, crossrefConfig, zenodoConfig, orcidConfig } from './integration-config';
 import { mailConfigured, mailProvider } from './notifications';
 import { gmailAccessToken } from './gmail';
+import { searchConsoleConfigured, searchConsoleReport } from './search-console';
 
 export interface IntegrationCheck { service: string; status: 'ok' | 'missing' | 'error' | 'ready'; detail: string }
 
 export async function checkIntegrations(): Promise<IntegrationCheck[]> {
   const checks: Promise<IntegrationCheck>[] = [
+    (async () => {
+      if (!searchConsoleConfigured()) return { service: 'Google Search Console', status: 'missing', detail: 'Sayt xaritasi ochiq. Hisobdagi indeks holati va sitemap yuborish uchun alohida Google roziligini ulang.' } as IntegrationCheck;
+      try {
+        const report = await searchConsoleReport();
+        return { service: 'Google Search Console', status: 'ok', detail: `${report.property}: hisob huquqi tekshirildi; sitemap ${report.sitemap ? 'hisobda mavjud' : 'hali yuborilmagan'}.` } as IntegrationCheck;
+      } catch { return { service: 'Google Search Console', status: 'error', detail: 'Google roziligi, API faolligi va sayt boshqaruv huquqini tekshiring.' } as IntegrationCheck; }
+    })(),
     (async () => {
       try {
         const client = createServerClient();

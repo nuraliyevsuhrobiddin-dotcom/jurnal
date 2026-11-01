@@ -52,7 +52,9 @@ export async function submitCrossref(article: Article, settings: JournalSettings
 export async function prepareZenodoDraft(article: Article, settings: JournalSettings) {
   const config = zenodoConfig();
   if (article.status !== 'published') throw new IntegrationError('Faqat nashr qilingan maqola arxivlanadi.', 422);
-  if (!article.title_en?.trim() || !article.abstract_en?.trim() || !article.authors?.length || !article.publication_date) throw new IntegrationError('Inglizcha metama’lumotlar, mualliflar va nashr sanasini to‘ldiring.', 422);
+  const articleTitle = (article.title_en?.trim() || article.title_uz || article.title_ru || '').trim();
+  const articleAbstract = (article.abstract_en?.trim() || article.abstract_uz || article.abstract_ru || '').trim();
+  if (!articleTitle || !articleAbstract || !article.authors?.length || !article.publication_date) throw new IntegrationError('Metama’lumotlar, mualliflar va nashr sanasini to‘ldiring.', 422);
   if (article.license !== 'CC BY 4.0') throw new IntegrationError('Ushbu Zenodo oqimi faqat CC BY 4.0 litsenziyasi uchun tayyorlangan.', 422);
   const bytes = await readArticlePdf(article.id);
   if (!bytes) throw new IntegrationError('Saqlangan maqola PDF fayli topilmadi.', 422);
@@ -68,10 +70,11 @@ export async function prepareZenodoDraft(article: Article, settings: JournalSett
     if (bucket.origin !== config.base || !/^\/api\/files\/[a-zA-Z0-9-]+\/?$/.test(bucket.pathname) || bucket.username || bucket.password || bucket.search || bucket.hash) throw new IntegrationError('Zenodo yuklash manzili noto‘g‘ri.', 502);
     const upload = await fetch(`${bucket.toString().replace(/\/$/, '')}/agm-${article.id}.pdf`, { method: 'PUT', headers: { Authorization: headers.Authorization, 'Content-Type': 'application/octet-stream' }, body: Buffer.from(bytes), redirect: 'error', signal: AbortSignal.timeout(20000) });
     await providerJson(upload);
-    const metadata = { upload_type: 'publication', publication_type: 'article', title: article.title_en!.trim(), description: `<p>${xml(article.abstract_en!.trim())}</p>`,
+    const keywords = (article.keywords_en?.length ? article.keywords_en : (article.keywords_uz?.length ? article.keywords_uz : (article.keywords_ru || []))).filter(Boolean);
+    const metadata = { upload_type: 'publication', publication_type: 'article', title: articleTitle, description: `<p>${xml(articleAbstract)}</p>`,
       creators: article.authors!.map(author => ({ name: author.full_name, affiliation: author.affiliation })),
       publication_date: article.publication_date, access_right: 'open', license: 'cc-by-4.0',
-      keywords: article.keywords_en || [], journal_title: settings.journal_name,
+      keywords, journal_title: settings.journal_name,
       related_identifiers: [{ identifier: articleUrl(article), relation: 'isIdenticalTo', scheme: 'url' }],
       ...(article.doi ? { doi: article.doi } : {}),
     };

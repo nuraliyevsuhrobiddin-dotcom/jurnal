@@ -1,6 +1,7 @@
 # AGM Journal manuscript standard 1.0
 
-Effective 25 October 2026, policy version 1.2.0. The author standard is shared by
+Formatting effective 25 October 2026; language guidance updated 31 October 2026,
+policy version 1.3.1. The author standard is shared by
 the journal charter, author guidelines, submission declarations and downloadable
 Word template. One structure is provided in Uzbek, Russian and English.
 
@@ -15,9 +16,9 @@ reviews, theoretical papers and case studies. Declarations cover contributions,
 funding, competing interests, data/code availability, ethics/consent and
 generative AI use. Inapplicable declarations require a short explanation.
 
-The main text can be in any accepted journal language. English title and abstract
-are prepared and checked with editors before publication for international
-readers; authors are not required to submit English full text. The template
+The title, abstract, keywords and full text are submitted in the selected
+manuscript language: Uzbek, Russian or English. English translations are optional
+for Uzbek and Russian manuscripts at submission and publication. The template
 cannot establish reproducibility, research integrity, peer-review quality or
 Scopus eligibility by itself. Editorial assessment remains necessary.
 

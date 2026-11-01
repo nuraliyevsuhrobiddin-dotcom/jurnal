@@ -93,6 +93,24 @@ async function request(overrides: Record<string, string> = {}, useWord = false) 
 }
 
 describe('Submission storage and verification', () => {
+  it.each([
+    { lang: 'uz', title: 'O‘zbek tilidagi ilmiy tadqiqot', abstract: 'Ushbu maqolada tadqiqot usullari va asosiy natijalar o‘zbek tilida bayon qilinadi.', keywords: 'tadqiqot, natijalar' },
+    { lang: 'ru', title: 'Научное исследование на русском языке', abstract: 'В статье представлены методы исследования, основные результаты анализа и выводы на русском языке.', keywords: 'исследование, результаты' },
+    { lang: 'en', title: 'Scientific research in English', abstract: english, keywords: 'research, findings' },
+  ])('accepts all $lang metadata in the selected language without additional translations', async metadata => {
+    const response = await request(metadata);
+    expect(response.status).toBe(201);
+    const saved = vi.mocked(createArticle).mock.calls[0][0];
+    expect(saved.original_language).toBe(metadata.lang);
+    expect(saved[`title_${metadata.lang}` as 'title_uz' | 'title_ru' | 'title_en']).toBe(metadata.title);
+    expect(saved[`abstract_${metadata.lang}` as 'abstract_uz' | 'abstract_ru' | 'abstract_en']).toBe(metadata.abstract);
+    expect(saved[`keywords_${metadata.lang}` as 'keywords_uz' | 'keywords_ru' | 'keywords_en']).toEqual(metadata.keywords.split(', '));
+    if (metadata.lang !== 'en') {
+      expect(saved.title_en).toBeUndefined();
+      expect(saved.abstract_en).toBeUndefined();
+      expect(saved.keywords_en).toBeUndefined();
+    }
+  });
   it('rejects an unfinished Word template even when the online metadata is complete', async () => {
     const form = new FormData();
     for (const [key, value] of Object.entries(submission)) form.set(key, value);

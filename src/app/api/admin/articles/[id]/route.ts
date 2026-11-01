@@ -2,7 +2,7 @@ import { adminAccess } from '@/lib/admin-access';
 import { after, NextRequest, NextResponse } from 'next/server';
 import { updateArticle, updateArticleStatus, getArticleById, deleteArticle } from '@/lib/db';
 import { Article, ArticleStatus } from '@/types/journal';
-import { articleSchema, articleUpdateSchema, articleClearFields } from '@/lib/article-validation';
+import { articleSchema, articleUpdateSchema, articleClearFields, authorMetadata } from '@/lib/article-validation';
 import { PublicationError } from '@/lib/publication-ready';
 import { queueArticleNotifications } from '@/lib/publication-notifications';
 import { drainNotificationQueue, mailConfigured } from '@/lib/notifications';
@@ -77,7 +77,8 @@ export async function PATCH(
     ];
     const manuscriptChanged = manuscriptFields.some(field => {
       const before = current[field], after = candidate[field];
-      if (field === 'authors' || field.startsWith('keywords_')) return JSON.stringify(before || []) !== JSON.stringify(after || []);
+      if (field === 'authors') return JSON.stringify(authorMetadata(current.authors)) !== JSON.stringify(authorMetadata(candidate.authors));
+      if (field.startsWith('keywords_')) return JSON.stringify(before || []) !== JSON.stringify(after || []);
       if (field === 'original_language') return before !== after;
       return String(before ?? '') !== String(after ?? '');
     });

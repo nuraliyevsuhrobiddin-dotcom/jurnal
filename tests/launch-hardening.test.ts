@@ -73,10 +73,11 @@ describe('Publication readiness', () => {
     await expect(assertPublicationReady({ ...english, keywords_en: [] })).rejects.toThrow('Inglizcha kalit');
     await expect(assertPublicationReady({ ...english, keywords_en: ['  '] })).rejects.toThrow();
   });
-  it.each(['uz', 'ru'] as const)('requires English bibliographic metadata for a %s original', async language => {
+  it.each(['uz', 'ru'] as const)('does not block publishing a %s original without English metadata', async language => {
     const pdf = await PDFDocument.create(); pdf.addPage();
+    pdf.setKeywords(['AGM_BODY_PAGES:1', 'AGM_BODY_FIRST:1']);
     vi.mocked(readArticlePdf).mockResolvedValue(await pdf.save());
-    await expect(assertPublicationReady({ ...article, original_language: language, title_en: undefined, abstract_en: undefined, keywords_en: [], page_first: 1, page_last: 1 })).rejects.toThrow('Inglizcha');
+    await expect(assertPublicationReady({ ...article, original_language: language, title_en: undefined, abstract_en: undefined, keywords_en: [], page_first: 1, page_last: 1 })).resolves.toBeUndefined();
   });
   it('blocks unresolved placeholder author names before publishing', async () => {
     await expect(assertPublicationReady({ ...article, authors: article.authors!.map(author => ({ ...author, full_name: 'Normengov Jorabek XXX' })) })).rejects.toThrow('tasdiqlangan');

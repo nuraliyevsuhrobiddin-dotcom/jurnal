@@ -7,6 +7,9 @@ import path from 'node:path';
 const root = process.cwd();
 const envPath = path.join(root, '.env.local');
 const credentials = JSON.parse(await readFile(path.join(root, '.data/gmail-client.json'), 'utf8')).web;
+const searchConsole = process.argv.includes('--search-console');
+const service = searchConsole ? 'Google Search Console' : 'Gmail';
+const authorizationScope = searchConsole ? 'https://www.googleapis.com/auth/webmasters' : 'https://www.googleapis.com/auth/gmail.send';
 if (!credentials?.client_id || !credentials?.client_secret) throw new Error('Web OAuth client fayli kerak.');
 const redirectUri = 'http://localhost:53682/oauth2callback';
 const state = randomBytes(32).toString('base64url');
@@ -21,12 +24,15 @@ function page(response, status, body) {
     'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff',
     'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'",
   });
-  response.end(`<!doctype html><html lang="uz"><meta charset="utf-8"><title>AGM Journal Gmail</title><style>body{font:18px system-ui;max-width:720px;margin:80px auto;padding:20px;line-height:1.7}a{color:#087f75}</style>${body}</html>`);
+  response.end(`<!doctype html><html lang="uz"><meta charset="utf-8"><title>AGM Journal ${service}</title><style>body{font:18px system-ui;max-width:720px;margin:80px auto;padding:20px;line-height:1.7}a{color:#087f75}</style>${body}</html>`);
 }
 
 async function saveSettings(token) {
   let contents = await readFile(envPath, 'utf8');
-  for (const [key, value] of Object.entries({
+  for (const [key, value] of Object.entries(searchConsole ? {
+    SEARCH_CONSOLE_CLIENT_ID: credentials.client_id, SEARCH_CONSOLE_CLIENT_SECRET: credentials.client_secret,
+    SEARCH_CONSOLE_REFRESH_TOKEN: token,
+  } : {
     MAIL_PROVIDER: 'gmail', GMAIL_CLIENT_ID: credentials.client_id,
     GMAIL_CLIENT_SECRET: credentials.client_secret, GMAIL_REFRESH_TOKEN: token,
     GMAIL_SENDER: 'agmjoural.editorial@gmail.com',
@@ -45,13 +51,13 @@ const server = http.createServer(async (request, response) => {
     if (!['localhost:53682', '127.0.0.1:53682'].includes(request.headers.host)) return page(response, 403, '<p>Invalid host.</p>');
     if (request.method !== 'GET') return page(response, 405, '<p>Method not allowed.</p>');
     const url = new URL(request.url, 'http://localhost:53682');
-    if (url.pathname === '/') return page(response, 200, '<h1>AGM Journal Gmail ulanishi</h1><p>Google Cloud OAuth client sozlamasidagi <b>Authorized redirect URIs</b> ro‘yxatiga quyidagini qo‘shing:</p><pre>http://localhost:53682/oauth2callback</pre><p>Testing rejimida <b>Audience → Test users</b> bo‘limiga <b>agmjoural.editorial@gmail.com</b> ni qo‘shing.</p><p>So‘ng <a href="/start">Google hisobini ulash</a> havolasini bosing va jurnal hisobini tanlang.</p>');
+    if (url.pathname === '/') return page(response, 200, `<h1>AGM Journal ${service} ulanishi</h1><p>Google Cloud OAuth client sozlamasidagi <b>Authorized redirect URIs</b> ro‘yxatiga quyidagini qo‘shing:</p><pre>http://localhost:53682/oauth2callback</pre><p>Testing rejimida <b>Audience → Test users</b> bo‘limiga <b>agmjoural.editorial@gmail.com</b> ni qo‘shing.</p>${searchConsole ? '<p>Google Cloud loyihasida Search Console API yoqilgan bo‘lsin. Bu ulanish sitemap yuborish va indeks holatini o‘qish uchun; Gmail sozlamalari saqlanadi.</p>' : ''}<p>So‘ng <a href="/start">Google hisobini ulash</a> havolasini bosing va jurnal hisobini tanlang.</p>`);
     if (url.pathname === '/start') {
       if (completed || exchanging) return page(response, 409, '<p>Ulanish allaqachon bajarilmoqda yoki tugagan.</p>');
       const authorization = new URL('https://accounts.google.com/o/oauth2/v2/auth');
       authorization.search = new URLSearchParams({
         client_id: credentials.client_id, redirect_uri: redirectUri, response_type: 'code',
-        scope: 'https://www.googleapis.com/auth/gmail.send', access_type: 'offline',
+        scope: authorizationScope, access_type: 'offline',
         prompt: 'consent', login_hint: 'agmjoural.editorial@gmail.com', state,
         code_challenge: challenge, code_challenge_method: 'S256',
       }).toString();
@@ -73,20 +79,20 @@ const server = http.createServer(async (request, response) => {
     if (!tokenResponse.ok) throw new Error('Google token exchange failed');
     const payload = await tokenResponse.json();
     if (typeof payload.refresh_token !== 'string' || !payload.refresh_token) throw new Error('Refresh token missing');
-    if (!String(payload.scope || '').split(' ').includes('https://www.googleapis.com/auth/gmail.send')) throw new Error('Gmail send permission missing');
+    if (!String(payload.scope || '').split(' ').includes(authorizationScope)) throw new Error('Required Google permission missing');
     await saveSettings(payload.refresh_token);
     completed = true;
-    page(response, 200, '<h1>Gmail ulandi</h1><p>Kalitlar .env.local fayliga saqlandi. Bu oynani yopishingiz mumkin.</p><p>Sayt ishlayotgan bo‘lsa, yangi email sozlamalari uchun uni qayta ishga tushiring.</p>');
-    console.log('Gmail connected. Credentials saved to .env.local; no email was sent.');
+    page(response, 200, `<h1>${service} ulandi</h1><p>Kalitlar .env.local fayliga saqlandi. Bu oynani yopishingiz mumkin.</p><p>Sayt ishlayotgan bo‘lsa, yangi sozlamalar uchun uni qayta ishga tushiring.</p>`);
+    console.log(`${service} connected. Credentials saved to .env.local; no email was sent and no sitemap was submitted.`);
     server.close();
     clearTimeout(expiry);
   } catch {
     exchanging = false;
-    console.error('Gmail setup failed. No credentials or authorization codes were logged.');
+    console.error(`${service} setup failed. No credentials or authorization codes were logged.`);
     page(response, 502, '<p>Google ulanishini yakunlab bo‘lmadi. Bosh sahifadan qayta boshlang.</p>');
   }
 });
 server.on('error', () => { console.error('Local setup server could not start on port 53682.'); process.exitCode = 1; });
-const expiry = setTimeout(() => { console.log('Gmail setup session expired. Run the script again to continue.'); server.close(); }, 30 * 60 * 1000);
+const expiry = setTimeout(() => { console.log(`${service} setup session expired. Run the script again to continue.`); server.close(); }, 30 * 60 * 1000);
 expiry.unref();
-server.listen(53682, '127.0.0.1', () => console.log('Gmail setup: http://localhost:53682 (expires in 30 minutes)'));
+server.listen(53682, '127.0.0.1', () => console.log(`${service} setup: http://localhost:53682 (expires in 30 minutes)`));

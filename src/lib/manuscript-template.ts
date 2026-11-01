@@ -13,7 +13,7 @@ const copy = {
       'Kirishda muammo, oldingi tadqiqotlar, ilmiy bo‘shliq va aniq maqsadni bayon qiling. Metodlarda dizayn, tanlanma, manbalar, o‘lchovlar va tahlilni baholash va takrorlashga yetarli batafsillikda tushuntiring.',
       'Natijalarni dalillar bilan ko‘rsating; jadval va rasmlarni ketma-ket raqamlang, izoh va o‘lchov birliklarini yozing. Muhokamada oldingi ishlar bilan solishtirish, ilmiy hissa, amaliy ahamiyat va cheklovlarni tushuntiring. Xulosaga yangi natijalar qo‘shmang.',
       'Annotatsiya maqsad, usul, asosiy natija va ahamiyatni mustaqil tushunarli bayon qiladi. Kalit so‘zlar mavzu va usullarni ifodalaydi. Asossiz so‘z, sahifa yoki havola kvotasi qo‘yilmaydi.',
-      'Sharh, nazariy ish va holat tavsifida asosiy bo‘limlarni tadqiqot turiga moslang. Asosiy matn tanlangan tilda qoladi. Xalqaro o‘quvchilar uchun nashrdan oldin inglizcha sarlavha va annotatsiyani tahririyat bilan tayyorlang va tekshiring.',
+      'Sharh, nazariy ish va holat tavsifida asosiy bo‘limlarni tadqiqot turiga moslang.',
       'Bir tan olingan havola uslubini izchil qo‘llang. Muallif, yil, sarlavha, nashr va mavjud DOI yoki URLni kiriting; har bir havolani asl manbada tekshiring. Faqat mazmunan tegishli manbalarni keltiring.',
       'Hamma mualliflar yuborishga roziligini va ish boshqa jurnalda ko‘rib chiqilmayotganini tasdiqlaydi. Mualliflar tartibi va har bir tashkilotni onlayn formada ham kiriting. Taqriz uchun alohida anonim nusxa tayyorlang va yetkazishni tahririyat bilan kelishing.',
       'DOCX yoki ushbu shablondan eksport qilingan PDF, 4 MB gacha. Tahririyat format va ilmiy mazmunni tekshiradi. Shablonni to‘ldirish nashrga qabulni yoki Scopus’da indekslanishni kafolatlamaydi.',
@@ -29,7 +29,7 @@ const copy = {
       'In the introduction explain the problem, prior research, knowledge gap and specific aim. Describe study design, selection, sources, measurements and analysis in enough detail for assessment and reproducibility.',
       'Report results with evidence. Number tables and figures and include captions and measurement units. Discuss prior work, the scholarly contribution, implications and limitations. Do not introduce new findings in the conclusion.',
       'The abstract should independently explain the aim, methods, principal findings and significance. Keywords describe the topic and methods. No artificial word, page or citation quota applies.',
-      'Adapt body sections for reviews, theoretical work and case studies. Write the main text in the selected language. Before publication prepare and verify an English title and abstract with the editorial office for international readers.',
+      'Adapt body sections for reviews, theoretical work and case studies.',
       'Use one recognised citation style consistently. Include authors, year, title, publication and available DOI or URL. Verify each citation against its original source and cite only relevant works.',
       'All authors agree to submission and confirm that the manuscript is not being considered elsewhere. Enter every author and affiliation in the online form in the agreed order. Prepare a separate anonymised review copy and arrange delivery with the editor.',
       'Submit DOCX or a PDF exported from this template, up to 4 MB. Editors assess format and content. Completing the template does not guarantee acceptance or Scopus indexing.',
@@ -45,7 +45,7 @@ const copy = {
       'Во введении опишите проблему, предыдущие исследования, пробел в знаниях и конкретную цель. Объясните дизайн, выборку, источники, измерения и анализ достаточно подробно для оценки и воспроизведения.',
       'Представьте результаты с доказательствами. Нумеруйте таблицы и рисунки, указывайте подписи и единицы измерения. Обсудите предыдущие работы, научный вклад, значение и ограничения. Не вводите новые результаты в заключение.',
       'Аннотация должна самостоятельно раскрывать цель, методы, основные результаты и значение. Ключевые слова описывают тему и методы. Искусственной квоты слов, страниц или цитирований нет.',
-      'Адаптируйте разделы для обзоров, теоретических работ и описаний случаев. Основной текст остаётся на выбранном языке. Перед публикацией подготовьте и проверьте с редакцией английские название и аннотацию для международных читателей.',
+      'Адаптируйте разделы для обзоров, теоретических работ и описаний случаев.',
       'Последовательно используйте один признанный стиль цитирования. Укажите авторов, год, название, издание и доступный DOI или URL. Проверяйте ссылки по первоисточникам и цитируйте только подходящие работы.',
       'Все авторы согласны с подачей и подтверждают, что рукопись не рассматривается другим журналом. Внесите всех авторов и организации в онлайн-форму в согласованном порядке. Подготовьте отдельную обезличенную копию и согласуйте передачу с редакцией.',
       'Подайте DOCX или PDF, экспортированный из шаблона, до 4 МБ. Редакция проверяет оформление и содержание. Заполнение шаблона не гарантирует принятия или индексации в Scopus.',
@@ -74,7 +74,7 @@ export async function generateManuscriptTemplate(lang: Language) {
     p(c.references, 'Heading1'), p('{{REFERENCES}}', 'Reference'),
     '<w:p><w:r><w:br w:type="page"/></w:r></w:p>', p(c.instructions, 'Heading1'),
     p(`AGM Journal · ${s.version} · ${s.date}`, 'Note'), p(manuscriptStandardCopy[lang].summary, 'Note'),
-    ...c.notes.map(note => p(note, 'Note')),
+    p(manuscriptStandardCopy[lang].language, 'Note'), ...c.notes.map(note => p(note, 'Note')),
   ].join('');
   const margin = Math.round(s.marginMm / 25.4 * 1440), indent = Math.round(s.firstLineMm / 25.4 * 1440);
   zip.file('[Content_Types].xml', xml(`<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>${[['document', 'document.main'], ['styles', 'styles'], ['header1', 'header'], ['footer1', 'footer']].map(([part, type]) => `<Override PartName="/word/${part}.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.${type}+xml"/>`).join('')}<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>`));

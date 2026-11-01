@@ -151,7 +151,7 @@ export function SubmissionForm({ lang, orcidEnabled = false, orcidFailed = false
             </div><button type="button" onClick={() => setCoauthors(current => current.filter(item => item.id !== author.id))}>{t("Remove coauthor")}{' '}{index + 1}</button></fieldset>)}
             <button type="button" disabled={coauthors.length >= 30} onClick={() => setCoauthors(current => [...current, { id: crypto.randomUUID(), full_name: '', email: '', affiliation: '', country: '' }])}>{t("Add coauthor")}</button>
           </fieldset>
-          <fieldset><legend>{t("4. Manuscript details")} — {languageNames[manuscriptLanguage]}</legend>{(['title', 'abstract', 'keywords'] as const).map(input)}<small>{t("Separate keywords with commas or semicolons.")}</small></fieldset>
+          <fieldset><legend>{t("4. Manuscript details")} — {languageNames[manuscriptLanguage]}</legend><p>{manuscriptStandardCopy[lang].language}</p>{(['title', 'abstract', 'keywords'] as const).map(input)}<small>{t("Separate keywords with commas or semicolons.")}</small></fieldset>
           <fieldset className="submission-declarations"><legend>{t("5. Declarations")}</legend>
             <label><input type="checkbox" required checked={templateConfirmed} onChange={event => setTemplateConfirmed(event.target.checked)} /><span>{manuscriptStandardCopy[lang].confirmation}</span></label>
             <label><input type="checkbox" required checked={original} onChange={event => setOriginal(event.target.checked)} /><span>{t("I confirm that this work is original, all authors agree to this submission, and it is not simultaneously submitted to another journal.")}</span></label>

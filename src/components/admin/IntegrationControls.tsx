@@ -2,18 +2,24 @@
 
 import { useState } from 'react';
 import type { IntegrationCheck } from '@/lib/integration-checks';
+import type { searchConsoleReport } from '@/lib/search-console';
 
 export function IntegrationControls() {
   const [checks, setChecks] = useState<IntegrationCheck[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
-  async function run(action: 'check' | 'email-test') {
+  const [google, setGoogle] = useState<Awaited<ReturnType<typeof searchConsoleReport>> | null>(null);
+  async function run(action: 'check' | 'email-test' | 'google-status' | 'google-submit') {
     setBusy(true); setMessage('');
     try {
-      const response = await fetch(`/api/admin/integrations/${action}`, { method: 'POST' });
+      const googleAction = action.startsWith('google-');
+      const response = await fetch(`/api/admin/integrations/${googleAction ? 'search-console' : action}`, {
+        method: 'POST', ...(googleAction ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: action === 'google-submit' ? 'submit_sitemap' : 'status' }) } : {}),
+      });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || data.message || 'Tekshiruv bajarilmadi.');
       if (data.checks) setChecks(data.checks);
+      if (data.report) setGoogle(data.report);
       setMessage(data.message || 'Tekshiruv yakunlandi. Har bir xizmat natijasini ko‘ring.');
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Tekshiruv bajarilmadi.'); }
     finally { setBusy(false); }
@@ -22,11 +28,14 @@ export function IntegrationControls() {
     <h2 id="integration-live-checks" className="text-xl font-bold text-navy-900">Ulanishni amalda tekshirish</h2>
     <div className="flex flex-wrap gap-3">
       <button type="button" disabled={busy} onClick={() => run('check')} className="rounded-lg bg-teal-800 text-white px-4 py-2 disabled:opacity-50">{busy ? 'Bajarilmoqda…' : 'Xizmatlarni tekshirish'}</button>
-      <button type="button" disabled={busy} onClick={() => run('email-test')} className="rounded-lg border border-teal-800 text-teal-900 px-4 py-2 disabled:opacity-50">Resend test manziliga sinov xati</button>
+      <button type="button" disabled={busy} onClick={() => run('email-test')} className="rounded-lg border border-teal-800 text-teal-900 px-4 py-2 disabled:opacity-50">Email ulanishini sinash</button>
+      <button type="button" disabled={busy} onClick={() => run('google-status')} className="rounded-lg border border-teal-800 text-teal-900 px-4 py-2 disabled:opacity-50">Google indeks holatini tekshirish</button>
+      <button type="button" disabled={busy} onClick={() => run('google-submit')} className="rounded-lg border border-teal-800 text-teal-900 px-4 py-2 disabled:opacity-50">Sitemap’ni Google’ga yuborish</button>
       <a href="/api/admin/archive" target="_blank" rel="noopener noreferrer" className="rounded-lg border border-slate-300 px-4 py-2 text-navy-900 underline">PDF va metama’lumotlar ZIP arxivi</a>
     </div>
-    <p className="text-sm text-slate-600">Sinov xati faqat Resendning delivered@resend.dev test manziliga yuboriladi. Depozit amallari standart holatda test/sandbox rejimida ishlaydi.</p>
+    <p className="text-sm text-slate-600">Gmail sinovi jurnalning jo‘natuvchi manziliga, Resend sinovi delivered@resend.dev manziliga yuboriladi. Depozit amallari standart holatda test/sandbox rejimida ishlaydi.</p>
     <p role="status" className="text-sm text-slate-700">{message}</p>
+    {google && <div className="space-y-2 text-sm"><p>Google mulki: {google.property}</p><p>Sitemap: {google.sitemap ? `${google.sitemap.pending ? 'kutilmoqda' : 'qayta ishlangan'}, xatolar: ${google.sitemap.errors}` : 'Google hisobida topilmadi'}</p><ul>{google.pages.map(page => <li key={page.url} className="border-t py-2"><a href={page.url} className="underline">{page.url}</a><p>{page.verdict} — {page.coverageState}</p>{page.lastCrawlTime && <p>Oxirgi crawl: {page.lastCrawlTime}</p>}</li>)}</ul></div>}
     <ul className="space-y-3">{checks.map(check => <li key={check.service} className="border-t border-slate-100 pt-3 text-sm"><strong>{check.service}: </strong>
       <span className={check.status === 'ok' ? 'text-emerald-800' : check.status === 'ready' ? 'text-slate-700' : 'text-amber-900'}>{check.status === 'ok' ? 'Tekshirildi' : check.status === 'ready' ? 'Sozlangan, oqim sinovi kerak' : check.status === 'missing' ? 'Sozlash kerak' : 'Xato'}</span><p className="mt-1 text-slate-600">{check.detail}</p></li>)}</ul>
   </section>;

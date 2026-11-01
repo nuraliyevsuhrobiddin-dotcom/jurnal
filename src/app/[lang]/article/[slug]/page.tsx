@@ -9,6 +9,7 @@ import { getDictionary } from '@/lib/i18n/dictionaries';
 import { getArticleBySlug, getJournalSettings } from '@/lib/db';
 import { getArticleMetadata, generateArticleJsonLd } from '@/lib/seo';
 import { CitationBox } from '@/components/article/CitationBox';
+import { citationData } from '@/lib/citation-data';
 import { isValidIssn } from '@/lib/identifiers';
 import { Download, ArrowUpRight, ShieldCheck } from 'lucide-react';
 import styles from './publication.module.css';
@@ -70,7 +71,7 @@ export default async function ArticleDetailPage({ params }: { params: Promise<{ 
             {article.status === 'published' && <Link href={`/${currentLang}/article/${article.slug}/fulltext.pdf`} target="_blank" rel="noopener noreferrer" className={`${styles.download} ${styles.mobileDownload}`}><Download size={18} />{dict.article.downloadPdf}<ArrowUpRight size={16} /></Link>}
           </header>
           <section id="abstract" className={styles.section}><h2>{dict.article.abstract}</h2><p className={styles.abstract}>{abstract}</p>{keywords.length > 0 && <div className={styles.keywords}><strong>{dict.article.keywords}</strong><p>{keywords.join(' · ')}</p></div>}</section>
-          <section id="citation" className={styles.citation}><CitationBox article={article} lang={currentLang} /></section>
+          <section id="citation" className={styles.citation}><CitationBox article={citationData(article)} lang={currentLang} /></section>
           {article.references_list?.length > 0 && <section id="references" className={styles.section}><h2>{dict.article.references}<span className={styles.count}>{article.references_list.length}</span></h2><ol className={styles.references}>{article.references_list.map((reference, index) => <li key={index}>{reference}</li>)}</ol></section>}
         </article>
         <aside className={styles.sidebar}>

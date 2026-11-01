@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { SubmissionForm } from '@/components/SubmissionForm';
 import { submissionMessages, submissionTranslator } from '@/lib/submission-copy';
 import type { Language } from '@/types/journal';
+import { manuscriptStandardCopy } from '@/lib/manuscript-standard';
 
 describe('Submission interface languages', () => {
   it.each<[Language, string, string]>([
@@ -20,6 +21,11 @@ describe('Submission interface languages', () => {
     expect(html).toContain(submissionTranslator(lang)('Manuscripts are accepted in Uzbek, English and Russian. Receipt does not constitute acceptance for publication.'));
     expect(html).toContain(`<option value="${lang}" selected=""`);
     expect(html).toContain(`/api/submissions/template?lang=${lang}`);
+    expect(html).toContain(manuscriptStandardCopy[lang].language);
+    expect(html).toMatch(/name="abstract" required=""/);
+    expect(html).not.toContain('name="abstract_en"');
+    expect(html).not.toContain('name="title_en"');
+    expect(html).not.toContain('name="keywords_en"');
     expect(html).not.toContain('Only English manuscripts');
     if (lang !== 'en') {
       expect(html).not.toContain('>Send manuscript<');

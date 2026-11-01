@@ -1,4 +1,5 @@
 import { journalStore } from './data-store';
+import { auditContext } from './audit-context';
 import { catalogArticles } from './issues/collection-policy';
 import { isPublicArticle } from './publication-state';
 import { rememberLocalReleases } from './issues/collections';
@@ -395,12 +396,17 @@ export async function deleteIssue(id: string): Promise<boolean> {
   journalStore.refresh();
   const supabase = createServerClient();
   if (isServerSupabaseConfigured && supabase) {
+    const linked = await supabase.from('articles').select('id').eq('issue_id', id).limit(1).maybeSingle();
+    if (linked.error) throw new Error(linked.error.message);
+    if (linked.data) throw new PublicationError('Maqolalar biriktirilgan jurnal sonini o‘chirib bo‘lmaydi.');
     const { data, error } = await supabase.from('issues').delete().eq('id', id).select('id');
+    if (error && ['23503', '23001'].includes(error.code)) throw new PublicationError('Maqolalar biriktirilgan jurnal sonini o‘chirib bo‘lmaydi.');
     if (error) throw new Error(error.message);
     if (!data?.length) return false;
     await logAudit('ISSUE_DELETE', 'issue', id);
     return true;
   }
+  if (journalStore.articles.some(article => article.issue_id === id)) throw new PublicationError('Maqolalar biriktirilgan jurnal sonini o‘chirib bo‘lmaydi.');
   const index = journalStore.issues.findIndex(issue => issue.id === id);
   if (index !== -1) {
     const [removed] = journalStore.issues.splice(index, 1);
@@ -650,16 +656,17 @@ export async function logAudit(
   entityType: string,
   entityId: string,
   details?: Record<string, unknown>,
-  userEmail = 'admin@agmjoural.uz'
+  userEmail?: string
 ): Promise<void> {
+  const context = await auditContext();
   const log: AuditLog = {
     id: randomUUID(),
-    user_email: userEmail,
+    user_email: context.actor.type === 'staff' ? context.user_email : userEmail || context.user_email,
     action,
     entity_type: entityType,
     entity_id: entityId,
-    details,
-    ip_address: '127.0.0.1',
+    details: { ...details, actor: context.actor },
+    ip_address: context.ip_address,
     created_at: new Date().toISOString(),
   };
   try {

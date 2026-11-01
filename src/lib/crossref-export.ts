@@ -8,7 +8,9 @@ import { scholarlyAuthorName } from './seo';
 export class CrossrefExportError extends Error {}
 
 export function crossrefGaps(article: Article, settings: JournalSettings) {
-  const gaps = internationalMetadataGaps(article);
+  const gaps = internationalMetadataGaps(article, false);
+  const title = (article.title_en?.trim() || article.title_uz || article.title_ru || '').trim();
+  if (!title) gaps.push('Maqola sarlavhasi');
   if (article.status !== 'published') gaps.push('Nashr qilingan maqola');
   const prefix = settings.doi_prefix?.trim();
   if (!prefix || !/^10\.\d{4,9}$/.test(prefix)) gaps.push('Nashriyot DOI prefiksi');
@@ -39,12 +41,17 @@ export function crossrefXml(article: Article, settings: JournalSettings) {
   const issue = article.issue ? `<journal_issue>${date}<journal_volume><volume>${article.issue.volume}</volume></journal_volume><issue>${article.issue.issue_number}</issue></journal_issue>` : '';
   const pages = article.page_first ? `<pages><first_page>${article.page_first}</first_page>${article.page_last ? `<last_page>${article.page_last}</last_page>` : ''}</pages>` : '';
   const references = article.references_list.filter(reference => reference.trim());
+  const articleTitle = (article.title_en?.trim() || article.title_uz || article.title_ru || '').trim();
+  const articleAbstract = (article.abstract_en?.trim() || article.abstract_uz || article.abstract_ru || '').trim();
+  const abstractLang = article.abstract_en?.trim() ? 'en' : article.original_language || 'uz';
   return `<?xml version="1.0" encoding="UTF-8"?>` +
     `<doi_batch xmlns="http://www.crossref.org/schema/5.3.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:jats="http://www.ncbi.nlm.nih.gov/JATS1" version="5.3.1" xsi:schemaLocation="http://www.crossref.org/schema/5.3.1 https://www.crossref.org/schemas/crossref5.3.1.xsd">` +
     `<head><doi_batch_id>agm-${randomUUID()}</doi_batch_id><timestamp>${Date.now()}</timestamp><depositor><depositor_name>${xml(settings.publisher)}</depositor_name><email_address>${xml(settings.contact_email)}</email_address></depositor><registrant>${xml(settings.publisher)}</registrant></head>` +
     `<body><journal><journal_metadata><full_title>${xml(settings.journal_name)}</full_title>${issns}</journal_metadata>${issue}` +
-    `<journal_article publication_type="full_text" language="${xml(article.original_language)}"><titles><title>${xml(article.title_en!.trim())}</title></titles>` +
-    `<contributors>${contributors}</contributors><jats:abstract xml:lang="en"><jats:p>${xml(article.abstract_en!.trim())}</jats:p></jats:abstract>${date}${pages}` +
+    `<journal_article publication_type="full_text" language="${xml(article.original_language)}"><titles><title>${xml(articleTitle)}</title></titles>` +
+    `<contributors>${contributors}</contributors>` +
+    (articleAbstract ? `<jats:abstract xml:lang="${abstractLang}"><jats:p>${xml(articleAbstract)}</jats:p></jats:abstract>` : '') +
+    `${date}${pages}` +
     `<doi_data><doi>${xml(normalizeDoi(article.doi!))}</doi><resource>${xml(articleUrl(article))}</resource></doi_data>` +
     (references.length ? `<citation_list>${references.map((reference, index) => `<citation key="ref-${index + 1}"><unstructured_citation>${xml(reference)}</unstructured_citation></citation>`).join('')}</citation_list>` : '') +
     '</journal_article></journal></body></doi_batch>';

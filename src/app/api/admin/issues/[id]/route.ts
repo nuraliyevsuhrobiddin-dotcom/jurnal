@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { adminAccess } from '@/lib/admin-access';
 import { updateIssue, deleteIssue } from '@/lib/db';
 import { issueSchema } from '../route';
+import { PublicationError } from '@/lib/publication-ready';
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const denied = await adminAccess();
@@ -28,6 +29,6 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     return deleted ? NextResponse.json({ success: true, id }) : NextResponse.json({ error: 'Jurnal soni topilmadi.' }, { status: 404 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'O‘chirish amalga oshmadi.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: error instanceof PublicationError ? 409 : 500 });
   }
 }

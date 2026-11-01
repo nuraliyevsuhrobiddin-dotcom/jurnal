@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Article, Language } from '@/types/journal';
+import type { Language } from '@/types/journal';
+import type { CitationArticle } from '@/lib/citation-data';
 import { Copy, Check, Quote } from 'lucide-react';
 
 interface CitationBoxProps {
-  article: Article;
+  article: CitationArticle;
   lang?: Language;
 }
 
