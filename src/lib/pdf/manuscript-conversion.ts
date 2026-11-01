@@ -193,6 +193,34 @@ export function manuscriptBodyBlocks(blocks: ManuscriptBlock[], article?: Articl
     return false;
   }
 
+  // Check if there is an explicit keywords block or main body heading within the first 25 blocks
+  const keywordsPattern = /^(?:kalit\s*so[‘'ʻʼ`]?zlar|keywords?|ключевые\s*слова)\s*[:：.\-–—]?/i;
+  const bodyHeadingPattern = /^(?:(?:\d+|[IVXLCDM]+)[\.\) -]\s*(?:kirish|введение|introduction|umumiy|asosiy|tadqiqot|metod|material|tahlil|results|methods|literature)|kirish|введение|introduction)\b/i;
+
+  let keywordsIdx = -1;
+  let bodyHeadingIdx = -1;
+  const limit = Math.min(blocks.length, 25);
+
+  for (let i = 0; i < limit; i++) {
+    const text = textOf(blocks[i]);
+    if (keywordsPattern.test(text)) {
+      keywordsIdx = i;
+    }
+    if (bodyHeadingPattern.test(text)) {
+      bodyHeadingIdx = i;
+      break;
+    }
+  }
+
+  // If a numbered body heading (like "1. Kirish") was found within the front-matter:
+  if (bodyHeadingIdx > 0 && (keywordsIdx !== -1 || bodyHeadingIdx <= 15)) {
+    return blocks.slice(bodyHeadingIdx);
+  }
+
+  // If keywords block was found:
+  if (keywordsIdx !== -1 && keywordsIdx < blocks.length - 1) {
+    return blocks.slice(keywordsIdx + 1);
+  }
   let start = 0;
   while (start < Math.min(blocks.length, 30)) {
     const block = blocks[start];
@@ -237,7 +265,8 @@ async function typesetDocx(html: string, settings: JournalSettings, article?: Ar
     const firstTitle = !article && index === 0 && block.tag === 'p';
     const size = firstTitle ? 17 : block.tag === 'h1' ? 15 : (block.tag === 'h2' || isHeadingParagraph) ? 13 : publicationStandard.fontSize;
     const lineHeight = firstTitle ? 22 : size * publicationStandard.lineSpacing;
-    if (heading && y - lineHeight * 3 < bottom) nextPage();
+    // Prevent orphaned headings by ensuring space for heading plus at least 2 text lines
+    if (heading && y - lineHeight * 5 < bottom) nextPage();
     if (heading && article) page.drawRectangle({ x: M - 10, y: y - 3, width: 3, height: size + 3, color: publicationAccent(article) });
     const blockRuns = block.runs;
     const indent = !heading && !firstTitle && block.tag === 'p' ? publicationStandard.firstLineMm / 25.4 * 72 : 0;
@@ -245,14 +274,34 @@ async function typesetDocx(html: string, settings: JournalSettings, article?: Ar
     const maxWidth = () => W - M * 2 - (firstLine ? indent : 0);
     let lineRuns: ManuscriptRun[] = [];
     let lineWidth = 0;
-    const flushLine = () => {
+    const flushLine = (isParagraphEnd = false) => {
       if (!lineRuns.length) return;
       if (y - lineHeight < bottom) nextPage();
       const alignCenter = firstTitle;
-      let x = alignCenter ? (W - lineWidth) / 2 : M + (firstLine ? indent : 0);
+      const currentMaxWidth = maxWidth();
+      const currentIndent = firstLine ? indent : 0;
+
+      // Full justification: align both left and right margins for standard body paragraphs
+      const shouldJustify = !heading && !firstTitle && !isParagraphEnd && block.tag === 'p';
+      const spaceCount = lineRuns.filter(r => r.text === ' ').length;
+      const remainingWidth = currentMaxWidth - lineWidth;
+      const canJustify = shouldJustify && spaceCount > 0 && remainingWidth > 0 && remainingWidth <= spaceCount * size * 0.85;
+      const extraPerSpace = canJustify ? remainingWidth / spaceCount : 0;
+
+      let x = alignCenter ? (W - lineWidth) / 2 : M + currentIndent;
       for (const run of lineRuns) {
         const font = run.bold || heading || firstTitle ? fontBold : fontRegular;
-        page.drawText(run.text, { x, y: y + (run.script === 'sup' ? size * 0.35 : run.script === 'sub' ? -size * 0.2 : 0), size: run.script ? size * 0.7 : size, font, color: heading || firstTitle ? rgb(0.063, 0.169, 0.247) : rgb(0.13, 0.17, 0.2) });
+        if (run.text === ' ') {
+          x += font.widthOfTextAtSize(' ', size) + extraPerSpace;
+          continue;
+        }
+        page.drawText(run.text, {
+          x,
+          y: y + (run.script === 'sup' ? size * 0.35 : run.script === 'sub' ? -size * 0.2 : 0),
+          size: run.script ? size * 0.7 : size,
+          font,
+          color: heading || firstTitle ? rgb(0.063, 0.169, 0.247) : rgb(0.13, 0.17, 0.2),
+        });
         x += font.widthOfTextAtSize(run.text, size);
       }
       y -= lineHeight;
@@ -274,20 +323,20 @@ async function typesetDocx(html: string, settings: JournalSettings, article?: Ar
         const wordWidth = font.widthOfTextAtSize(part, size);
         if (lineWidth + wordWidth > maxWidth() && lineRuns.length) {
           if (lineRuns.at(-1)?.text === ' ') { lineRuns.pop(); lineWidth -= font.widthOfTextAtSize(' ', size); }
-          flushLine();
+          flushLine(false);
         }
         if (wordWidth <= maxWidth()) {
           lineRuns.push({ ...run, text: part, bold: run.bold || heading || firstTitle }); lineWidth += wordWidth;
         } else {
           for (const char of part) {
             const charWidth = font.widthOfTextAtSize(char, size);
-            if (lineWidth + charWidth > maxWidth() && lineRuns.length) flushLine();
+            if (lineWidth + charWidth > maxWidth() && lineRuns.length) flushLine(false);
             lineRuns.push({ ...run, text: char, bold: run.bold || heading || firstTitle }); lineWidth += charWidth;
           }
         }
       }
     }
-    flushLine();
+    flushLine(true);
     y -= firstTitle ? 10 : heading ? 8 : 6;
   }
   frame();

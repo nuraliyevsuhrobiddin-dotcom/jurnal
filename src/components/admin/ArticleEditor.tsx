@@ -118,9 +118,19 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
       .then(data => {
         if (data && typeof data.next_page_first === 'number') {
           setIssueStats(data);
-          if (!initialArticle?.page_first && data.next_page_first > 1 && (!pageFirst || pageFirst === '1')) {
+          const occupied = data.occupied_ranges || [];
+          const curFirst = Number(pageFirst) || 1;
+          const curLast = Number(pageLast) || (curFirst + 5);
+          const hasConflict = occupied.some((o: { id: string; page_first: number; page_last: number }) =>
+            o.id !== (initialArticle?.id || '') && curFirst <= o.page_last && curLast >= o.page_first
+          );
+          if (initialArticle?.status !== 'published' && (hasConflict || (!initialArticle?.page_first && data.next_page_first > 1 && (!pageFirst || pageFirst === '1')))) {
+            const span = Math.max(1, curLast - curFirst + 1);
             setPageFirst(String(data.next_page_first));
-            setPageLast(String(data.next_page_first + 5));
+            setPageLast(String(data.next_page_first + span - 1));
+            if (initialArticle?.manuscript_file_url) {
+              setRegenerateFromManuscript(true);
+            }
           }
         }
       })
@@ -289,10 +299,34 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
       return;
     }
 
-    const pageFirstChanged = initialArticle?.page_first != null && Number(pageFirst) !== initialArticle.page_first;
-    const shouldRegenerate = regenerateFromManuscript || (pageFirstChanged && !publicationFile && Boolean(initialArticle?.manuscript_file_url));
+    let curFirst = pageFirst;
+    let curLast = pageLast;
+    let autoRegen = regenerateFromManuscript;
+    if (issueStats && initialArticle?.status !== 'published') {
+      const pFirstNum = Number(curFirst);
+      const pLastNum = Number(curLast);
+      const hasConflict = issueStats.occupied_ranges.some(o =>
+        o.id !== (initialArticle?.id || '') &&
+        pFirstNum <= o.page_last && pLastNum >= o.page_first
+      );
+      if (hasConflict) {
+        const nextFirst = issueStats.next_page_first;
+        const span = Math.max(1, (pLastNum || nextFirst) - (pFirstNum || nextFirst) + 1);
+        curFirst = String(nextFirst);
+        curLast = String(nextFirst + span - 1);
+        setPageFirst(curFirst);
+        setPageLast(curLast);
+        if (initialArticle?.manuscript_file_url) {
+          autoRegen = true;
+          setRegenerateFromManuscript(true);
+        }
+      }
+    }
+
+    const pageFirstChanged = initialArticle?.page_first != null && Number(curFirst) !== initialArticle.page_first;
+    const shouldRegenerate = autoRegen || (pageFirstChanged && !publicationFile && Boolean(initialArticle?.manuscript_file_url));
     const payload = {
-      ...(initialArticle ? { clear_fields: Object.entries({ issue_id: issueId, page_first: pageFirst, page_last: pageLast, doi, publication_date: publicationDate }).filter(([, value]) => !value.trim()).map(([field]) => field) } : {}),
+      ...(initialArticle ? { clear_fields: Object.entries({ issue_id: issueId, page_first: curFirst, page_last: curLast, doi, publication_date: publicationDate }).filter(([, value]) => !value.trim()).map(([field]) => field) } : {}),
       title_uz: manuscriptLanguage === 'uz' ? title.trim() : initialArticle?.title_uz || title.trim(),
       abstract_uz: manuscriptLanguage === 'uz' ? abstract.trim() : initialArticle?.abstract_uz || abstract.trim(),
       keywords_uz: manuscriptLanguage === 'uz' ? keywords.split(',').map(k => k.trim()).filter(Boolean) : initialArticle?.keywords_uz || keywords.split(',').map(k => k.trim()).filter(Boolean),
@@ -312,8 +346,8 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
       status: publicationFile || shouldRegenerate || (!pdfReady && initialArticle?.manuscript_file_url) || (!savedArticleId && status === 'published') ? 'draft' : status,
       issue_id: issueId || undefined,
       subject_id: subjectId,
-      page_first: pageFirst ? parseInt(pageFirst) : undefined,
-      page_last: pageLast ? parseInt(pageLast) : undefined,
+      page_first: curFirst ? parseInt(curFirst) : undefined,
+      page_last: curLast ? parseInt(curLast) : undefined,
       doi: doi.trim() || undefined,
       license: license.trim(),
       publication_date: publicationDate || undefined,
