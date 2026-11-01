@@ -23,8 +23,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (requestedSubject && !subject) return new NextResponse('Subject not found', { status: 404 });
     const selected = subject ? articles.filter(article => matchesSubject(article, subject)) : articles;
     const released = subject && (await getCollectionSummaries(id)).some(item => item.subject_id === subject.id && item.released_at);
-    if (!released && selected.length < MIN_COLLECTION_ARTICLES) return new NextResponse(collectionPendingMessage('uz', selected.length), { status: 409, headers: { 'Cache-Control': 'no-store' } });
-    const bytes = await buildIssueCollection(issue, selected, settings, undefined, subject?.id);
+    const rawLang = request.nextUrl.searchParams.get('lang') || 'uz';
+    const lang = ['uz', 'ru', 'en'].includes(rawLang) ? (rawLang as 'uz' | 'ru' | 'en') : 'uz';
+    if (!released && selected.length < MIN_COLLECTION_ARTICLES) return new NextResponse(collectionPendingMessage(lang, selected.length), { status: 409, headers: { 'Cache-Control': 'no-store' } });
+    const bytes = await buildIssueCollection(issue, selected, settings, undefined, subject?.id, lang);
     return new NextResponse(streamPdf(bytes), { headers: {
       'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="agm-volume-${issue.volume}-issue-${issue.issue_number}-${issue.year}${subject ? '-' + subject.id : ''}.pdf"`,
       'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',

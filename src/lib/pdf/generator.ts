@@ -5,7 +5,7 @@ import { certificateServices, certificateServicesNote } from './certificate-serv
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { generateQrPngBuffer } from './qr';
-import { Article, Certificate, Issue, JournalSettings } from '@/types/journal';
+import { Article, Certificate, Issue, JournalSettings, Language } from '@/types/journal';
 import { isValidIssn } from '@/lib/identifiers';
 import { resolveSubjectId, subjectLabel } from '@/lib/subjects';
 import { PUBLICATION_DESIGN, publicationAccent, publicationGold, publicationPaper, drawResearchWeave, drawBodyIdentity, embedPublicationSeal, addPublicationLink, publicationCoverHash } from './publication-design';
@@ -490,16 +490,60 @@ export async function assemblePublicationPdf(article: Article, settings: Journal
 }
 
 // Paginated issue contents; page ranges are only printed when assigned.
-export async function generateIssueTocPdf(issue: Issue, articles: Article[], journalName = 'AGM Journal', sectionName?: string): Promise<Uint8Array> {
+export async function generateIssueTocPdf(
+  issue: Issue,
+  articles: Article[],
+  journalName = 'AGM Journal',
+  sectionName?: string,
+  lang: Language = 'uz'
+): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const { fontBold, fontRegular } = await embedJournalFonts(doc);
   const W = 595.28, H = 841.89, M = 44;
   let page = doc.addPage([W, H]), y = H - 144;
+  const i18n = {
+    uz: {
+      toc: 'MUNDARIJA',
+      issue: (v: number, n: number, yr: number) => `Jild ${v} \u00b7 Son ${n} \u00b7 ${yr}-yil`,
+      empty: 'Ushbu songa hali maqolalar kiritilmagan.',
+      pages: (first?: number, last?: number) =>
+        first != null ? `Sahifalar: ${first}${last && last !== first ? `–${last}` : ''}` : 'Sahifalar belgilanmagan',
+      footer: (cur: number, total: number) => `${journalName} | Mundarija | ${cur} / ${total}`,
+      title: (v: number, n: number, yr: number) => `Mundarija — ${v}-jild, ${n}-son (${yr})`,
+    },
+    ru: {
+      toc: 'СОДЕРЖАНИЕ',
+      issue: (v: number, n: number, yr: number) => `Том ${v} \u00b7 Выпуск ${n} \u00b7 ${yr}`,
+      empty: 'В этот выпуск пока не добавлены статьи.',
+      pages: (first?: number, last?: number) =>
+        first != null ? `Страницы: ${first}${last && last !== first ? `–${last}` : ''}` : 'Страницы не назначены',
+      footer: (cur: number, total: number) => `${journalName} | Содержание | ${cur} / ${total}`,
+      title: (v: number, n: number, yr: number) => `Содержание — Том ${v}, Выпуск ${n} (${yr})`,
+    },
+    en: {
+      toc: 'TABLE OF CONTENTS',
+      issue: (v: number, n: number, yr: number) => `Volume ${v} \u00b7 Issue ${n} \u00b7 ${yr}`,
+      empty: 'No articles have been assigned to this issue.',
+      pages: (first?: number, last?: number) =>
+        first != null ? `Pages: ${first}${last && last !== first ? `–${last}` : ''}` : 'Pages not assigned',
+      footer: (cur: number, total: number) => `${journalName} | Contents | ${cur} / ${total}`,
+      title: (v: number, n: number, yr: number) => `Contents — Volume ${v}, Issue ${n} (${yr})`,
+    },
+  }[lang] || {
+    toc: 'MUNDARIJA',
+    issue: (v: number, n: number, yr: number) => `Jild ${v} \u00b7 Son ${n} \u00b7 ${yr}-yil`,
+    empty: 'Ushbu songa hali maqolalar kiritilmagan.',
+    pages: (first?: number, last?: number) =>
+      first != null ? `Sahifalar: ${first}${last && last !== first ? `–${last}` : ''}` : 'Sahifalar belgilanmagan',
+    footer: (cur: number, total: number) => `${journalName} | Mundarija | ${cur} / ${total}`,
+    title: (v: number, n: number, yr: number) => `Mundarija — ${v}-jild, ${n}-son (${yr})`,
+  };
+
   function header() {
     page.drawText(journalName.toUpperCase(), { x: M, y: H - 51, size: fitFont(journalName.toUpperCase(), fontBold, 23, W - M * 2), font: fontBold, color: navy });
-    page.drawText(sectionName ? `CONTENTS / ${sectionName.toUpperCase()}` : 'TABLE OF CONTENTS', { x: M, y: H - 76, size: 10, font: fontBold, color: teal });
+    page.drawText(sectionName ? `${i18n.toc} / ${sectionName}` : i18n.toc, { x: M, y: H - 76, size: 10, font: fontBold, color: teal });
     page.drawLine({ start: { x: M, y: H - 89 }, end: { x: W - M, y: H - 89 }, thickness: 1.4, color: teal });
-    page.drawText(`Volume ${issue.volume}  \u00b7  Issue ${issue.issue_number}  \u00b7  ${issue.year}`, { x: M, y: H - 111, size: 10, font: fontRegular, color: muted });
+    page.drawText(i18n.issue(issue.volume, issue.issue_number, issue.year), { x: M, y: H - 111, size: 10, font: fontRegular, color: muted });
   }
   function line(value: string, size: number, bold = false, color = navy) {
     for (const text of wrapText(value, W - M * 2 - 29, size, bold ? fontBold : fontRegular)) {
@@ -508,22 +552,23 @@ export async function generateIssueTocPdf(issue: Issue, articles: Article[], jou
     }
   }
   header();
-  if (!articles.length) line('No articles have been assigned to this issue.', 10, false, muted);
+  if (!articles.length) line(i18n.empty, 10, false, muted);
   articles.forEach((article, index) => {
     if (y < 150) { page = doc.addPage([W, H]); header(); y = H - 144; }
     page.drawText(String(index + 1).padStart(2, '0'), { x: M, y, size: 10, font: fontBold, color: teal });
-    const title = (article.original_language === 'en' ? article.title_en : article.original_language === 'ru' ? article.title_ru : article.title_uz) || article.title_uz;
+    const title = (lang === 'en' ? article.title_en : lang === 'ru' ? article.title_ru : article.title_uz)
+      || article.title_uz || article.title_en || article.title_ru || '';
     line(title, 11, true);
     line((article.authors || []).map(a => a.full_name).join(', '), 9, false, muted);
-    const pages = article.page_first != null ? `Pages ${article.page_first}${article.page_last != null && article.page_last !== article.page_first ? '\u2013' + article.page_last : ''}` : 'Pages not assigned';
-    line(pages + (article.doi ? `  \u00b7  DOI: ${article.doi}` : ''), 8, false, teal);
+    const pages = i18n.pages(article.page_first, article.page_last);
+    line(pages + (article.doi ? ` \u00b7 DOI: ${article.doi}` : ''), 8, false, teal);
     y -= 17;
   });
   doc.getPages().forEach((sheet, index) => {
     sheet.drawLine({ start: { x: M, y: 53 }, end: { x: W - M, y: 53 }, thickness: 0.5, color: muted });
-    const footer = `${journalName}  |  Contents  |  ${index + 1} / ${doc.getPageCount()}`;
+    const footer = i18n.footer(index + 1, doc.getPageCount());
     sheet.drawText(footer, { x: M, y: 36, size: fitFont(footer, fontRegular, 8, W - M * 2), font: fontRegular, color: muted });
   });
-  doc.setTitle(`Contents \u2014 Volume ${issue.volume}, Issue ${issue.issue_number} (${issue.year})`);
+  doc.setTitle(i18n.title(issue.volume, issue.issue_number, issue.year));
   return doc.save();
 }

@@ -76,7 +76,7 @@ export default async function ArticleDetailPage({ params }: { params: Promise<{ 
         </article>
         <aside className={styles.sidebar}>
           <div className={styles.sidebarInner}>
-            <Link href={`/${currentLang}/subjects/${resolveSubjectId(article)}${article.issue_id ? `?issue=${article.issue_id}` : ''}`} className="block max-w-40 mx-auto mb-5"><SubjectCover subjectId={resolveSubjectId(article)} issueId={article.issue_id} alt={`AGM Journal — ${subjectLabel(resolveSubjectId(article), 'en')}`} /></Link>
+            <Link href={`/${currentLang}/subjects/${resolveSubjectId(article)}${article.issue_id ? `?issue=${article.issue_id}` : ''}`} className="block max-w-40 mx-auto mb-5"><SubjectCover subjectId={resolveSubjectId(article)} issueId={article.issue_id} alt={`AGM Journal — ${subjectLabel(resolveSubjectId(article), currentLang)}`} lang={currentLang} /></Link>
             {article.status === 'published' && <Link href={`/${currentLang}/article/${article.slug}/fulltext.pdf`} target="_blank" rel="noopener noreferrer" className={styles.download}><Download size={18} />{dict.article.downloadPdf}<ArrowUpRight size={16} /></Link>}
             <section className={styles.sideSection}><h2>{text.details}</h2><dl>
               <div><dt>{text.id}</dt><dd className={styles.identifier}>{articleId}</dd></div>

@@ -1,8 +1,59 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 900" fill="none">
-<path fill="#133849" d="M0 0h600v900H0z"/><path fill="#0e6c63" d="M0 560h600v340H0z"/>
-<path stroke="#76b3a8" stroke-width="1.5" d="M-160 860 600 100M-100 920 660 160M-40 980 720 220M20 1040 780 280M80 1100 840 340M140 1160 900 400"/>
-<path fill="#e9efeb" d="M46 46h508v5H46z"/>
-<text x="46" y="116" fill="#bfd9d0" font-family="sans-serif" font-size="15" letter-spacing="4">INTERNATIONAL RESEARCH</text>
-<text x="42" y="260" fill="#fff" font-family="Georgia,serif" font-size="105">AGM</text><text x="46" y="326" fill="#fff" font-family="Georgia,serif" font-size="52">Journal</text>
-<path stroke="#a2c1ba" d="M46 370h508"/><text x="46" y="412" fill="#d6e5df" font-family="sans-serif" font-size="17" letter-spacing="2">RESEARCH / IDEAS / DISCOVERY</text>
-<path fill="#133849" d="M0 818h600v82H0z"/><text x="46" y="864" fill="#e2efea" font-family="sans-serif" font-size="15" letter-spacing="3">AGM JOURNAL</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 900" width="600" height="900" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="600" y2="900" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#102b3f"/>
+      <stop offset="65%" stop-color="#143c4a"/>
+      <stop offset="100%" stop-color="#0d6163"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="600" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#c49b55"/>
+      <stop offset="50%" stop-color="#e3cb86"/>
+      <stop offset="100%" stop-color="#c49b55"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="600" height="900" fill="url(#bg)"/>
+
+  <!-- Decorative Inner Border -->
+  <rect x="36" y="36" width="528" height="828" stroke="url(#gold)" stroke-width="1.2" fill="none" opacity="0.6"/>
+  <rect x="42" y="42" width="516" height="816" stroke="#83b6aa" stroke-width="0.6" fill="none" opacity="0.35"/>
+
+  <!-- Top Geometric Header -->
+  <path d="M50 56h80" stroke="url(#gold)" stroke-width="3"/>
+  <text x="50" y="96" fill="#b8d6ca" font-family="sans-serif" font-size="10.5" font-weight="700" letter-spacing="4">XALQARO ILMIY ELEKTRON JURNAL</text>
+  <text x="50" y="112" fill="#83b6aa" font-family="sans-serif" font-size="9" letter-spacing="2.5">INTERNATIONAL SCIENTIFIC JOURNAL</text>
+
+  <!-- Title Block -->
+  <text x="48" y="235" fill="#ffffff" font-family="Georgia,serif" font-size="64" font-weight="700" letter-spacing="2">AGM</text>
+  <text x="50" y="295" fill="url(#gold)" font-family="Georgia,serif" font-size="44" font-style="italic">Journal</text>
+
+  <!-- Separator Line -->
+  <line x1="50" y1="330" x2="550" y2="330" stroke="url(#gold)" stroke-width="1.5" opacity="0.8"/>
+
+  <!-- Subtitle -->
+  <text x="50" y="362" fill="#d1dfdf" font-family="sans-serif" font-size="13" letter-spacing="2">KO‘P TARMOQLI ILMIY TADQIQOTLAR</text>
+  <text x="50" y="380" fill="#a4c2bc" font-family="sans-serif" font-size="11" letter-spacing="1.5">MULTIDISCIPLINARY SCHOLARLY RESEARCH</text>
+
+  <!-- Central Scientific Motif (Subtle Abstract Geometry) -->
+  <g transform="translate(300, 560)" opacity="0.45" stroke="#83b6aa" fill="none" stroke-width="1.2">
+    <circle r="140"/>
+    <circle r="105" stroke-dasharray="4 4"/>
+    <circle r="70"/>
+    <circle r="35"/>
+    <ellipse rx="150" ry="60" transform="rotate(30)"/>
+    <ellipse rx="150" ry="60" transform="rotate(-30)"/>
+    <ellipse rx="150" ry="60" transform="rotate(90)"/>
+    <circle r="6" fill="#c49b55"/>
+  </g>
+
+  <!-- Bottom Details Box -->
+  <rect x="50" y="740" width="500" height="74" fill="#0d2331" rx="6" opacity="0.85"/>
+  <rect x="50" y="740" width="500" height="74" stroke="url(#gold)" stroke-width="0.8" rx="6" fill="none" opacity="0.5"/>
+  <text x="70" y="770" fill="#ffffff" font-family="sans-serif" font-size="13" font-weight="700" letter-spacing="1.5">OCHIQ FOYDALANISH  ·  OPEN ACCESS</text>
+  <text x="70" y="794" fill="#83b6aa" font-family="sans-serif" font-size="10" letter-spacing="1.2">IKKI TOMONLAMA ANONIM TAQRIZ  ·  PEER-REVIEWED</text>
+
+  <!-- Footer -->
+  <text x="50" y="846" fill="#e2efea" font-family="sans-serif" font-size="11" letter-spacing="3">AGMJOURAL.UZ</text>
+  <text x="550" y="846" fill="#83b6aa" font-family="sans-serif" font-size="10" text-anchor="end" letter-spacing="1.5">TOSHKENT  ·  O‘ZBEKISTON</text>
+</svg>
