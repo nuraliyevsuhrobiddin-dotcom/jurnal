@@ -63,13 +63,19 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
   const [doi, setDoi] = useState(initialArticle?.doi || '');
   const [doiCheck, setDoiCheck] = useState('');
   const [checkingDoi, setCheckingDoi] = useState(false);
-  const [issueStats, setIssueStats] = useState<{
+  const [fetchedIssueStats, setFetchedIssueStats] = useState<{
     published_count: number;
     collection_target: number;
     is_collection_ready: boolean;
     occupied_ranges: Array<{ id: string; page_first: number; page_last: number; title: string }>;
     next_page_first: number;
   } | null>(null);
+  const issueStats = issueId ? fetchedIssueStats : null;
+
+  const pageRangeRef = useRef({ pageFirst, pageLast });
+  useEffect(() => {
+    pageRangeRef.current = { pageFirst, pageLast };
+  }, [pageFirst, pageLast]);
   async function checkDoi() {
     setCheckingDoi(true); setDoiCheck('');
     try {
@@ -112,19 +118,21 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
   }, [initialArticle]);
 
   useEffect(() => {
-    if (!issueId) { setIssueStats(null); return; }
+    if (!issueId) return;
+    let active = true;
     fetch(`/api/admin/issues/${issueId}`)
       .then(res => res.json())
       .then(data => {
+        if (!active) return;
         if (data && typeof data.next_page_first === 'number') {
-          setIssueStats(data);
+          setFetchedIssueStats(data);
           const occupied = data.occupied_ranges || [];
-          const curFirst = Number(pageFirst) || 1;
-          const curLast = Number(pageLast) || (curFirst + 5);
+          const curFirst = Number(pageRangeRef.current.pageFirst) || 1;
+          const curLast = Number(pageRangeRef.current.pageLast) || (curFirst + 5);
           const hasConflict = occupied.some((o: { id: string; page_first: number; page_last: number }) =>
             o.id !== (initialArticle?.id || '') && curFirst <= o.page_last && curLast >= o.page_first
           );
-          if (initialArticle?.status !== 'published' && (hasConflict || (!initialArticle?.page_first && data.next_page_first > 1 && (!pageFirst || pageFirst === '1')))) {
+          if (initialArticle?.status !== 'published' && (hasConflict || (!initialArticle?.page_first && data.next_page_first > 1 && (!pageRangeRef.current.pageFirst || pageRangeRef.current.pageFirst === '1')))) {
             const span = Math.max(1, curLast - curFirst + 1);
             setPageFirst(String(data.next_page_first));
             setPageLast(String(data.next_page_first + span - 1));
@@ -135,6 +143,7 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
         }
       })
       .catch(console.error);
+    return () => { active = false; };
   }, [issueId, initialArticle]);
 
   const pageFirstNum = Number(pageFirst);

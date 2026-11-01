@@ -119,7 +119,11 @@ export async function PATCH(
       try {
         updated = await updateArticleStatus(id, body.status, body.retraction_reason);
       } catch (err) {
-        if (body.status === 'published' && err instanceof PublicationError && err.message.includes('sahifalari boshqa maqolaga ajratilgan') && previous.issue_id) {
+        const isPageConflict = (
+          (err instanceof PublicationError && err.message.includes('sahifalari boshqa maqolaga ajratilgan')) ||
+          (err instanceof ArticleConflictError && err.message.includes('sahifalar'))
+        );
+        if (body.status === 'published' && isPageConflict && previous.issue_id) {
           const settings = await getJournalSettings();
           updated = await resolvePageConflictAndPublish(id, previous, settings);
           if (!updated) throw err;
@@ -171,7 +175,11 @@ export async function PATCH(
     try {
       updated = await updateArticle(id, updates);
     } catch (err) {
-      if ((updates.status || candidate.status) === 'published' && err instanceof PublicationError && err.message.includes('sahifalari boshqa maqolaga ajratilgan') && candidate.issue_id) {
+      const isPageConflict = (
+        (err instanceof PublicationError && err.message.includes('sahifalari boshqa maqolaga ajratilgan')) ||
+        (err instanceof ArticleConflictError && err.message.includes('sahifalar'))
+      );
+      if ((updates.status || candidate.status) === 'published' && isPageConflict && candidate.issue_id) {
         const settings = await getJournalSettings();
         updated = await resolvePageConflictAndPublish(id, candidate, settings, updates.change_note);
         if (!updated) throw err;
