@@ -2,6 +2,9 @@ import { MAX_UPLOAD_BYTES } from '@/lib/upload-limits';
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAccess } from '@/lib/admin-access';
 import { getArticleById, getJournalSettings, updateArticle } from '@/lib/db';
+import { journalStore } from '@/lib/data-store';
+import { createServerClient } from '@/lib/supabase/server';
+import type { Article } from '@/types/journal';
 import { PDFDocument } from 'pdf-lib';
 import { manuscriptToPdf, ManuscriptFileError, publicationBodyPageCount } from '@/lib/pdf/manuscript-conversion';
 import { readManuscript, removeManuscript, saveManuscript } from '@/lib/manuscript-storage';
@@ -50,7 +53,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (extension !== 'pdf' && extension !== 'docx') return NextResponse.json({ error: 'PDF yoki DOCX faylini tanlang.' }, { status: 400 });
     const sourceBytes = new Uint8Array(await file.arrayBuffer());
     const settings = await getJournalSettings();
-    const first = article.page_first || 1;
+    let first = article.page_first;
+    if (article.issue_id) {
+      const client = createServerClient();
+      let published: Article[] = [];
+      if (client) {
+        try {
+          const { data } = await client.from('articles').select('id,issue_id,status,page_first,page_last').eq('issue_id', article.issue_id).eq('status', 'published');
+          published = (data as Article[]) || [];
+        } catch { published = []; }
+      }
+      if (!published.length) {
+        published = (journalStore.articles || []).filter(p => p.status === 'published' && p.issue_id === article.issue_id);
+      }
+      const others = published.filter(p => p.id !== id && p.page_first != null && p.page_last != null);
+      const isOccupied = first != null && others.some(p => p.page_first! <= (article.page_last || first!) && p.page_last! >= first!);
+      if (!first || (first === 1 && others.some(p => p.page_first! <= 1 && p.page_last! >= 1)) || isOccupied) {
+        first = Math.max(0, ...others.map(p => p.page_last!)) + 1;
+      }
+    }
+    first = first || 1;
     const original = await manuscriptToPdf(sourceBytes, extension, settings, { ...article, page_first: first });
     const pageCount = publicationBodyPageCount(await PDFDocument.load(original));
     const prepared = { ...article, page_first: first, page_last: first + pageCount - 1 };

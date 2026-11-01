@@ -63,6 +63,13 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
   const [doi, setDoi] = useState(initialArticle?.doi || '');
   const [doiCheck, setDoiCheck] = useState('');
   const [checkingDoi, setCheckingDoi] = useState(false);
+  const [issueStats, setIssueStats] = useState<{
+    published_count: number;
+    collection_target: number;
+    is_collection_ready: boolean;
+    occupied_ranges: Array<{ id: string; page_first: number; page_last: number; title: string }>;
+    next_page_first: number;
+  } | null>(null);
   async function checkDoi() {
     setCheckingDoi(true); setDoiCheck('');
     try {
@@ -103,6 +110,40 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
       })
       .catch(console.error);
   }, [initialArticle]);
+
+  useEffect(() => {
+    if (!issueId) { setIssueStats(null); return; }
+    fetch(`/api/admin/issues/${issueId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data && typeof data.next_page_first === 'number') {
+          setIssueStats(data);
+          if (!initialArticle?.page_first && data.next_page_first > 1 && (!pageFirst || pageFirst === '1')) {
+            setPageFirst(String(data.next_page_first));
+            setPageLast(String(data.next_page_first + 5));
+          }
+        }
+      })
+      .catch(console.error);
+  }, [issueId, initialArticle]);
+
+  const pageFirstNum = Number(pageFirst);
+  const pageLastNum = Number(pageLast);
+  const currentConflict = issueStats?.occupied_ranges.find(o =>
+    o.id !== (initialArticle?.id || '') &&
+    pageFirstNum <= o.page_last && pageLastNum >= o.page_first
+  );
+
+  const applyNextSequentialPages = () => {
+    if (!issueStats) return;
+    const nextFirst = issueStats.next_page_first;
+    const span = Math.max(1, (Number(pageLast) || nextFirst) - (Number(pageFirst) || nextFirst) + 1);
+    setPageFirst(String(nextFirst));
+    setPageLast(String(nextFirst + span - 1));
+    if (initialArticle?.manuscript_file_url) {
+      setRegenerateFromManuscript(true);
+    }
+  };
 
   const addAuthor = () => {
     setAuthors([
@@ -248,6 +289,8 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
       return;
     }
 
+    const pageFirstChanged = initialArticle?.page_first != null && Number(pageFirst) !== initialArticle.page_first;
+    const shouldRegenerate = regenerateFromManuscript || (pageFirstChanged && !publicationFile && Boolean(initialArticle?.manuscript_file_url));
     const payload = {
       ...(initialArticle ? { clear_fields: Object.entries({ issue_id: issueId, page_first: pageFirst, page_last: pageLast, doi, publication_date: publicationDate }).filter(([, value]) => !value.trim()).map(([field]) => field) } : {}),
       title_uz: manuscriptLanguage === 'uz' ? title.trim() : initialArticle?.title_uz || title.trim(),
@@ -266,7 +309,7 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
       [`keywords_${manuscriptLanguage}`]: keywords.split(',').map(k => k.trim()).filter(Boolean),
       original_language: manuscriptLanguage,
       article_type: articleType,
-      status: publicationFile || regenerateFromManuscript || (!pdfReady && initialArticle?.manuscript_file_url) || (!savedArticleId && status === 'published') ? 'draft' : status,
+      status: publicationFile || shouldRegenerate || (!pdfReady && initialArticle?.manuscript_file_url) || (!savedArticleId && status === 'published') ? 'draft' : status,
       issue_id: issueId || undefined,
       subject_id: subjectId,
       page_first: pageFirst ? parseInt(pageFirst) : undefined,
@@ -298,7 +341,7 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
       if (!data.pdf_url) setPreparedPdfUrl('');
       let notificationWarning = data.notification_warning;
       let ready = pdfReady;
-      if (publicationFile || regenerateFromManuscript || (!pdfReady && initialArticle?.manuscript_file_url)) {
+      if (publicationFile || shouldRegenerate || (!pdfReady && initialArticle?.manuscript_file_url)) {
         const form = new FormData();
         if (publicationFile) form.set('file', publicationFile); else form.set('use_manuscript', 'true');
         const upload = await fetch(`/api/admin/articles/${data.id}/pdf`, { method: 'POST', body: form });
@@ -649,6 +692,43 @@ export function ArticleEditor({ initialArticle }: { initialArticle?: Article }) 
                 className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-navy-900"
               />
             </div>
+
+            {issueStats && (
+              <div className="sm:col-span-2 p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-semibold text-slate-700">
+                    📚 Jurnal soni to‘plami: <strong className="text-navy-900">{issueStats.published_count} / {issueStats.collection_target} ta</strong> maqola nashr etilgan
+                  </span>
+                  <button
+                    type="button"
+                    onClick={applyNextSequentialPages}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-teal-700 hover:bg-teal-800 text-white font-medium rounded-lg shadow-xs transition-colors"
+                  >
+                    Navbatdagi bo‘sh sahifani o‘rnatish ({issueStats.next_page_first}–...)
+                  </button>
+                </div>
+                {issueStats.occupied_ranges.length > 0 && (
+                  <div className="text-slate-500 flex flex-wrap items-center gap-1.5 pt-1">
+                    <span>Ushbu sonda band sahifalar:</span>
+                    {issueStats.occupied_ranges.map(o => (
+                      <span key={o.id} className="px-1.5 py-0.5 bg-slate-200 text-slate-800 rounded font-mono text-[11px]" title={o.title}>
+                        {o.page_first}–{o.page_last}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {currentConflict && (
+                  <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-lg text-amber-900 space-y-1">
+                    <p className="font-semibold">
+                      ⚠️ Diqqat: {pageFirst}–{pageLast} sahifalari boshqa maqolaga ajratilgan ({currentConflict.page_first}–{currentConflict.page_last})!
+                    </p>
+                    <p className="text-[11px] text-amber-800">
+                      Tavsiya etilgan bo‘sh boshlang‘ich sahifa: <strong>{issueStats.next_page_first}</strong>. Yuqoridagi &ldquo;Navbatdagi bo‘sh sahifani o‘rnatish&rdquo; tugmasini bosing.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="sm:col-span-2">
               <label className="block text-xs font-bold text-slate-700 mb-1">

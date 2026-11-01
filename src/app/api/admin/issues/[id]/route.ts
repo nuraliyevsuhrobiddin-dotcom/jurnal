@@ -1,9 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { adminAccess } from '@/lib/admin-access';
-import { updateIssue, deleteIssue } from '@/lib/db';
+import { updateIssue, deleteIssue, getIssueById, getPublishedArticles } from '@/lib/db';
 import { issueSchema } from '../route';
-import { PublicationError } from '@/lib/publication-ready';
+import { PublicationError, getIssueOccupiedPages, nextAvailableIssuePage } from '@/lib/publication-ready';
+import { MIN_COLLECTION_ARTICLES } from '@/lib/issues/collection-policy';
+
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await adminAccess();
+  if (denied) return denied;
+  try {
+    const { id } = await params;
+    const issue = await getIssueById(id);
+    if (!issue) return NextResponse.json({ error: 'Jurnal soni topilmadi.' }, { status: 404 });
+    const published = await getPublishedArticles({ issueId: id });
+    const occupied = getIssueOccupiedPages(id, published);
+    const nextPage = nextAvailableIssuePage(id, published);
+    return NextResponse.json({
+      issue,
+      published_count: published.length,
+      collection_target: MIN_COLLECTION_ARTICLES,
+      is_collection_ready: published.length >= MIN_COLLECTION_ARTICLES,
+      occupied_ranges: occupied,
+      next_page_first: nextPage,
+    });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Server error' }, { status: 500 });
+  }
+}
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const denied = await adminAccess();

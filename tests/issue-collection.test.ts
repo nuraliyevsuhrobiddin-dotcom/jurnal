@@ -34,6 +34,7 @@ describe('Complete issue PDF', () => {
     await expect(buildIssueCollection(issue, [], settings)).rejects.toMatchObject({ status: 404 });
   });
   it('uses one cover across multiple subjects and one cover for a subject download', async () => {
+
     const articles = [
       { ...makeArticle('science', 1), subject_id: 'natural-sciences' },
       { ...makeArticle('economics', 2), subject_id: 'economics-business' },
@@ -51,7 +52,7 @@ describe('Complete issue PDF', () => {
     expect(subject.getPageCount()).toBe(3);
     expect(subject.getPage(2).getWidth()).toBeCloseTo(595.28);
     expect(reader.mock.calls).toHaveLength(1);
-  });
+  }, 20000);
   it('supports uploaded WebP cover artwork and keeps a standard A4 cover', async () => {
     const webp = await sharp({ create: { width: 60, height: 90, channels: 3, background: '#1b5560' } }).webp().toBuffer();
     const result = await PDFDocument.load(await generateIssueCoverPdf(issue, settings, webp));

@@ -7,13 +7,37 @@ import { internationalMetadataGaps } from './international-metadata';
 
 export class PublicationError extends Error {}
 
+export function getIssueOccupiedPages(issueId: string, published: Article[], excludeArticleId?: string) {
+  return published
+    .filter(other => other.id !== excludeArticleId && other.status === 'published'
+      && other.issue_id === issueId && other.page_first != null && other.page_last != null)
+    .map(other => ({
+      id: other.id,
+      title: other.title_uz || other.title_en || other.title_ru,
+      page_first: other.page_first!,
+      page_last: other.page_last!,
+    }))
+    .sort((a, b) => a.page_first - b.page_first);
+}
+
+export function nextAvailableIssuePage(issueId: string, published: Article[], excludeArticleId?: string): number {
+  const occupied = getIssueOccupiedPages(issueId, published, excludeArticleId);
+  if (!occupied.length) return 1;
+  return Math.max(0, ...occupied.map(o => o.page_last)) + 1;
+}
+
 export function assertIssuePageRangeAvailable(article: Article, published: Article[]) {
   const { issue_id, page_first, page_last } = article;
   if (!issue_id || page_first == null || page_last == null) return;
   const conflict = published.find(other => other.id !== article.id && other.status === 'published'
     && other.issue_id === issue_id && other.page_first != null && other.page_last != null
     && other.page_first <= page_last && other.page_last >= page_first);
-  if (conflict) throw new PublicationError(`Bu jurnal sonida ${conflict.page_first}–${conflict.page_last} sahifalari boshqa maqolaga ajratilgan. Bo‘sh sahifa diapazonini belgilang va PDF’ni qayta tayyorlang.`);
+  if (conflict) {
+    const nextPage = nextAvailableIssuePage(issue_id, published, article.id);
+    const count = Math.max(1, page_last - page_first + 1);
+    const suggestedLast = nextPage + count - 1;
+    throw new PublicationError(`Bu jurnal sonida ${conflict.page_first}–${conflict.page_last} sahifalari boshqa maqolaga ajratilgan. Tavsiya etilgan bo‘sh sahifalar: ${nextPage}–${suggestedLast}. Bo‘sh sahifa diapazonini belgilang va PDF’ni qayta tayyorlang.`);
+  }
 }
 
 export async function assertPublicationReady(article: Article) {

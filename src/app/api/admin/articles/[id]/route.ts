@@ -1,12 +1,17 @@
 import { adminAccess } from '@/lib/admin-access';
 import { after, NextRequest, NextResponse } from 'next/server';
-import { updateArticle, updateArticleStatus, getArticleById, deleteArticle } from '@/lib/db';
+import { updateArticle, updateArticleStatus, getArticleById, deleteArticle, getJournalSettings, getPublishedArticles } from '@/lib/db';
 import { Article, ArticleStatus } from '@/types/journal';
 import { articleSchema, articleUpdateSchema, articleClearFields, authorMetadata } from '@/lib/article-validation';
-import { PublicationError } from '@/lib/publication-ready';
+import { PublicationError, nextAvailableIssuePage } from '@/lib/publication-ready';
 import { queueArticleNotifications } from '@/lib/publication-notifications';
 import { drainNotificationQueue, mailConfigured } from '@/lib/notifications';
 import { ArticleConflictError } from '@/lib/remote-db';
+import { readManuscript } from '@/lib/manuscript-storage';
+import { saveArticlePdf } from '@/lib/pdf/storage';
+import { manuscriptToPdf, publicationBodyPageCount } from '@/lib/pdf/manuscript-conversion';
+import { assemblePublicationPdf } from '@/lib/pdf/generator';
+import { PDFDocument } from 'pdf-lib';
 
 export const maxDuration = 60;
 
@@ -57,7 +62,40 @@ export async function PATCH(
       if (body.retraction_reason !== undefined && typeof body.retraction_reason !== 'string') return NextResponse.json({ error: 'Invalid reason' }, { status: 400 });
       const previous = await getArticleById(id);
       if (!previous) return NextResponse.json({ error: 'Article not found' }, { status: 404 });
-      const updated = await updateArticleStatus(id, body.status, body.retraction_reason);
+      let updated: Article | null = null;
+      try {
+        updated = await updateArticleStatus(id, body.status, body.retraction_reason);
+      } catch (err) {
+        if (body.status === 'published' && err instanceof PublicationError && err.message.includes('sahifalari boshqa maqolaga ajratilgan') && previous.issue_id && previous.manuscript_file_url) {
+          const manuscriptId = previous.manuscript_file_url.match(/^\/api\/admin\/manuscripts\/([a-f0-9-]{36})$/i)?.[1];
+          const stored = manuscriptId ? await readManuscript(manuscriptId) : null;
+          if (stored) {
+            const published = await getPublishedArticles({ issueId: previous.issue_id });
+            const nextFirst = nextAvailableIssuePage(previous.issue_id, published, id);
+            const settings = await getJournalSettings();
+            const sourceBytes = new Uint8Array(stored.bytes);
+            const ext = stored.metadata.extension || 'docx';
+            const original = await manuscriptToPdf(sourceBytes, ext, settings, { ...previous, page_first: nextFirst });
+            const pageCount = publicationBodyPageCount(await PDFDocument.load(original));
+            const prepared = { ...previous, page_first: nextFirst, page_last: nextFirst + pageCount - 1 };
+            const merged = ext === 'pdf' ? await assemblePublicationPdf(prepared, settings, original) : original;
+            const savedPath = await saveArticlePdf(id, merged);
+            await updateArticle(id, {
+              pdf_url: `/api/articles/${id}/pdf`,
+              pdf_file_size: merged.length,
+              page_first: nextFirst,
+              page_last: prepared.page_last,
+              pdf_storage_path: savedPath,
+              change_note: `Sahifalar avtomatik tartiblandi (${nextFirst}–${prepared.page_last})`,
+            });
+            updated = await updateArticleStatus(id, 'published');
+          } else {
+            throw err;
+          }
+        } else {
+          throw err;
+        }
+      }
       if (!updated) return NextResponse.json({ error: 'Article not found' }, { status: 404 });
       return savedArticleResponse(previous, updated);
     }
