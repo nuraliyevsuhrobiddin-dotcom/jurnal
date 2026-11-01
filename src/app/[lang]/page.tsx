@@ -61,7 +61,7 @@ export default async function HomePage({ params }: { params: Promise<{ lang: str
   const [articles, issue] = await Promise.all([getCatalogArticles({ limit: 4 }), getCurrentIssue()]);
 
   return <div className="research-catalog">
-    <section className="catalog-hero"><div className="journal-container catalog-hero-grid">
+    <section className="catalog-intro"><div className="journal-container catalog-intro-grid">
       <div>
         <p className="catalog-eyebrow">{t.eyebrow}</p>
         <h1>{t.title}</h1>
